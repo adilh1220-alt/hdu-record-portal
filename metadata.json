@@ -1,0 +1,5 @@
+{
+  "name": "High Dependency Unit Inventory & Analytics",
+  "description": "A high-performance medical dashboard for managing HDU patient admissions, mortality records, and critical inventory with advanced analytics and PDF reporting.",
+  "requestFramePermissions": []
+}
