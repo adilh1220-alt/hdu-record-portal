@@ -16,7 +16,7 @@ const firebaseConfig = {
   storageBucket: getEnv('VITE_FIREBASE_STORAGE_BUCKET'),
   messagingSenderId: getEnv('VITE_FIREBASE_MESSAGING_SENDER_ID'),
   appId: getEnv('VITE_FIREBASE_APP_ID'),
-  measurementId: "G-RFBHLRMGJ9"
+ measurementId: getEnv('VITE_FIREBASE_MEASUREMENT_ID')
 };
 
 // Console mein check karne ke liye (Sirf testing ke liye)
