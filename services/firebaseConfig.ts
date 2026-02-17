@@ -1,26 +1,46 @@
 // @ts-ignore
 import { initializeApp, getApps, getApp } from 'firebase/app';
-// Fix: Added @ts-ignore to suppress 'no exported member' error for modular auth in this environment
 // @ts-ignore
 import { getAuth } from 'firebase/auth';
 // @ts-ignore
 import { getFirestore } from 'firebase/firestore';
 
-// Production Firebase Configuration
+/**
+ * Robust environment variable accessor.
+ * Checks both process.env and import.meta.env to handle various bundler environments.
+ */
+const env = (key: string): string => {
+  // Check process.env (Node-style/Vite-shimmed)
+  try {
+    if (typeof process !== 'undefined' && process.env && process.env[key]) {
+      return process.env[key] as string;
+    }
+  } catch (e) {}
+
+  // Check import.meta.env (Vite-style)
+  try {
+    if (typeof import.meta !== 'undefined' && (import.meta as any).env && (import.meta as any).env[key]) {
+      return (import.meta as any).env[key];
+    }
+  } catch (e) {}
+
+  return "";
+};
+
+// Production Firebase Configuration with fallbacks for non-VITE prefixed keys
 const firebaseConfig = {
-  apiKey: 'AIzaSyCvRLi0PAsgraIN8ohJeATcEPiythTwrC8',
-  authDomain: 'high-dependency-unit.firebaseapp.com',
-  projectId: 'high-dependency-unit',
-  storageBucket: 'high-dependency-unit.firebasestorage.app',
-  messagingSenderId: '142636370526',
-  appId: '1:142636370526:web:a66cd36c44666468c482cf',
-  measurementId: 'G-RFBHLRMCJ9'
+  apiKey: env('VITE_FIREBASE_API_KEY') || env('FIREBASE_API_KEY'),
+  authDomain: env('VITE_FIREBASE_AUTH_DOMAIN') || env('FIREBASE_AUTH_DOMAIN'),
+  projectId: env('VITE_FIREBASE_PROJECT_ID') || env('FIREBASE_PROJECT_ID'),
+  storageBucket: env('VITE_FIREBASE_STORAGE_BUCKET') || env('FIREBASE_STORAGE_BUCKET'),
+  messagingSenderId: env('VITE_FIREBASE_MESSAGING_SENDER_ID') || env('FIREBASE_MESSAGING_SENDER_ID'),
+  appId: env('VITE_FIREBASE_APP_ID') || env('FIREBASE_APP_ID'),
+  measurementId: "G-RFBHLRMGJ9"
 };
 
 // Singleton initialization pattern
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-// Fix: Access getAuth directly through named import
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-export { auth, db };
+export { auth, db, firebaseConfig };

@@ -1,22 +1,11 @@
-
 // @ts-ignore
 import { collection, getDocs, doc, updateDoc, query, orderBy, setDoc, addDoc, limit, getDoc } from 'firebase/firestore';
 // @ts-ignore
 import { initializeApp } from 'firebase/app';
 // @ts-ignore
 import { getAuth, createUserWithEmailAndPassword, updateProfile, signOut } from 'firebase/auth';
-import { db } from './firebaseConfig';
+import { db, firebaseConfig } from './firebaseConfig';
 import { AuthUser, AuditLog } from '../types';
-
-const firebaseConfig = {
-  apiKey: 'AIzaSyCvRLi0PAsgraIN8ohJeATcEPiythTwrC8',
-  authDomain: 'high-dependency-unit.firebaseapp.com',
-  projectId: 'high-dependency-unit',
-  storageBucket: 'high-dependency-unit.firebasestorage.app',
-  messagingSenderId: '142636370526',
-  appId: '1:142636370526:web:a66cd36c44666468c482cf',
-  measurementId: 'G-RFBHLRMCJ9'
-};
 
 export const userService = {
   getAllUsers: async (): Promise<AuthUser[]> => {
@@ -79,6 +68,7 @@ export const userService = {
   },
 
   adminCreateUser: async (email: string, pass: string, name: string, role: 'Admin' | 'Consultant' | 'Staff') => {
+    // Use the robust config exported from firebaseConfig.ts
     const tempApp = initializeApp(firebaseConfig, "TempAdminCreateApp");
     const tempAuth = getAuth(tempApp);
 
