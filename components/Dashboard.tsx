@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 // @ts-ignore
 import { collection, onSnapshot, getDocs, query, where, orderBy } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
-import { Patient, EndoscopyRecord, InventoryItem, ClinicalUnit } from '../types';
+import { Patient, EndoscopyRecord, InventoryItem } from '../types';
 import { COLORS, MONTHS, UNIT_DETAILS } from '../constants';
 import { useUnit } from '../contexts/UnitContext';
 
@@ -180,7 +180,7 @@ const Dashboard: React.FC = () => {
             {isBackupLoading ? (
               <div className="w-3 h-3 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
             ) : (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4 4m4 4V4" /></svg>
             )}
             <span>{isBackupLoading ? 'Syncing...' : 'Master Log'}</span>
           </button>
@@ -238,8 +238,8 @@ const Dashboard: React.FC = () => {
               <p className="text-xs text-slate-500 font-medium mt-1">Monthly breakdown for {activeUnit}</p>
             </div>
           </div>
-          <div className="w-full h-[350px] min-h-[350px] overflow-hidden">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="w-full relative overflow-hidden" style={{ height: '350px' }}>
+            <ResponsiveContainer width="100%" height="100%" minHeight={300} minWidth={0}>
               <BarChart data={monthlyAdmissions} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis 
@@ -286,8 +286,8 @@ const Dashboard: React.FC = () => {
               <p className="text-xs text-slate-500 font-medium mt-1">Monthly breakdown for {activeUnit} Expiry Logs</p>
             </div>
           </div>
-          <div className="w-full h-[350px] min-h-[350px] overflow-hidden">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="w-full relative overflow-hidden" style={{ height: '350px' }}>
+            <ResponsiveContainer width="100%" height="100%" minHeight={300} minWidth={0}>
               <BarChart data={monthlyMortality} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis 
