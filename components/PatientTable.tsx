@@ -397,6 +397,9 @@ const PatientTable: React.FC = () => {
   const [showUpdateToast, setShowUpdateToast] = useState(false);
   const [newlyAddedId, setNewlyAddedId] = useState<string | null>(null);
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
   const prevPatientIdsRef = useRef<Set<string>>(new Set());
 
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({ 
@@ -555,6 +558,10 @@ const PatientTable: React.FC = () => {
     setAppliedEndDate('');
   };
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, appliedStartDate, appliedEndDate, activeUnit]);
+
   const sortedAndFiltered = useMemo(() => {
     const tokens = searchTerm.toLowerCase().trim().split(/\s+/).filter(t => t.length > 0);
     
@@ -616,6 +623,12 @@ const PatientTable: React.FC = () => {
       return 0;
     });
   }, [patients, searchTerm, appliedStartDate, appliedEndDate, sortConfig]);
+
+  const totalPages = Math.ceil(sortedAndFiltered.length / itemsPerPage);
+  const paginatedPatients = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return sortedAndFiltered.slice(startIndex, startIndex + itemsPerPage);
+  }, [sortedAndFiltered, currentPage, itemsPerPage]);
 
   const handleArchiveClick = (patient: Patient) => {
     setPatientToArchive(patient);
@@ -781,7 +794,7 @@ const PatientTable: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-[10px] font-bold text-slate-700 uppercase">
-                {sortedAndFiltered.map(p => (
+                {paginatedPatients.map(p => (
                   <tr 
                     key={p.id} 
                     className={`transition-all group cursor-pointer ${
@@ -844,13 +857,64 @@ const PatientTable: React.FC = () => {
                     </td>
                   </tr>
                 ))}
-                {sortedAndFiltered.length === 0 && (
+                {paginatedPatients.length === 0 && (
                     <tr><td colSpan={11} className="px-4 py-10 text-center text-slate-400 italic font-medium">No records match your search or date criteria.</td></tr>
                 )}
               </tbody>
             </table>
           )}
         </div>
+        
+        {/* Pagination Controls */}
+        {!loading && sortedAndFiltered.length > 0 && (
+          <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+              Showing <span className="text-slate-900">{Math.min(sortedAndFiltered.length, (currentPage - 1) * itemsPerPage + 1)}</span> to <span className="text-slate-900">{Math.min(sortedAndFiltered.length, currentPage * itemsPerPage)}</span> of <span className="text-slate-900">{sortedAndFiltered.length}</span> Records
+            </div>
+            <div className="flex items-center gap-1">
+              <button 
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className={`p-1.5 rounded-lg border transition-all ${currentPage === 1 ? 'bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 active:scale-95'}`}
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg>
+              </button>
+              
+              <div className="flex items-center gap-1 px-2">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+                  
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={`w-7 h-7 rounded-lg text-[10px] font-black transition-all ${currentPage === pageNum ? 'bg-red-600 text-white shadow-md' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button 
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className={`p-1.5 rounded-lg border transition-all ${currentPage === totalPages ? 'bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 active:scale-95'}`}
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <Modal 
