@@ -9,7 +9,7 @@ interface AuthContextType {
   currentUser: AuthUser | null;
   loading: boolean;
   login: (email: string, pass: string) => Promise<void>;
-  signup: (email: string, pass: string, name: string, role: 'Admin' | 'Consultant' | 'Staff') => Promise<void>;
+  signup: (email: string, pass: string, name: string, role: 'Admin' | 'Consultant' | 'Staff', assignedUnit?: string) => Promise<void>;
   logout: () => Promise<void>;
   isAdmin: boolean;
   canManageRecords: boolean;
@@ -29,11 +29,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const userDoc = await getDoc(doc(db, 'users', user.uid));
           let role: 'Admin' | 'Consultant' | 'Staff' = 'Staff';
           let status: 'Active' | 'Left' = 'Active';
+          let assignedUnit: string | undefined = undefined;
           
           if (userDoc.exists()) {
             const data = userDoc.data() as any;
             role = data.role || 'Staff';
             status = data.status || 'Active';
+            assignedUnit = data.assignedUnit;
           }
 
           // MASTER BYPASS: Always grant Admin to specific superuser
@@ -55,7 +57,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             email: user.email,
             displayName: user.displayName || 'HDU Staff',
             role: role,
-            status: status
+            status: status,
+            assignedUnit: assignedUnit as any
           };
           
           setCurrentUser(sanitizedUser);
@@ -90,8 +93,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await authService.login(email, pass);
   };
 
-  const signup = async (email: string, pass: string, name: string, role: 'Admin' | 'Consultant' | 'Staff') => {
-    await authService.signup(email, pass, name, role);
+  const signup = async (email: string, pass: string, name: string, role: 'Admin' | 'Consultant' | 'Staff', assignedUnit?: string) => {
+    await authService.signup(email, pass, name, role, assignedUnit);
   };
 
   const logout = async () => {

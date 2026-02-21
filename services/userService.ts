@@ -67,7 +67,7 @@ export const userService = {
     }
   },
 
-  adminCreateUser: async (email: string, pass: string, name: string, role: 'Admin' | 'Consultant' | 'Staff') => {
+  adminCreateUser: async (email: string, pass: string, name: string, role: 'Admin' | 'Consultant' | 'Staff', assignedUnit?: string) => {
     // Use the robust config exported from firebaseConfig.ts
     const tempApp = initializeApp(firebaseConfig, "TempAdminCreateApp");
     const tempAuth = getAuth(tempApp);
@@ -83,6 +83,7 @@ export const userService = {
         email: newUser.email,
         displayName: name,
         role: role,
+        assignedUnit: assignedUnit || null,
         status: 'Active',
         createdAt: new Date().toISOString()
       });

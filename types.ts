@@ -77,6 +77,7 @@ export interface AuthUser {
   displayName: string | null;
   role?: 'Admin' | 'Consultant' | 'Staff';
   status?: 'Active' | 'Left';
+  assignedUnit?: ClinicalUnit;
 }
 
 export interface AuditLog {

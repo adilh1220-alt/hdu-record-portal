@@ -34,6 +34,7 @@ const UserManagement: React.FC = () => {
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newRole, setNewRole] = useState<'Admin' | 'Consultant' | 'Staff'>('Staff');
+  const [newAssignedUnit, setNewAssignedUnit] = useState<string>('');
 
   const [lastRegisteredUser, setLastRegisteredUser] = useState<{name: string, email: string, password: string, role: string} | null>(null);
   const [isSlipModalOpen, setIsSlipModalOpen] = useState(false);
@@ -86,8 +87,8 @@ const UserManagement: React.FC = () => {
       setCreating(true);
       setMessage(null);
       
-      await userService.adminCreateUser(newEmail, tempPassword, newName, newRole);
-      const userData = { name: newName, email: newEmail, password: tempPassword, role: newRole };
+      await userService.adminCreateUser(newEmail, tempPassword, newName, newRole, newAssignedUnit || undefined);
+      const userData = { name: newName, email: newEmail, password: tempPassword, role: newRole, assignedUnit: newAssignedUnit };
       exportAccessSlipPDF(userData);
       setLastRegisteredUser(userData);
       
@@ -101,6 +102,7 @@ const UserManagement: React.FC = () => {
       setNewName('');
       setNewEmail('');
       setNewRole('Staff');
+      setNewAssignedUnit('');
       
       setMessage({ text: `Successfully registered ${newName}. Access slip has been generated.`, type: 'success' });
       setIsSlipModalOpen(true);
@@ -325,6 +327,21 @@ const UserManagement: React.FC = () => {
             />
           </div>
           <div className="space-y-1">
+            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Assigned Unit</label>
+            <select
+              className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-100 outline-none transition-all text-[11px] font-black uppercase bg-white cursor-pointer"
+              value={newAssignedUnit}
+              onChange={(e) => setNewAssignedUnit(e.target.value)}
+            >
+              <option value="">No Specific Unit</option>
+              <option value="HDU">High Dependency (HDU)</option>
+              <option value="ICU">Intensive Care (ICU)</option>
+              <option value="TRANSPLANT">Transplant Bay</option>
+              <option value="4th-WARD">Ward</option>
+              <option value="WARD5">5th Floor Ward</option>
+            </select>
+          </div>
+          <div className="space-y-1">
             <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Access Level</label>
             <div className="flex gap-2">
               <select
@@ -424,6 +441,15 @@ const UserManagement: React.FC = () => {
                         <SortIndicator active={userSortConfig.key === 'role'} direction={userSortConfig.direction} />
                       </div>
                     </th>
+                    <th 
+                      className="px-6 py-5 cursor-pointer hover:bg-slate-100 transition-colors group"
+                      onClick={() => handleUserSort('assignedUnit' as any)}
+                    >
+                      <div className="flex items-center">
+                        <span>Assigned Unit</span>
+                        <SortIndicator active={userSortConfig.key === 'assignedUnit' as any} direction={userSortConfig.direction} />
+                      </div>
+                    </th>
                     <th className="px-6 py-5 text-right bg-slate-50">Operations</th>
                   </tr>
                 </thead>
@@ -471,6 +497,11 @@ const UserManagement: React.FC = () => {
                           <option value="Consultant">Consultant</option>
                           <option value="Admin">Admin</option>
                         </select>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-[9px] font-black text-slate-500 bg-slate-100 px-2 py-1 rounded border border-slate-200 uppercase">
+                          {user.assignedUnit || 'Global Access'}
+                        </span>
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end space-x-1 opacity-0 group-hover:opacity-100 transition-all">

@@ -18,7 +18,7 @@ export const authService = {
     }
   },
 
-  signup: async (email: string, pass: string, name: string, role: string) => {
+  signup: async (email: string, pass: string, name: string, role: string, assignedUnit?: string) => {
     try {
       // Fix: Use named function call directly
       const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
@@ -33,6 +33,7 @@ export const authService = {
           email: user.email,
           displayName: name,
           role: role,
+          assignedUnit: assignedUnit || null,
           createdAt: new Date().toISOString()
         });
       }

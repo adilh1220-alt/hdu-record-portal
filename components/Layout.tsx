@@ -59,7 +59,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
         </div>
 
         {/* Unit Selection Terminal */}
-        <div className={`p-4 border-b border-slate-800 ${!isSidebarOpen && 'hidden'}`}>
+        <div className={`p-4 border-b border-slate-800 ${(!isSidebarOpen || !isAdmin) && 'hidden'}`}>
           <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-3 ml-1">Select Unit</label>
           <div className="flex flex-col gap-2">
             <div className="grid grid-cols-2 gap-2">
