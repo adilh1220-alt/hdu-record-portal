@@ -196,7 +196,7 @@ const Dashboard: React.FC = () => {
              <div>
                <p className="text-[11px] font-black uppercase tracking-wider text-green-400">Sync Complete!</p>
                <p className="text-[10px] text-slate-300 mt-1 leading-relaxed">
-                 Facility-wide audit is ready. CSV contains data from all units (HDU, ICU, CCU, NICU).
+                 Facility-wide audit is ready. CSV contains data from all units (HDU, ICU, Transplant, Ward).
                </p>
              </div>
              <button onClick={() => setShowToast(false)} className="text-slate-500 hover:text-white p-1">

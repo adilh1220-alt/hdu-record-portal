@@ -61,20 +61,34 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
         {/* Unit Selection Terminal */}
         <div className={`p-4 border-b border-slate-800 ${!isSidebarOpen && 'hidden'}`}>
           <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-3 ml-1">Select Unit</label>
-          <div className="grid grid-cols-2 gap-2">
-            {CLINICAL_UNITS.map(unit => (
+          <div className="flex flex-col gap-2">
+            <div className="grid grid-cols-2 gap-2">
+              {CLINICAL_UNITS.slice(0, 4).map(unit => (
+                <button
+                  key={unit}
+                  onClick={() => setActiveUnit(unit)}
+                  className={`py-2 px-1 rounded-lg text-[9px] font-black transition-all border leading-tight ${
+                    activeUnit === unit 
+                      ? `${UNIT_DETAILS[unit].color} text-white border-transparent shadow-lg scale-105` 
+                      : 'bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-500'
+                  }`}
+                >
+                  {UNIT_DETAILS[unit].label}
+                </button>
+              ))}
+            </div>
+            {CLINICAL_UNITS.length > 4 && (
               <button
-                key={unit}
-                onClick={() => setActiveUnit(unit)}
-                className={`py-2 rounded-lg text-[10px] font-black transition-all border ${
-                  activeUnit === unit 
-                    ? `${UNIT_DETAILS[unit].color} text-white border-transparent shadow-lg scale-105` 
+                onClick={() => setActiveUnit(CLINICAL_UNITS[4])}
+                className={`w-full py-2 rounded-lg text-[9px] font-black transition-all border leading-tight ${
+                  activeUnit === CLINICAL_UNITS[4] 
+                    ? `${UNIT_DETAILS[CLINICAL_UNITS[4]].color} text-white border-transparent shadow-lg scale-[1.02]` 
                     : 'bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-500'
                 }`}
               >
-                {unit}
+                {UNIT_DETAILS[CLINICAL_UNITS[4]].label}
               </button>
-            ))}
+            )}
           </div>
         </div>
 

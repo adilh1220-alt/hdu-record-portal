@@ -657,9 +657,14 @@ const PatientTable: React.FC = () => {
   };
 
   const SortIndicator = ({ column }: { column: SortKey }) => {
-    if (sortConfig.key !== column) return <div className="w-3 h-3 ml-1 opacity-20"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" /></svg></div>;
+    const isActive = sortConfig.key === column;
+    if (!isActive) return (
+      <div className="w-3 h-3 ml-1.5 opacity-10 group-hover:opacity-40 transition-opacity">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" /></svg>
+      </div>
+    );
     return (
-      <div className="w-3 h-3 ml-1 text-red-500 animate-in fade-in zoom-in duration-300">
+      <div className="w-3 h-3 ml-1.5 text-red-500 animate-in fade-in zoom-in duration-300">
         {sortConfig.direction === 'asc' ? (
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M5 15l7-7 7 7" /></svg>
         ) : (
@@ -760,34 +765,64 @@ const PatientTable: React.FC = () => {
             <table className="w-full text-left min-w-[1200px] border-separate border-spacing-0">
               <thead className="bg-slate-900 text-white sticky top-0 z-10 shadow-md">
                 <tr className="text-[10px] font-black uppercase tracking-widest select-none">
-                  <th className="px-4 py-4 w-16 text-center cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleSort('serialNo')}>
+                  <th 
+                    className={`px-4 py-4 w-16 text-center cursor-pointer transition-all duration-200 group ${sortConfig.key === 'serialNo' ? 'bg-slate-800 text-red-400' : 'hover:bg-slate-800'}`} 
+                    onClick={() => handleSort('serialNo')}
+                  >
                     <div className="flex items-center justify-center">S.No <SortIndicator column="serialNo" /></div>
                   </th>
-                  <th className="px-4 py-4 w-32 cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleSort('regNo')}>
+                  <th 
+                    className={`px-4 py-4 w-32 cursor-pointer transition-all duration-200 group ${sortConfig.key === 'regNo' ? 'bg-slate-800 text-red-400' : 'hover:bg-slate-800'}`} 
+                    onClick={() => handleSort('regNo')}
+                  >
                     <div className="flex items-center">Reg No <SortIndicator column="regNo" /></div>
                   </th>
-                  <th className="px-4 py-4 cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleSort('name')}>
+                  <th 
+                    className={`px-4 py-4 cursor-pointer transition-all duration-200 group ${sortConfig.key === 'name' ? 'bg-slate-800 text-red-400' : 'hover:bg-slate-800'}`} 
+                    onClick={() => handleSort('name')}
+                  >
                     <div className="flex items-center">Patient Identity <SortIndicator column="name" /></div>
                   </th>
-                  <th className="px-4 py-4 w-28 cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleSort('category')}>
+                  <th 
+                    className={`px-4 py-4 w-28 cursor-pointer transition-all duration-200 group ${sortConfig.key === 'category' ? 'bg-slate-800 text-red-400' : 'hover:bg-slate-800'}`} 
+                    onClick={() => handleSort('category')}
+                  >
                     <div className="flex items-center">Category <SortIndicator column="category" /></div>
                   </th>
-                  <th className="px-4 py-4 w-24 cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleSort('location')}>
+                  <th 
+                    className={`px-4 py-4 w-24 cursor-pointer transition-all duration-200 group ${sortConfig.key === 'location' ? 'bg-slate-800 text-red-400' : 'hover:bg-slate-800'}`} 
+                    onClick={() => handleSort('location')}
+                  >
                     <div className="flex items-center">Location <SortIndicator column="location" /></div>
                   </th>
-                  <th className="px-4 py-4 w-24 text-center cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleSort('codeStatus')}>
+                  <th 
+                    className={`px-4 py-4 w-24 text-center cursor-pointer transition-all duration-200 group ${sortConfig.key === 'codeStatus' ? 'bg-slate-800 text-red-400' : 'hover:bg-slate-800'}`} 
+                    onClick={() => handleSort('codeStatus')}
+                  >
                     <div className="flex items-center justify-center">Code <SortIndicator column="codeStatus" /></div>
                   </th>
-                  <th className="px-4 py-4 w-40 cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleSort('consultant')}>
+                  <th 
+                    className={`px-4 py-4 w-40 cursor-pointer transition-all duration-200 group ${sortConfig.key === 'consultant' ? 'bg-slate-800 text-red-400' : 'hover:bg-slate-800'}`} 
+                    onClick={() => handleSort('consultant')}
+                  >
                     <div className="flex items-center">Consultant <SortIndicator column="consultant" /></div>
                   </th>
-                  <th className="px-4 py-4 w-32 text-center cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleSort('admissionDate')}>
+                  <th 
+                    className={`px-4 py-4 w-32 text-center cursor-pointer transition-all duration-200 group ${sortConfig.key === 'admissionDate' ? 'bg-slate-800 text-red-400' : 'hover:bg-slate-800'}`} 
+                    onClick={() => handleSort('admissionDate')}
+                  >
                     <div className="flex items-center justify-center">In Date <SortIndicator column="admissionDate" /></div>
                   </th>
-                  <th className="px-4 py-4 w-32 text-center cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleSort('dischargeDate')}>
+                  <th 
+                    className={`px-4 py-4 w-32 text-center cursor-pointer transition-all duration-200 group ${sortConfig.key === 'dischargeDate' ? 'bg-slate-800 text-red-400' : 'hover:bg-slate-800'}`} 
+                    onClick={() => handleSort('dischargeDate')}
+                  >
                     <div className="flex items-center justify-center">Out Date <SortIndicator column="dischargeDate" /></div>
                   </th>
-                  <th className="px-4 py-4 w-24 text-center cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleSort('admissionDate')}>
+                  <th 
+                    className={`px-4 py-4 w-24 text-center cursor-pointer transition-all duration-200 group ${sortConfig.key === 'admissionDate' ? 'bg-slate-800 text-red-400' : 'hover:bg-slate-800'}`} 
+                    onClick={() => handleSort('admissionDate')}
+                  >
                     <div className="flex items-center justify-center">Stay <SortIndicator column="admissionDate" /></div>
                   </th>
                   <th className="px-4 py-4 w-28 text-right bg-slate-900">Action</th>
