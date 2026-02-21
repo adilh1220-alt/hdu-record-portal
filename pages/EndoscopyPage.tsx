@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 // @ts-ignore
-import { collection, onSnapshot, setDoc, doc, deleteDoc, query } from 'firebase/firestore';
+import { collection, onSnapshot, setDoc, doc, deleteDoc, query, where } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
 import { EndoscopyRecord } from '../types';
 import { exportEndoscopyPDF } from '../services/pdfService';
@@ -59,7 +59,10 @@ const EndoscopyPage: React.FC = () => {
 
   useEffect(() => {
     setLoading(true);
-    const q = query(collection(db, 'endoscopy_records'));
+    const q = query(
+      collection(db, 'endoscopy_records'),
+      where('referringUnit', '==', activeUnit)
+    );
     
     const unsubscribe = onSnapshot(q, (snapshot: any) => {
       const data = snapshot.docs.map((d: any) => ({ id: d.id, ...d.data() })) as EndoscopyRecord[];
@@ -156,8 +159,6 @@ const EndoscopyPage: React.FC = () => {
 
   const sortedAndFiltered = useMemo(() => {
     const filtered = records.filter(r => {
-      if (r.referringUnit !== activeUnit) return false;
-
       const matchesSearch = 
         r.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
         r.regNo.toLowerCase().includes(searchTerm.toLowerCase()) ||

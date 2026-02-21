@@ -1,13 +1,13 @@
 
 import { Patient, InventoryItem, PatientStatus, ClinicalUnit, TaskPriority } from './types';
 
-export const CLINICAL_UNITS: ClinicalUnit[] = ['HDU', 'ICU', 'TRANSPLANT', 'WARD', 'WARD5'];
+export const CLINICAL_UNITS: ClinicalUnit[] = ['HDU', 'ICU', 'TRANSPLANT', '4th-WARD', 'WARD5'];
 
 export const UNIT_DETAILS: Record<ClinicalUnit, { label: string, color: string }> = {
   HDU: { label: 'High Dependency', color: 'bg-red-600' },
   ICU: { label: 'Intensive Care', color: 'bg-indigo-600' },
   TRANSPLANT: { label: 'Transplant Bay', color: 'bg-emerald-600' },
-  WARD: { label: 'Ward', color: 'bg-pink-500' },
+  '4th-WARD': { label: 'Ward', color: 'bg-pink-500' },
   WARD5: { label: '5th Floor Ward', color: 'bg-amber-500' }
 };
 

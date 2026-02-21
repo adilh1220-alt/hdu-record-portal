@@ -30,11 +30,15 @@ const Dashboard: React.FC = () => {
 
     const qActive = query(
       collection(db, 'patients'),
-      where('admissionDate', '>=', startOfYear),
-      where('admissionDate', '<=', endOfYear)
+      where('unit', '==', activeUnit)
     );
     const unsubActive = onSnapshot(qActive, (snap: any) => {
-        const unitDocs = snap.docs.filter((d: any) => d.data().unit === activeUnit);
+        const startOfYear = `${selectedYear}-01-01`;
+        const endOfYear = `${selectedYear}-12-31`;
+        const unitDocs = snap.docs.filter((doc: any) => {
+          const data = doc.data();
+          return data.admissionDate >= startOfYear && data.admissionDate <= endOfYear;
+        });
         setActiveCount(unitDocs.length);
         const counts = Array(12).fill(0);
         unitDocs.forEach((doc: any) => {
@@ -49,11 +53,15 @@ const Dashboard: React.FC = () => {
 
     const qMortality = query(
       collection(db, 'mortality_records'),
-      where('dischargeDate', '>=', startOfYear),
-      where('dischargeDate', '<=', endOfYear)
+      where('unit', '==', activeUnit)
     );
     const unsubMortality = onSnapshot(qMortality, (snap: any) => {
-        const unitDocs = snap.docs.filter((d: any) => d.data().unit === activeUnit);
+        const startOfYear = `${selectedYear}-01-01`;
+        const endOfYear = `${selectedYear}-12-31`;
+        const unitDocs = snap.docs.filter((doc: any) => {
+          const data = doc.data();
+          return data.dischargeDate >= startOfYear && data.dischargeDate <= endOfYear;
+        });
         setMortalityCount(unitDocs.length);
         const mCounts = Array(12).fill(0);
         unitDocs.forEach((doc: any) => {
@@ -66,11 +74,13 @@ const Dashboard: React.FC = () => {
         setMonthlyMortality(MONTHS.map((m, i) => ({ month: m, count: mCounts[i] })));
     });
 
-    const qInventory = collection(db, 'inventory');
+    const qInventory = query(
+      collection(db, 'inventory'),
+      where('unit', '==', activeUnit)
+    );
     const unsubInventory = onSnapshot(qInventory, (snap: any) => {
       const items = snap.docs
-        .map((doc: any) => doc.data() as InventoryItem)
-        .filter((i: any) => (i.unit === activeUnit || (i as any).unit_location === activeUnit));
+        .map((doc: any) => doc.data() as InventoryItem);
       const lowStock = items.filter((i: any) => i.quantity <= i.minThreshold).length;
       setLowStockCount(lowStock);
     });

@@ -245,12 +245,14 @@ const MortalityPage: React.FC = () => {
 
   useEffect(() => {
     setLoading(true);
-    const q = collection(db, 'mortality_records');
+    const q = query(
+      collection(db, 'mortality_records'),
+      where('unit', '==', activeUnit)
+    );
     
     const unsubscribe = onSnapshot(q, (snapshot: any) => {
       const patientData = snapshot.docs
-        .map((d: any) => ({ id: d.id, ...d.data() }))
-        .filter((p: Patient) => p.unit === activeUnit) as Patient[];
+        .map((d: any) => ({ id: d.id, ...d.data() })) as Patient[];
       
       const currentIds = new Set(patientData.map(p => p.id));
       if (prevIdsRef.current.size > 0) {

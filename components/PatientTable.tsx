@@ -411,12 +411,14 @@ const PatientTable: React.FC = () => {
 
   useEffect(() => {
     setLoading(true);
-    const q = query(collection(db, 'patients'));
+    const q = query(
+      collection(db, 'patients'),
+      where('unit', '==', activeUnit)
+    );
     
     const unsubscribe = onSnapshot(q, (snapshot: any) => {
       const patientData = snapshot.docs
-        .map((d: any) => ({ id: d.id, ...d.data() }))
-        .filter((p: Patient) => p.unit === activeUnit) as Patient[];
+        .map((d: any) => ({ id: d.id, ...d.data() })) as Patient[];
       
       const sortedData = [...patientData].sort((a, b) => {
           const serialA = parseInt(a.serialNo || '0', 10);

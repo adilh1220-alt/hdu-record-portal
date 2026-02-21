@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 // @ts-ignore
-import { collection, onSnapshot, query, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { collection, onSnapshot, query, addDoc, updateDoc, deleteDoc, doc, where } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
 import { InventoryItem, ClinicalUnit } from '../types';
 import { exportInventoryPDF, ReportMetadata } from '../services/pdfService';
@@ -54,13 +54,15 @@ const InventoryTable: React.FC = () => {
   const filterCategories = useMemo(() => ['ALL', ...sortedCategories], [sortedCategories]);
 
   useEffect(() => {
-    // onSnapshot with client-side processing
-    const q = query(collection(db, 'inventory'));
+    setLoading(true);
+    const q = query(
+      collection(db, 'inventory'),
+      where('unit', '==', activeUnit)
+    );
     
     const unsubscribe = onSnapshot(q, (snapshot: any) => {
       const inventoryData = snapshot.docs
-        .map((doc: any) => ({ id: doc.id, ...doc.data() }))
-        .filter((item: any) => (item.unit === activeUnit || item.unit_location === activeUnit)) as InventoryItem[];
+        .map((doc: any) => ({ id: doc.id, ...doc.data() })) as InventoryItem[];
       
       // Highlight Logic for Stock Changes
       const currentIds = new Set(inventoryData.map(i => i.id));
