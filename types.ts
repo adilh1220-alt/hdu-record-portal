@@ -88,3 +88,16 @@ export interface AuditLog {
   details: string;
   timestamp: string;
 }
+
+export interface IncidentRecord {
+  id: string;
+  serialNo?: string;
+  patientName: string;
+  regNo: string;
+  incidentDate: string;
+  unit: ClinicalUnit;
+  category: string;
+  description?: string;
+  reportedBy: string;
+  createdAt: string;
+}

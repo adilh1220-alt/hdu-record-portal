@@ -1,7 +1,7 @@
 
-import { Patient, InventoryItem, EndoscopyRecord } from '../types';
-
-declare const jspdf: any;
+import { Patient, InventoryItem, EndoscopyRecord, IncidentRecord } from '../types';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 export interface ReportMetadata {
   generatedBy: string;
@@ -20,15 +20,14 @@ const calculateLOSValue = (admissionDate: string) => {
 };
 
 export const exportToPDF = (title: string, headers: string[], rows: any[][], metadata: ReportMetadata) => {
-  const doc = new jspdf.jsPDF('landscape'); 
+  const doc = new jsPDF('landscape'); 
   
   doc.setFontSize(22);
   doc.setTextColor(220, 38, 38); 
-  doc.text("HDU MedLink", 14, 20);
   
   doc.setFontSize(10);
   doc.setTextColor(100);
-  doc.text("High Dependency Unit Clinical Management System", 14, 26);
+  doc.text("Clinical Management System", 14, 26);
 
   doc.setDrawColor(226, 232, 240); 
   doc.line(14, 32, 282, 32);
@@ -48,7 +47,7 @@ export const exportToPDF = (title: string, headers: string[], rows: any[][], met
 
   const tableStartY = metadata.period ? 75 : 70;
 
-  (doc as any).autoTable({
+  autoTable(doc, {
     head: [headers],
     body: rows,
     startY: tableStartY,
@@ -57,10 +56,10 @@ export const exportToPDF = (title: string, headers: string[], rows: any[][], met
     alternateRowStyles: { fillColor: [248, 250, 252] },
     margin: { top: 20 },
     didDrawPage: function (data: any) {
-      const str = "Page " + doc.internal.getNumberOfPages();
+      const str = "Page " + (doc as any).internal.getNumberOfPages();
       doc.setFontSize(8);
       const pageSize = doc.internal.pageSize;
-      const pageHeight = pageSize.height ? pageSize.height : pageSize.getHeight();
+      const pageHeight = pageSize.height ? pageSize.height : (pageSize as any).getHeight();
       doc.setTextColor(148, 163, 184); 
       doc.text(str, data.settings.margin.left, pageHeight - 10);
       doc.text("Official HDU Internal Report - Unauthorized reproduction is strictly prohibited", 180, pageHeight - 10);
@@ -71,7 +70,7 @@ export const exportToPDF = (title: string, headers: string[], rows: any[][], met
 };
 
 export const exportAccessSlipPDF = (userData: { name: string; email: string; password?: string; role: string }) => {
-  const doc = new jspdf.jsPDF();
+  const doc = new jsPDF();
   
   // Header Box
   doc.setFillColor(15, 23, 42); // Slate-900
@@ -140,7 +139,7 @@ export const exportPatientsPDF = (patients: Patient[], metadata: ReportMetadata)
     p.dischargeDate || 'N/A',
     p.lengthOfStay
   ]);
-  exportToPDF("Clinical Patient Census", headers, rows, metadata);
+  exportToPDF("Clinical Patient Record", headers, rows, metadata);
 };
 
 export const exportInventoryPDF = (inventory: InventoryItem[], metadata: ReportMetadata) => {
@@ -161,4 +160,18 @@ export const exportEndoscopyPDF = (records: EndoscopyRecord[], metadata: ReportM
     r.date
   ]);
   exportToPDF("Endoscopy Procedure Log", headers, rows, metadata);
+};
+
+export const exportIncidentsPDF = (incidents: IncidentRecord[], metadata: ReportMetadata) => {
+  const headers = ['Date', 'Patient Name', 'Reg No', 'Category', 'Unit', 'Reported By', 'Description'];
+  const rows = incidents.map(i => [
+    i.incidentDate,
+    i.patientName,
+    i.regNo,
+    i.category,
+    i.unit,
+    i.reportedBy,
+    i.description ? i.description.replace(/<[^>]*>/g, '') : 'N/A'
+  ]);
+  exportToPDF("Clinical Incident Report", headers, rows, metadata);
 };

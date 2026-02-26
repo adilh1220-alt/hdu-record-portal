@@ -6,6 +6,7 @@ import PatientTable from './components/PatientTable';
 import InventoryTable from './components/InventoryTable';
 import MortalityPage from './pages/MortalityPage';
 import EndoscopyPage from './pages/EndoscopyPage';
+import SafetyIncidentsPage from './pages/SafetyIncidentsPage';
 import TasksPage from './pages/TasksPage';
 import AuthForm from './components/AuthForm';
 import UserManagement from './pages/UserManagement';
@@ -49,6 +50,8 @@ const MainAppContent: React.FC = () => {
         return <InventoryTable />;
       case 'mortality':
         return <MortalityPage />;
+      case 'safety':
+        return <SafetyIncidentsPage />;
       case 'users':
         return isAdmin ? <UserManagement /> : <Dashboard />;
       default:

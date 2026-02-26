@@ -104,7 +104,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const isAdmin = currentUser?.role === 'Admin';
-  const canManageRecords = isAdmin || currentUser?.role === 'Consultant';
+  const canManageRecords = isAdmin || currentUser?.role === 'Consultant' || currentUser?.role === 'Staff';
 
   return (
     <AuthContext.Provider value={{ currentUser, loading, login, signup, logout, isAdmin, canManageRecords }}>

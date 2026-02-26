@@ -1,0 +1,22 @@
+/* Custom styles for ReactQuill to match the app's aesthetic */
+.ql-container.ql-snow {
+  border: none !important;
+  font-family: 'Inter', sans-serif !important;
+  font-size: 11px !important;
+}
+
+.ql-toolbar.ql-snow {
+  border: none !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  background: #f8fafc !important;
+}
+
+.ql-editor {
+  min-height: 120px;
+}
+
+.ql-editor.ql-blank::before {
+  font-style: normal !important;
+  color: #94a3b8 !important;
+  font-weight: 500 !important;
+}

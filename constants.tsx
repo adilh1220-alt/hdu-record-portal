@@ -45,6 +45,10 @@ export const INVENTORY_UNITS = [
   'PCS', 'VIAL', 'AMP', 'BOX', 'STRIP', 'BOTTLE'
 ];
 
+export const INCIDENT_CATEGORIES = [
+  'Patient Fall', 'Phlebitis', 'Pressure Sore', 'Medication Error'
+];
+
 export const INITIAL_PATIENTS: Patient[] = [];
 export const INITIAL_INVENTORY: InventoryItem[] = [];
 
