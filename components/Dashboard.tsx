@@ -9,6 +9,7 @@ import { useUnit } from '../contexts/UnitContext';
 
 const Dashboard: React.FC = () => {
   const { activeUnit } = useUnit();
+  const [isMounted, setIsMounted] = useState(false);
   const [selectedYear, setSelectedYear] = useState(2026);
   const [activeCount, setActiveCount] = useState(0);
   const [mortalityCount, setMortalityCount] = useState(0);
@@ -131,6 +132,10 @@ const Dashboard: React.FC = () => {
       unsubEndoscopy();
     };
   }, [selectedYear, activeUnit]);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const generateMasterBackup = async () => {
     setIsBackupLoading(true);
@@ -309,9 +314,10 @@ const Dashboard: React.FC = () => {
               <p className="text-xs text-slate-500 font-medium mt-1">Monthly breakdown for {activeUnit}</p>
             </div>
           </div>
-          <div className="w-full relative overflow-hidden" style={{ height: '350px' }}>
-            <ResponsiveContainer width="100%" height="100%" minHeight={300} minWidth={0}>
-              <BarChart data={monthlyAdmissions} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+          <div id="admission-velocity-chart" className="w-full h-[350px]">
+            {isMounted && (
+              <ResponsiveContainer width="100%" height={350}>
+                <BarChart data={monthlyAdmissions} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis 
                   dataKey="month" 
@@ -347,8 +353,9 @@ const Dashboard: React.FC = () => {
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
-          </div>
+          )}
         </div>
+      </div>
 
         <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
           <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-4">
@@ -357,9 +364,10 @@ const Dashboard: React.FC = () => {
               <p className="text-xs text-slate-500 font-medium mt-1">Top 5 procedures for {selectedYear}</p>
             </div>
           </div>
-          <div className="w-full relative overflow-hidden" style={{ height: '350px' }}>
-            <ResponsiveContainer width="100%" height="100%" minHeight={300} minWidth={0}>
-              <BarChart data={frequentProcedures} layout="vertical" margin={{ top: 0, right: 30, left: 100, bottom: 0 }}>
+          <div id="frequent-procedures-chart" className="w-full h-[350px]">
+            {isMounted && (
+              <ResponsiveContainer width="100%" height={350}>
+                <BarChart data={frequentProcedures} layout="vertical" margin={{ top: 0, right: 30, left: 100, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                 <XAxis type="number" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 700}} />
                 <YAxis 
@@ -387,8 +395,9 @@ const Dashboard: React.FC = () => {
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
-          </div>
+          )}
         </div>
+      </div>
 
         <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
           <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-4">
@@ -397,9 +406,10 @@ const Dashboard: React.FC = () => {
               <p className="text-xs text-slate-500 font-medium mt-1">Monthly breakdown for {activeUnit} Expiry Logs</p>
             </div>
           </div>
-          <div className="w-full relative overflow-hidden" style={{ height: '350px' }}>
-            <ResponsiveContainer width="100%" height="100%" minHeight={300} minWidth={0}>
-              <BarChart data={monthlyMortality} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+          <div id="mortality-velocity-chart" className="w-full h-[350px]">
+            {isMounted && (
+              <ResponsiveContainer width="100%" height={350}>
+                <BarChart data={monthlyMortality} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis 
                   dataKey="month" 
@@ -435,8 +445,9 @@ const Dashboard: React.FC = () => {
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
-          </div>
+          )}
         </div>
+      </div>
       </div>
     </div>
   );

@@ -80,7 +80,9 @@ const EndoscopyPage: React.FC = () => {
   
   const [procedureSearch, setProcedureSearch] = useState('');
   const [isProcedureListOpen, setIsProcedureListOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const procedureInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -234,6 +236,52 @@ const EndoscopyPage: React.FC = () => {
       p.toLowerCase().includes(procedureSearch.toLowerCase())
     );
   }, [procedureSearch]);
+
+  const selectProcedure = (p: string) => {
+    setFormProcedure(p);
+    setProcedureSearch(p);
+    setIsProcedureListOpen(false);
+    setHighlightedIndex(-1);
+    // Move focus to the next field (Procedure Date)
+    setTimeout(() => {
+      const nextField = document.getElementById('endoscopy-field-date');
+      if (nextField) nextField.focus();
+    }, 0);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!isProcedureListOpen) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        setIsProcedureListOpen(true);
+      }
+      return;
+    }
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setHighlightedIndex(prev => (prev + 1) % procedureSuggestions.length);
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setHighlightedIndex(prev => (prev - 1 + procedureSuggestions.length) % procedureSuggestions.length);
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (highlightedIndex >= 0 && highlightedIndex < procedureSuggestions.length) {
+          selectProcedure(procedureSuggestions[highlightedIndex]);
+        }
+        break;
+      case 'Escape':
+        setIsProcedureListOpen(false);
+        setHighlightedIndex(-1);
+        break;
+      case 'Tab':
+        setIsProcedureListOpen(false);
+        setHighlightedIndex(-1);
+        break;
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -481,28 +529,43 @@ const EndoscopyPage: React.FC = () => {
               <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Procedure Type *</label>
               <input 
                 required 
+                ref={procedureInputRef}
+                id="endoscopy-field-procedure"
                 value={procedureSearch} 
                 onFocus={() => setIsProcedureListOpen(true)}
                 onChange={(e) => {
                   setProcedureSearch(e.target.value);
                   setFormProcedure(e.target.value);
+                  setHighlightedIndex(-1);
                 }} 
+                onKeyDown={handleKeyDown}
                 className="w-full px-3 py-2 border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200" 
                 placeholder="Search Procedure..."
+                role="combobox"
+                aria-expanded={isProcedureListOpen}
+                aria-haspopup="listbox"
+                aria-controls="endoscopy-procedure-listbox"
+                aria-autocomplete="list"
+                aria-activedescendant={highlightedIndex >= 0 ? `proc-option-${highlightedIndex}` : undefined}
               />
             </div>
-            {isProcedureListOpen && (
-              <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-40 overflow-y-auto">
+            {isProcedureListOpen && procedureSuggestions.length > 0 && (
+              <div 
+                id="endoscopy-procedure-listbox"
+                role="listbox"
+                className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-40 overflow-y-auto"
+              >
                 {procedureSuggestions.map((p, idx) => (
                   <button
                     key={idx}
+                    id={`proc-option-${idx}`}
+                    role="option"
+                    aria-selected={idx === highlightedIndex}
                     type="button"
-                    onClick={() => {
-                      setFormProcedure(p);
-                      setProcedureSearch(p);
-                      setIsProcedureListOpen(false);
-                    }}
-                    className="w-full text-left px-4 py-2 text-[10px] font-bold hover:bg-slate-50 transition-colors"
+                    onClick={() => selectProcedure(p)}
+                    className={`w-full text-left px-4 py-2 text-[10px] font-bold transition-colors uppercase ${
+                      idx === highlightedIndex ? 'bg-red-100 text-red-700' : 'hover:bg-slate-50 text-slate-700'
+                    }`}
                   >
                     {p}
                   </button>
@@ -514,6 +577,7 @@ const EndoscopyPage: React.FC = () => {
             <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Procedure Date *</label>
             <input 
               required 
+              id="endoscopy-field-date"
               type="date" 
               value={formDate} 
               onChange={(e) => setFormDate(e.target.value)} 

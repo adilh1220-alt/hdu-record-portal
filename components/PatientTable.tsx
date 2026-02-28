@@ -61,6 +61,7 @@ const AdmissionForm = React.memo(({ editingPatient, autoSerialNo, onSave, onArch
   
   const [consultantSearch, setConsultantSearch] = useState(editingPatient?.consultant || '');
   const [isConsultantListOpen, setIsConsultantListOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const { canManageRecords } = useAuth();
@@ -122,6 +123,60 @@ const AdmissionForm = React.memo(({ editingPatient, autoSerialNo, onSave, onArch
     const term = consultantSearch.toLowerCase();
     return CONSULTANTS.filter(c => c.toLowerCase().includes(term));
   }, [consultantSearch]);
+
+  useEffect(() => {
+    setHighlightedIndex(-1);
+  }, [consultantSuggestions]);
+
+  const selectConsultant = (c: string) => {
+    setFormConsultant(c);
+    setConsultantSearch(c);
+    setIsConsultantListOpen(false);
+    setTouched(prev => ({ ...prev, consultant: true }));
+    // Focus management: Move to next field
+    setTimeout(() => {
+      document.getElementById('hdu-field-admissionDate')?.focus();
+    }, 0);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!isConsultantListOpen) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        setIsConsultantListOpen(true);
+      }
+      return;
+    }
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setHighlightedIndex(prev => 
+          prev < consultantSuggestions.length - 1 ? prev + 1 : prev
+        );
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setHighlightedIndex(prev => prev > 0 ? prev - 1 : prev);
+        break;
+      case 'Enter':
+        if (highlightedIndex >= 0 && highlightedIndex < consultantSuggestions.length) {
+          e.preventDefault();
+          selectConsultant(consultantSuggestions[highlightedIndex]);
+        }
+        break;
+      case 'Escape':
+        e.preventDefault();
+        setIsConsultantListOpen(false);
+        break;
+      case 'Tab':
+        if (highlightedIndex >= 0 && highlightedIndex < consultantSuggestions.length) {
+          selectConsultant(consultantSuggestions[highlightedIndex]);
+        } else {
+          setIsConsultantListOpen(false);
+        }
+        break;
+    }
+  };
 
   const handleBlur = (field: string) => {
     setTouched(prev => ({ ...prev, [field]: true }));
@@ -259,7 +314,7 @@ const AdmissionForm = React.memo(({ editingPatient, autoSerialNo, onSave, onArch
       </div>
       <div className="relative" ref={dropdownRef}>
         <InputWrapper label="Consultant *" field="consultant" error={errors.consultant} touched={touched.consultant}>
-          <div className="relative">
+          <div className="relative" role="combobox" aria-expanded={isConsultantListOpen} aria-haspopup="listbox" aria-controls="consultant-listbox">
             <input 
               id="hdu-field-consultant"
               type="text"
@@ -270,10 +325,14 @@ const AdmissionForm = React.memo(({ editingPatient, autoSerialNo, onSave, onArch
                 setFormConsultant(e.target.value);
                 setIsConsultantListOpen(true);
               }}
+              onKeyDown={handleKeyDown}
               onBlur={() => handleBlur('consultant')}
               placeholder="Search Specialist..."
               className={getInputClass('consultant')}
               autoComplete="off"
+              aria-autocomplete="list"
+              aria-controls="consultant-listbox"
+              aria-activedescendant={highlightedIndex >= 0 ? `consultant-option-${highlightedIndex}` : undefined}
             />
             <div className="absolute right-3 top-2.5 text-slate-300 pointer-events-none">
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" /></svg>
@@ -282,20 +341,27 @@ const AdmissionForm = React.memo(({ editingPatient, autoSerialNo, onSave, onArch
         </InputWrapper>
         
         {isConsultantListOpen && (
-          <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-48 overflow-y-auto animate-in fade-in slide-in-from-top-2">
+          <div 
+            id="consultant-listbox"
+            role="listbox"
+            className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-48 overflow-y-auto animate-in fade-in slide-in-from-top-2"
+          >
             {consultantSuggestions.length > 0 ? (
               consultantSuggestions.map((c, idx) => (
                 <button
                   key={idx}
+                  id={`consultant-option-${idx}`}
+                  role="option"
+                  aria-selected={highlightedIndex === idx}
                   type="button"
                   onMouseDown={(e) => e.preventDefault()} 
-                  onClick={() => {
-                    setFormConsultant(c);
-                    setConsultantSearch(c);
-                    setIsConsultantListOpen(false);
-                    setTouched(prev => ({ ...prev, consultant: true }));
-                  }}
-                  className="w-full text-left px-4 py-2.5 text-[10px] font-bold text-slate-700 hover:bg-slate-50 hover:text-red-600 border-b border-slate-50 last:border-0 transition-colors"
+                  onClick={() => selectConsultant(c)}
+                  onMouseEnter={() => setHighlightedIndex(idx)}
+                  className={`w-full text-left px-4 py-2.5 text-[10px] font-bold border-b border-slate-50 last:border-0 transition-colors ${
+                    highlightedIndex === idx 
+                      ? 'bg-red-50 text-red-600' 
+                      : 'text-slate-700 hover:bg-slate-50 hover:text-red-600'
+                  }`}
                 >
                   {c}
                 </button>
