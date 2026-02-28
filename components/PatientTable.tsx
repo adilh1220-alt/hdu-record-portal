@@ -376,6 +376,7 @@ type SortDirection = 'asc' | 'desc';
 
 const PatientTable: React.FC = () => {
   const { activeUnit } = useUnit();
+  const { isAdmin, canManageRecords } = useAuth();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -402,13 +403,37 @@ const PatientTable: React.FC = () => {
   const itemsPerPage = 10;
 
   const prevPatientIdsRef = useRef<Set<string>>(new Set());
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handleNewRecord = () => {
+      if (canManageRecords) {
+        setEditingPatient(null);
+        setIsModalOpen(true);
+      }
+    };
+    const handleFocusSearch = () => {
+      searchInputRef.current?.focus();
+    };
+    const handleExport = () => {
+      setIsExportModalOpen(true);
+    };
+
+    window.addEventListener('app:new-record', handleNewRecord);
+    window.addEventListener('app:focus-search', handleFocusSearch);
+    window.addEventListener('app:export', handleExport);
+
+    return () => {
+      window.removeEventListener('app:new-record', handleNewRecord);
+      window.removeEventListener('app:focus-search', handleFocusSearch);
+      window.removeEventListener('app:export', handleExport);
+    };
+  }, [canManageRecords]);
 
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({ 
     key: 'serialNo', 
     direction: 'desc' 
   });
-
-  const { isAdmin, canManageRecords } = useAuth();
 
   useEffect(() => {
     setLoading(true);
@@ -697,6 +722,7 @@ const PatientTable: React.FC = () => {
           <div className="flex flex-1 gap-2">
             <div className="relative flex-1 max-w-lg">
               <input 
+                ref={searchInputRef}
                 type="text" 
                 placeholder="Search by Patient Name, MR Number, Consultant, or Location..."
                 className="pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl w-full text-[11px] font-bold outline-none focus:ring-2 focus:ring-red-100 shadow-sm transition-all"

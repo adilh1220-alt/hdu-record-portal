@@ -241,7 +241,33 @@ const MortalityPage: React.FC = () => {
   });
 
   const prevIdsRef = useRef<Set<string>>(new Set());
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const { isAdmin, canManageRecords } = useAuth();
+
+  useEffect(() => {
+    const handleNewRecord = () => {
+      if (canManageRecords) {
+        setEditingPatient(null);
+        setIsModalOpen(true);
+      }
+    };
+    const handleFocusSearch = () => {
+      searchInputRef.current?.focus();
+    };
+    const handleExport = () => {
+      setIsExportModalOpen(true);
+    };
+
+    window.addEventListener('app:new-record', handleNewRecord);
+    window.addEventListener('app:focus-search', handleFocusSearch);
+    window.addEventListener('app:export', handleExport);
+
+    return () => {
+      window.removeEventListener('app:new-record', handleNewRecord);
+      window.removeEventListener('app:focus-search', handleFocusSearch);
+      window.removeEventListener('app:export', handleExport);
+    };
+  }, [canManageRecords]);
 
   useEffect(() => {
     setLoading(true);
@@ -439,6 +465,7 @@ const MortalityPage: React.FC = () => {
             <div className="flex-1 flex items-center bg-white border border-slate-200 px-3 py-2 rounded-lg max-w-md focus-within:ring-1 focus-within:ring-red-200 shadow-sm">
               <svg className="w-4 h-4 text-slate-400 mx-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
               <input 
+                ref={searchInputRef}
                 type="text" 
                 placeholder={`Search ${activeUnit} Archive...`}
                 className="bg-transparent text-[10px] font-bold outline-none flex-1 uppercase"

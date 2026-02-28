@@ -16,6 +16,7 @@ type SortDirection = 'asc' | 'desc';
 
 const EndoscopyPage: React.FC = () => {
   const { activeUnit } = useUnit();
+  const { isAdmin, canManageRecords } = useAuth();
   const [records, setRecords] = useState<EndoscopyRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -43,6 +44,32 @@ const EndoscopyPage: React.FC = () => {
   });
 
   const prevIdsRef = useRef<Set<string>>(new Set());
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handleNewRecord = () => {
+      if (canManageRecords) {
+        setEditingRecord(null);
+        setIsModalOpen(true);
+      }
+    };
+    const handleFocusSearch = () => {
+      searchInputRef.current?.focus();
+    };
+    const handleExport = () => {
+      setIsExportModalOpen(true);
+    };
+
+    window.addEventListener('app:new-record', handleNewRecord);
+    window.addEventListener('app:focus-search', handleFocusSearch);
+    window.addEventListener('app:export', handleExport);
+
+    return () => {
+      window.removeEventListener('app:new-record', handleNewRecord);
+      window.removeEventListener('app:focus-search', handleFocusSearch);
+      window.removeEventListener('app:export', handleExport);
+    };
+  }, [canManageRecords]);
 
   // Form states
   const [formName, setFormName] = useState('');
@@ -54,8 +81,6 @@ const EndoscopyPage: React.FC = () => {
   const [procedureSearch, setProcedureSearch] = useState('');
   const [isProcedureListOpen, setIsProcedureListOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-
-  const { isAdmin, canManageRecords } = useAuth();
 
   useEffect(() => {
     setLoading(true);
@@ -280,6 +305,7 @@ const EndoscopyPage: React.FC = () => {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex flex-1 gap-2">
             <input 
+              ref={searchInputRef}
               type="text" 
               placeholder={`Search ${activeUnit} logs...`}
               className="px-4 py-2 border border-slate-200 rounded-lg w-full max-w-md text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 shadow-sm"

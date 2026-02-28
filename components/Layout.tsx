@@ -5,6 +5,7 @@ import { useUnit } from '../contexts/UnitContext';
 import { CLINICAL_UNITS, UNIT_DETAILS } from '../constants';
 import ConfirmModal from './ConfirmModal';
 import SettingsModal from './SettingsModal';
+import ShortcutsModal from './ShortcutsModal';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -16,12 +17,24 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
   const [isSidebarOpen, setSidebarOpen] = useState(true);
   const [isLogoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [isSettingsOpen, setSettingsOpen] = useState(false);
+  const [isShortcutsOpen, setShortcutsOpen] = useState(false);
   const { currentUser, logout, isAdmin } = useAuth();
   const { activeUnit, setActiveUnit } = useUnit();
 
   const handleLogout = async () => {
     await logout();
   };
+
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.altKey && e.key.toLowerCase() === 'h') {
+        e.preventDefault();
+        setShortcutsOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const NavItem = ({ id, label, icon }: { id: string, label: string, icon: React.ReactNode }) => (
     <button
@@ -145,6 +158,13 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
               <span className={`${!isSidebarOpen && 'hidden'} font-medium`}>Sign Out</span>
             </button>
+            <button
+              onClick={() => setShortcutsOpen(true)}
+              className="w-full flex items-center space-x-3 p-3 rounded-lg transition-all text-slate-500 hover:bg-slate-800 hover:text-white mt-2"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              <span className={`${!isSidebarOpen && 'hidden'} font-medium`}>Keyboard Help</span>
+            </button>
           </div>
         </nav>
 
@@ -186,6 +206,11 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
       <SettingsModal 
         isOpen={isSettingsOpen}
         onClose={() => setSettingsOpen(false)}
+      />
+
+      <ShortcutsModal 
+        isOpen={isShortcutsOpen}
+        onClose={() => setShortcutsOpen(false)}
       />
     </div>
   );

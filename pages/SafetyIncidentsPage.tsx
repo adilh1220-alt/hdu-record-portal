@@ -230,6 +230,32 @@ const SafetyIncidentsPage: React.FC = () => {
   });
 
   const prevIdsRef = useRef<Set<string>>(new Set());
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handleNewRecord = () => {
+      if (canManageRecords) {
+        setEditingIncident(null);
+        setIsModalOpen(true);
+      }
+    };
+    const handleFocusSearch = () => {
+      searchInputRef.current?.focus();
+    };
+    const handleExport = () => {
+      setIsExportModalOpen(true);
+    };
+
+    window.addEventListener('app:new-record', handleNewRecord);
+    window.addEventListener('app:focus-search', handleFocusSearch);
+    window.addEventListener('app:export', handleExport);
+
+    return () => {
+      window.removeEventListener('app:new-record', handleNewRecord);
+      window.removeEventListener('app:focus-search', handleFocusSearch);
+      window.removeEventListener('app:export', handleExport);
+    };
+  }, [canManageRecords]);
 
   useEffect(() => {
     setLoading(true);
@@ -428,6 +454,7 @@ const SafetyIncidentsPage: React.FC = () => {
           <div className="flex flex-1 gap-2">
             <div className="relative flex-1 max-w-lg">
               <input 
+                ref={searchInputRef}
                 type="text" 
                 placeholder={`Search Patient Name, MR#, Category...`}
                 className="pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl w-full text-[11px] font-bold outline-none focus:ring-2 focus:ring-red-100 shadow-sm transition-all"

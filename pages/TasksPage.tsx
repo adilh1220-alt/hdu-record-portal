@@ -13,6 +13,17 @@ import ConfirmModal from '../components/ConfirmModal';
 const TasksPage: React.FC = () => {
   const { activeUnit } = useUnit();
   const { currentUser, canManageRecords } = useAuth();
+
+  useEffect(() => {
+    const handleNewRecord = () => {
+      if (canManageRecords) {
+        setIsModalOpen(true);
+      }
+    };
+    window.addEventListener('app:new-record', handleNewRecord);
+    return () => window.removeEventListener('app:new-record', handleNewRecord);
+  }, [canManageRecords]);
+
   const [tasks, setTasks] = useState<ClinicalTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);

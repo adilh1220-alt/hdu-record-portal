@@ -3,12 +3,12 @@ import { Patient, InventoryItem, PatientStatus, ClinicalUnit, TaskPriority } fro
 
 export const CLINICAL_UNITS: ClinicalUnit[] = ['HDU', 'ICU', 'TRANSPLANT', '4th-WARD', 'WARD5'];
 
-export const UNIT_DETAILS: Record<ClinicalUnit, { label: string, color: string }> = {
-  HDU: { label: 'High Dependency', color: 'bg-red-600' },
-  ICU: { label: 'Intensive Care', color: 'bg-indigo-600' },
-  TRANSPLANT: { label: 'Transplant Bay', color: 'bg-emerald-600' },
-  '4th-WARD': { label: 'Ward', color: 'bg-pink-500' },
-  WARD5: { label: '5th Floor Ward', color: 'bg-amber-500' }
+export const UNIT_DETAILS: Record<ClinicalUnit, { label: string, color: string, capacity: number }> = {
+  HDU: { label: 'High Dependency', color: 'bg-red-600', capacity: 12 },
+  ICU: { label: 'Intensive Care', color: 'bg-indigo-600', capacity: 8 },
+  TRANSPLANT: { label: 'Transplant Bay', color: 'bg-emerald-600', capacity: 6 },
+  '4th-WARD': { label: 'Ward', color: 'bg-pink-500', capacity: 20 },
+  WARD5: { label: '5th Floor Ward', color: 'bg-amber-500', capacity: 20 }
 };
 
 export const TASK_PRIORITIES: TaskPriority[] = ['High', 'Medium', 'Low'];

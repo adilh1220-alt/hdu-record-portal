@@ -19,6 +19,39 @@ const MainAppContent: React.FC = () => {
   const { currentUser, isAdmin } = useAuth();
   const { activeUnit } = useUnit();
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Tab Navigation: Alt + 1-7
+      if (e.altKey && !isNaN(Number(e.key))) {
+        const key = Number(e.key);
+        const tabs = ['dashboard', 'active', 'tasks', 'inventory', 'mortality', 'safety', 'endoscopy'];
+        if (key >= 1 && key <= tabs.length) {
+          const targetTab = tabs[key - 1];
+          // Check permissions for endoscopy
+          if (targetTab === 'endoscopy' && !isAdmin) return;
+          setActiveTab(targetTab);
+        }
+      }
+
+      // Action Shortcuts: Alt + N (New), Alt + S (Search), Alt + E (Export)
+      if (e.altKey) {
+        if (e.key.toLowerCase() === 'n') {
+          e.preventDefault();
+          window.dispatchEvent(new CustomEvent('app:new-record'));
+        } else if (e.key.toLowerCase() === 's') {
+          e.preventDefault();
+          window.dispatchEvent(new CustomEvent('app:focus-search'));
+        } else if (e.key.toLowerCase() === 'e') {
+          e.preventDefault();
+          window.dispatchEvent(new CustomEvent('app:export'));
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isAdmin]);
+
   // Reset to dashboard on login/logout to prevent session persistence issues
   useEffect(() => {
     if (currentUser) {
@@ -43,7 +76,7 @@ const MainAppContent: React.FC = () => {
             <header className="flex justify-between items-end">
               <div>
                 <h1 className="text-2xl font-black text-slate-800 tracking-tight uppercase">In-Patient Census</h1>
-                <p className="text-slate-500 text-sm font-medium">Live bed occupancy for <span className="text-slate-900 font-bold">{UNIT_DETAILS[activeUnit].label}</span></p>
+                <p className="text-slate-500 text-sm font-medium">For <span className="text-slate-900 font-bold">{UNIT_DETAILS[activeUnit].label}</span></p>
               </div>
               <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest text-white shadow-sm ${UNIT_DETAILS[activeUnit].color}`}>
                 Active Unit: {activeUnit}

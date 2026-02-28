@@ -13,6 +13,9 @@ const Dashboard: React.FC = () => {
   const [activeCount, setActiveCount] = useState(0);
   const [mortalityCount, setMortalityCount] = useState(0);
   const [lowStockCount, setLowStockCount] = useState(0);
+  const [currentActiveCount, setCurrentActiveCount] = useState(0);
+  const [averageLOS, setAverageLOS] = useState(0);
+  const [frequentProcedures, setFrequentProcedures] = useState<{ name: string, count: number }[]>([]);
   const [monthlyAdmissions, setMonthlyAdmissions] = useState<{ month: string, count: number }[]>([]);
   const [monthlyMortality, setMonthlyMortality] = useState<{ month: string, count: number }[]>([]);
   const [isBackupLoading, setIsBackupLoading] = useState(false);
@@ -35,14 +38,26 @@ const Dashboard: React.FC = () => {
     const unsubActive = onSnapshot(qActive, (snap: any) => {
         const startOfYear = `${selectedYear}-01-01`;
         const endOfYear = `${selectedYear}-12-31`;
-        const unitDocs = snap.docs.filter((doc: any) => {
-          const data = doc.data();
+        const unitDocs = snap.docs.map((d: any) => d.data() as Patient);
+        
+        const yearDocs = unitDocs.filter((data: any) => {
           return data.admissionDate >= startOfYear && data.admissionDate <= endOfYear;
         });
-        setActiveCount(unitDocs.length);
+        setActiveCount(yearDocs.length);
+
+        const activeNow = unitDocs.filter((data: any) => data.status === 'ACTIVE' || !data.dischargeDate);
+        setCurrentActiveCount(activeNow.length);
+
+        const discharged = unitDocs.filter((data: any) => data.admissionDate >= startOfYear && data.admissionDate <= endOfYear && (data.lengthOfStay !== undefined));
+        if (discharged.length > 0) {
+          const totalLOS = discharged.reduce((acc, curr) => acc + (curr.lengthOfStay || 0), 0);
+          setAverageLOS(parseFloat((totalLOS / discharged.length).toFixed(1)));
+        } else {
+          setAverageLOS(0);
+        }
+
         const counts = Array(12).fill(0);
-        unitDocs.forEach((doc: any) => {
-          const data = doc.data() as Patient;
+        yearDocs.forEach((data: any) => {
           if (data.admissionDate) {
             const date = new Date(data.admissionDate);
             counts[date.getMonth()]++;
@@ -85,10 +100,35 @@ const Dashboard: React.FC = () => {
       setLowStockCount(lowStock);
     });
 
+    const qEndoscopy = query(
+      collection(db, 'endoscopy_records'),
+      where('referringUnit', '==', activeUnit)
+    );
+    const unsubEndoscopy = onSnapshot(qEndoscopy, (snap: any) => {
+      const startOfYear = `${selectedYear}-01-01`;
+      const endOfYear = `${selectedYear}-12-31`;
+      const unitDocs = snap.docs
+        .map((doc: any) => doc.data() as EndoscopyRecord)
+        .filter(r => r.date >= startOfYear && r.date <= endOfYear);
+      
+      const counts: Record<string, number> = {};
+      unitDocs.forEach(r => {
+        counts[r.procedure] = (counts[r.procedure] || 0) + 1;
+      });
+      
+      const sorted = Object.entries(counts)
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5);
+      
+      setFrequentProcedures(sorted);
+    });
+
     return () => {
       unsubActive();
       unsubMortality();
       unsubInventory();
+      unsubEndoscopy();
     };
   }, [selectedYear, activeUnit]);
 
@@ -136,11 +176,11 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const StatCard = ({ title, value, icon, color, subText }: { title: string, value: number, icon: any, color: string, subText: string }) => (
+  const StatCard = ({ title, value, icon, color, subText, suffix = "" }: { title: string, value: number | string, icon: any, color: string, subText: string, suffix?: string }) => (
     <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-start justify-between transition-all hover:shadow-md hover:border-slate-300">
       <div>
         <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">{title}</p>
-        <h3 className="text-3xl font-black mt-1 text-slate-800 tracking-tighter">{value}</h3>
+        <h3 className="text-3xl font-black mt-1 text-slate-800 tracking-tighter">{value}{suffix}</h3>
         <p className="text-[9px] text-slate-400 mt-2 font-bold uppercase tracking-tight">{subText}</p>
       </div>
       <div className={`${color} p-3 rounded-xl text-white shadow-lg`}>
@@ -148,6 +188,11 @@ const Dashboard: React.FC = () => {
       </div>
     </div>
   );
+
+  const occupancyRate = useMemo(() => {
+    const capacity = UNIT_DETAILS[activeUnit].capacity;
+    return Math.min(100, Math.round((currentActiveCount / capacity) * 100));
+  }, [currentActiveCount, activeUnit]);
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-700">
@@ -225,6 +270,22 @@ const Dashboard: React.FC = () => {
           icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>}
         />
         <StatCard 
+          title="Bed Occupancy" 
+          value={occupancyRate} 
+          suffix="%"
+          subText={`${currentActiveCount} / ${UNIT_DETAILS[activeUnit].capacity} Beds Occupied`}
+          color="bg-blue-600"
+          icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>}
+        />
+        <StatCard 
+          title="Average LOS" 
+          value={averageLOS} 
+          suffix=" Days"
+          subText="Mean length of stay"
+          color="bg-emerald-600"
+          icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>}
+        />
+        <StatCard 
           title="Total Mortality" 
           value={mortalityCount} 
           subText={`Expiry logs for ${selectedYear}`}
@@ -282,6 +343,46 @@ const Dashboard: React.FC = () => {
                       key={`cell-${index}`} 
                       fill={entry.count > 0 ? (activeUnit === 'HDU' ? COLORS.primary : '#4f46e5') : '#e2e8f0'} 
                     />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
+          <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-4">
+            <div>
+              <h3 className="text-sm font-black text-slate-800 uppercase tracking-[0.2em]">Most Frequent Procedures</h3>
+              <p className="text-xs text-slate-500 font-medium mt-1">Top 5 procedures for {selectedYear}</p>
+            </div>
+          </div>
+          <div className="w-full relative overflow-hidden" style={{ height: '350px' }}>
+            <ResponsiveContainer width="100%" height="100%" minHeight={300} minWidth={0}>
+              <BarChart data={frequentProcedures} layout="vertical" margin={{ top: 0, right: 30, left: 100, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                <XAxis type="number" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 700}} />
+                <YAxis 
+                  type="category" 
+                  dataKey="name" 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{fill: '#475569', fontSize: 10, fontWeight: 700}}
+                  width={90}
+                />
+                <Tooltip 
+                  cursor={{fill: '#f8fafc'}}
+                  contentStyle={{ 
+                    borderRadius: '12px', 
+                    border: '1px solid #e2e8f0', 
+                    boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+                    fontSize: '10px',
+                    fontWeight: 'bold'
+                  }}
+                />
+                <Bar dataKey="count" radius={[0, 6, 6, 0]} barSize={24}>
+                  {frequentProcedures.map((entry, index) => (
+                    <Cell key={`cell-proc-${index}`} fill={COLORS.primary} />
                   ))}
                 </Bar>
               </BarChart>
