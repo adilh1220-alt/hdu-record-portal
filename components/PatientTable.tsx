@@ -385,6 +385,7 @@ const PatientTable: React.FC = () => {
   
   const [appliedStartDate, setAppliedStartDate] = useState('');
   const [appliedEndDate, setAppliedEndDate] = useState('');
+  const [consultantFilter, setConsultantFilter] = useState('');
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
@@ -558,11 +559,12 @@ const PatientTable: React.FC = () => {
     setEndDateInput('');
     setAppliedStartDate('');
     setAppliedEndDate('');
+    setConsultantFilter('');
   };
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, appliedStartDate, appliedEndDate, activeUnit]);
+  }, [searchTerm, appliedStartDate, appliedEndDate, consultantFilter, activeUnit]);
 
   const sortedAndFiltered = useMemo(() => {
     const tokens = searchTerm.toLowerCase().trim().split(/\s+/).filter(t => t.length > 0);
@@ -575,6 +577,7 @@ const PatientTable: React.FC = () => {
           p.consultant.toLowerCase().includes(token) ||
           p.codeStatus.toLowerCase().includes(token) ||
           p.category.toLowerCase().includes(token) ||
+          (p.gender && p.gender.toLowerCase().includes(token)) ||
           (p.location && p.location.toLowerCase().includes(token)) ||
           (p.serialNo && p.serialNo.toLowerCase().includes(token)) ||
           (p.status && p.status.toLowerCase().includes(token))
@@ -598,7 +601,9 @@ const PatientTable: React.FC = () => {
         matchesEndDate = admissionDate <= end;
       }
 
-      return matchesSearch && matchesStartDate && matchesEndDate;
+      const matchesConsultant = !consultantFilter || p.consultant === consultantFilter;
+
+      return matchesSearch && matchesStartDate && matchesEndDate && matchesConsultant;
     });
 
     return [...filtered].sort((a, b) => {
@@ -693,7 +698,7 @@ const PatientTable: React.FC = () => {
             <div className="relative flex-1 max-w-lg">
               <input 
                 type="text" 
-                placeholder={`Search Name, MR#, Consultant, Bed, Category...`}
+                placeholder="Search by Patient Name, MR Number, Consultant, or Location..."
                 className="pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl w-full text-[11px] font-bold outline-none focus:ring-2 focus:ring-red-100 shadow-sm transition-all"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -738,6 +743,19 @@ const PatientTable: React.FC = () => {
               onChange={(e) => setEndDateInput(e.target.value)}
               className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 bg-slate-50"
             />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Consultant:</label>
+            <select 
+              value={consultantFilter}
+              onChange={(e) => setConsultantFilter(e.target.value)}
+              className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 bg-slate-50 cursor-pointer"
+            >
+              <option value="">All Specialists</option>
+              {CONSULTANTS.map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
           </div>
           <button 
             onClick={handleApplyDateFilter}

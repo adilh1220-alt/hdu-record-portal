@@ -122,9 +122,17 @@ const EndoscopyPage: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const isDateInFuture = useMemo(() => {
+    if (!formDate) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const selectedDate = new Date(formDate);
+    return selectedDate > today;
+  }, [formDate]);
+
   const isFormValid = useMemo(() => {
-    return formName.trim() && formRegNo.trim() && formDoctor && formProcedure && formDate;
-  }, [formName, formRegNo, formDoctor, formProcedure, formDate]);
+    return formName.trim() && formRegNo.trim() && formDoctor && formProcedure && formDate && !isDateInFuture;
+  }, [formName, formRegNo, formDoctor, formProcedure, formDate, isDateInFuture]);
 
   const handleSort = (key: SortKey) => {
     setSortConfig(prev => {
@@ -478,7 +486,16 @@ const EndoscopyPage: React.FC = () => {
           </div>
           <div className="space-y-1">
             <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Procedure Date *</label>
-            <input required type="date" value={formDate} onChange={(e) => setFormDate(e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200" />
+            <input 
+              required 
+              type="date" 
+              value={formDate} 
+              onChange={(e) => setFormDate(e.target.value)} 
+              className={`w-full px-3 py-2 border rounded-lg text-[10px] font-bold outline-none focus:ring-1 ${isDateInFuture ? 'border-red-500 focus:ring-red-200' : 'border-slate-200 focus:ring-red-200'}`} 
+            />
+            {isDateInFuture && (
+              <p className="text-[8px] font-bold text-red-500 uppercase tracking-tighter mt-0.5 ml-1">Date cannot be in the future</p>
+            )}
           </div>
           <button type="submit" disabled={!isFormValid || isSaving} className={`w-full py-3 rounded-xl font-black text-[10px] text-white uppercase tracking-widest transition-all ${isFormValid && !isSaving ? 'bg-red-600 shadow-lg hover:bg-red-700 active:scale-95' : 'bg-slate-300 cursor-not-allowed'}`}>
             {isSaving ? "Synchronizing..." : editingRecord ? "Update Log Entry" : "Commit Procedure"}

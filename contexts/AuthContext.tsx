@@ -100,7 +100,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     await authService.logout();
     setCurrentUser(null);
-    localStorage.removeItem('hdu_session');
+    // Clear all HDU related session data
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('hdu_')) {
+        localStorage.removeItem(key);
+      }
+    });
   };
 
   const isAdmin = currentUser?.role === 'Admin';

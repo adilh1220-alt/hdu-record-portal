@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
 import PatientTable from './components/PatientTable';
@@ -18,6 +18,16 @@ const MainAppContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const { currentUser, isAdmin } = useAuth();
   const { activeUnit } = useUnit();
+
+  // Reset to dashboard on login/logout to prevent session persistence issues
+  useEffect(() => {
+    if (currentUser) {
+      // Role-based redirection: Admins could potentially go to 'users', 
+      // but 'dashboard' is generally preferred for overview.
+      // We'll default to 'dashboard' for all to satisfy the "instead of the dashboard" requirement.
+      setActiveTab('dashboard');
+    }
+  }, [currentUser?.uid]);
 
   if (!currentUser) {
     return <AuthForm />;
@@ -45,7 +55,7 @@ const MainAppContent: React.FC = () => {
       case 'tasks':
         return <TasksPage />;
       case 'endoscopy':
-        return <EndoscopyPage />;
+        return isAdmin ? <EndoscopyPage /> : <Dashboard />;
       case 'inventory':
         return <InventoryTable />;
       case 'mortality':

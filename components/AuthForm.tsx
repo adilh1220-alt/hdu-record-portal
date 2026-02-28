@@ -58,12 +58,18 @@ const AuthForm: React.FC = () => {
       const errorCode = err.code || "";
       let friendlyMessage = "Authentication failed. Please check credentials.";
 
-      if (errorCode === 'auth/invalid-credential' || 
-          errorCode === 'auth/user-not-found' || 
-          errorCode === 'auth/wrong-password') {
-        friendlyMessage = 'Invalid Email or Password. Please try again.';
+      if (errorCode === 'auth/user-not-found') {
+        friendlyMessage = 'User not found. Please verify the email address.';
+      } else if (errorCode === 'auth/wrong-password') {
+        friendlyMessage = 'Invalid password. Please try again.';
+      } else if (errorCode === 'auth/invalid-credential') {
+        friendlyMessage = 'Invalid credentials. Please check your email and password.';
       } else if (errorCode === 'auth/too-many-requests') {
-        friendlyMessage = 'Account temporarily locked due to many failed attempts. Try again later.';
+        friendlyMessage = 'Account locked due to too many failed attempts. Please try again later.';
+      } else if (errorCode === 'auth/user-disabled') {
+        friendlyMessage = 'This account has been disabled. Please contact the administrator.';
+      } else if (errorCode === 'auth/invalid-email') {
+        friendlyMessage = 'The email address is badly formatted.';
       } else if (errorCode === 'custom/deactivated') {
         friendlyMessage = err.message;
       }
