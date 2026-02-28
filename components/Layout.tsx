@@ -29,7 +29,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.altKey && e.key.toLowerCase() === 'h') {
         e.preventDefault();
-        setShortcutsOpen(true);
+        setShortcutsOpen(prev => !prev);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
