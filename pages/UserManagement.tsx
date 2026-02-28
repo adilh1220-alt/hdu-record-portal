@@ -30,6 +30,7 @@ const UserManagement: React.FC = () => {
   const [logActionFilter, setLogActionFilter] = useState('ALL');
   const [logStartDate, setLogStartDate] = useState('');
   const [logEndDate, setLogEndDate] = useState('');
+  const [maxLogs, setMaxLogs] = useState(50);
 
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
@@ -51,14 +52,14 @@ const UserManagement: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [maxLogs]);
 
   const loadData = async () => {
     try {
       setLoading(true);
       const [userData, logData] = await Promise.all([
         userService.getAllUsers(),
-        userService.getAuditLogs(100)
+        userService.getAuditLogs(maxLogs)
       ]);
       setUsers(userData);
       setLogs(logData);
@@ -70,7 +71,7 @@ const UserManagement: React.FC = () => {
   };
 
   const refreshLogs = async () => {
-    const logData = await userService.getAuditLogs(100);
+    const logData = await userService.getAuditLogs(maxLogs);
     setLogs(logData);
   };
 
@@ -562,13 +563,28 @@ const UserManagement: React.FC = () => {
               <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
               Facility Audit Logs
             </h2>
-            <button 
-              onClick={refreshLogs} 
-              className="p-1.5 text-slate-400 hover:text-white transition-colors rounded-lg hover:bg-slate-800"
-              title="Refresh Logs"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-            </button>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Limit:</label>
+                <select 
+                  value={maxLogs}
+                  onChange={(e) => setMaxLogs(Number(e.target.value))}
+                  className="bg-slate-800 text-slate-200 border border-slate-700 px-2 py-1 rounded text-[8px] font-black outline-none focus:ring-1 focus:ring-red-500 cursor-pointer"
+                >
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                  <option value={200}>200</option>
+                </select>
+              </div>
+              <button 
+                onClick={refreshLogs} 
+                className="p-1.5 text-slate-400 hover:text-white transition-colors rounded-lg hover:bg-slate-800"
+                title="Refresh Logs"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+              </button>
+            </div>
           </div>
           
           <div className="p-4 bg-slate-50 border-b border-slate-200 space-y-3">
