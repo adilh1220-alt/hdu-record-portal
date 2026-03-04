@@ -954,21 +954,11 @@ const PatientTable: React.FC = () => {
                     <td className="px-4 py-3 text-center text-slate-400">{p.serialNo}</td>
                     <td className="px-4 py-3 font-mono text-slate-900">{p.regNo}</td>
                     <td className="px-4 py-3">
-                        <div className="flex items-center space-x-3">
-                            <div className={`w-8 h-8 rounded-full border flex items-center justify-center font-bold text-[10px] shrink-0 ${
-                              newlyAddedId === p.id ? 'bg-blue-600 border-blue-600 text-white' : 'bg-slate-100 border-slate-200 text-slate-600'
-                            }`}>
-                                {p.name?.[0] || '?'}
+                        <div>
+                            <div className="flex items-center gap-1.5">
+                                <p className="text-slate-900 uppercase">{p.name}</p>
                             </div>
-                            <div>
-                                <div className="flex items-center gap-1.5">
-                                  <p className="text-slate-900 uppercase">{p.name}</p>
-                                  {p.status === PatientStatus.DISCHARGED && (
-                                    <span className="bg-slate-200 text-slate-600 text-[6px] font-black px-1 py-0.5 rounded uppercase tracking-tighter">DC</span>
-                                  )}
-                                </div>
-                                <p className="text-[8px] text-slate-400">{p.gender}</p>
-                            </div>
+                            <p className="text-[8px] text-slate-400">{p.gender}</p>
                         </div>
                     </td>
                     <td className="px-4 py-3">
