@@ -22,7 +22,7 @@ export const PRIORITY_COLORS: Record<TaskPriority, string> = {
 export const CONSULTANTS = [
   'Dr. Salman Khalid', 'Dr. Ruqaya', 'Dr. Kiran Nasir', 'Dr. Bilal', 
   'Dr. Shoaib', 'Dr. Murtaza', 'Dr. Raheela', 'Dr. Aysha', 
-  'Dr. Shakeel', 'Dr. Zohaib', 'Dr. Shariq', 'Dr. Khem chand'
+  'Dr. Shakeel', 'Dr. Zohaib', 'Dr. Shariq', 'Dr. Khem chand', 'Dr. Saima Kashif'
 ];
 
 export const ENDOSCOPY_DOCTORS = [
