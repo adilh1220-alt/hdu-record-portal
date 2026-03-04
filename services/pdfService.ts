@@ -27,7 +27,7 @@ export const exportToPDF = (title: string, headers: string[], rows: any[][], met
   
   doc.setFontSize(10);
   doc.setTextColor(100);
-  doc.text("Clinical Management System", 14, 26);
+  
 
   doc.setDrawColor(226, 232, 240); 
   doc.line(14, 32, 282, 32);
@@ -56,7 +56,7 @@ export const exportToPDF = (title: string, headers: string[], rows: any[][], met
     alternateRowStyles: { fillColor: [248, 250, 252] },
     margin: { top: 20 },
     didDrawPage: function (data: any) {
-      const str = "Page " + (doc as any).internal.getNumberOfPages();
+      const str = "Page " + doc.getNumberOfPages();
       doc.setFontSize(8);
       const pageSize = doc.internal.pageSize;
       const pageHeight = pageSize.height ? pageSize.height : (pageSize as any).getHeight();
@@ -65,6 +65,34 @@ export const exportToPDF = (title: string, headers: string[], rows: any[][], met
       doc.text("Official HDU Internal Report - Unauthorized reproduction is strictly prohibited", 180, pageHeight - 10);
     }
   });
+
+  // Summary Section
+  const finalY = (doc as any).lastAutoTable.finalY || tableStartY + 20;
+  const pageHeight = doc.internal.pageSize.height;
+  
+  // Check if we need a new page for the summary
+  if (finalY + 40 > pageHeight) {
+    doc.addPage();
+    doc.setPage(doc.getNumberOfPages());
+  }
+
+  const summaryY = (finalY + 40 > pageHeight) ? 20 : finalY + 15;
+
+  doc.setDrawColor(226, 232, 240);
+  doc.setFillColor(248, 250, 252);
+  doc.rect(14, summaryY, 268, 25, 'F');
+  doc.rect(14, summaryY, 268, 25, 'S');
+
+  doc.setFontSize(10);
+  doc.setTextColor(30, 41, 59);
+  doc.setFont('helvetica', 'bold');
+  doc.text("REPORT SUMMARY", 20, summaryY + 10);
+  
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(71, 85, 105);
+  doc.text(`Total Records Processed: ${rows.length}`, 20, summaryY + 18);
+  
 
   doc.save(`${title.replace(/\s+/g, '_').toLowerCase()}_${new Date().getTime()}.pdf`);
 };
