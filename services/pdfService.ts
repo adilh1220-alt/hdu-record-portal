@@ -154,13 +154,14 @@ export const exportAccessSlipPDF = (userData: { name: string; email: string; pas
 };
 
 export const exportPatientsPDF = (patients: Patient[], metadata: ReportMetadata) => {
-  const headers = ['S.No', 'Reg No', 'Patient Name', 'Gender', 'Category', 'Code', 'Consultant', 'In-Date', 'Out-Date', 'LOS'];
+  const headers = ['S.No', 'Reg No', 'Patient Name', 'Gender', 'Category', 'Location', 'Code', 'Consultant', 'In-Date', 'Out-Date', 'LOS'];
   const rows = patients.map(p => [
     p.serialNo, 
     p.regNo, 
     p.name, 
     p.gender,
     p.category, 
+    p.location || 'N/A',
     p.codeStatus, 
     p.consultant, 
     p.admissionDate,
