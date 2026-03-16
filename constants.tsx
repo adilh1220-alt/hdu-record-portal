@@ -30,7 +30,7 @@ export const ENDOSCOPY_DOCTORS = [
 ];
 
 export const ENDOSCOPY_PROCEDURES = [
-  'EGD', 'Colonoscopy', 'ERCP', 'Sigmoidoscopy', 'Band Ligation', 'Endoscopy+Band ligation', 'Endoscopy+Biopsy'
+  'EGD', 'Colonoscopy', 'ERCP', 'Sigmoidoscopy', 'Band Ligation', 'Endoscopy+Band ligation', 'Endoscopy+Biopsy', 'Bronchoscopy'
 ];
 
 export const CATEGORIES: string[] = ['Medicine', 'Surgery', 'Urology', 'Nephrology', 'Cardiology', 'Others'];
