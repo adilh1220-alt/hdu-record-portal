@@ -154,9 +154,8 @@ export const exportAccessSlipPDF = (userData: { name: string; email: string; pas
 };
 
 export const exportPatientsPDF = (patients: Patient[], metadata: ReportMetadata) => {
-  const headers = ['S.No', 'Reg No', 'Patient Name', 'Gender', 'Category', 'Location', 'Code', 'Consultant', 'In-Date', 'Out-Date', 'LOS'];
+  const headers = ['Reg No', 'Patient Name', 'Gender', 'Category', 'Location', 'Code', 'Consultant', 'In-Date', 'Out-Date', 'LOS'];
   const rows = patients.map(p => [
-    p.serialNo, 
     p.regNo, 
     p.name, 
     p.gender,
@@ -179,9 +178,8 @@ export const exportInventoryPDF = (inventory: InventoryItem[], metadata: ReportM
 };
 
 export const exportEndoscopyPDF = (records: EndoscopyRecord[], metadata: ReportMetadata) => {
-  const headers = ['S.No', 'Reg No', 'Patient Name', 'Doctor', 'Procedure', 'Date'];
+  const headers = ['Reg No', 'Patient Name', 'Doctor', 'Procedure', 'Date'];
   const rows = records.map(r => [
-    r.serialNo,
     r.regNo,
     r.name,
     r.doctor,
