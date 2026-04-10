@@ -41,8 +41,8 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
       onClick={() => setActiveTab(id)}
       className={`w-full flex items-center space-x-3 p-3 rounded-lg transition-all ${
         activeTab === id 
-          ? 'bg-slate-800 text-white shadow-lg border border-slate-700' 
-          : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'
+          ? 'bg-red-600 text-white shadow-lg border border-red-700' 
+          : 'text-slate-500 hover:bg-slate-50 hover:text-red-600'
       }`}
     >
       {icon}
@@ -53,17 +53,17 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden">
       {/* Sidebar */}
-      <aside className={`bg-slate-900 transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-20'} flex flex-col`}>
-        <div className="p-6 flex items-center justify-between border-b border-slate-800">
+      <aside className={`bg-white border-r border-slate-200 transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-20'} flex flex-col`}>
+        <div className="p-6 flex items-center justify-between border-b border-slate-100">
           <div className={`flex items-center space-x-2 overflow-hidden ${!isSidebarOpen && 'hidden'}`}>
             <div className="w-8 h-8 bg-red-600 rounded-md flex items-center justify-center">
               <span className="text-white font-bold text-xl">+</span>
             </div>
-            <span className="text-white font-bold text-xl tracking-tight">The Kidney Centre</span>
+            <span className="text-slate-900 font-bold text-xl tracking-tight">The Kidney Centre</span>
           </div>
           <button 
             onClick={() => setSidebarOpen(!isSidebarOpen)} 
-            className="text-slate-400 hover:text-white p-1"
+            className="text-slate-400 hover:text-slate-900 p-1"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />
@@ -72,8 +72,8 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
         </div>
 
         {/* Unit Selection Terminal */}
-        <div className={`p-4 border-b border-slate-800 ${(!isSidebarOpen || !isAdmin) && 'hidden'}`}>
-          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-3 ml-1">Select Unit</label>
+        <div className={`p-4 border-b border-slate-100 ${(!isSidebarOpen || !isAdmin) && 'hidden'}`}>
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-3 ml-1">Select Unit</label>
           <div className="flex flex-col gap-2">
             <div className="grid grid-cols-2 gap-2">
               {CLINICAL_UNITS.slice(0, 4).map(unit => (
@@ -83,7 +83,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
                   className={`py-2 px-1 rounded-lg text-[9px] font-black transition-all border leading-tight ${
                     activeUnit === unit 
                       ? `${UNIT_DETAILS[unit].color} text-white border-transparent shadow-lg scale-105` 
-                      : 'bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-500'
+                      : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
                   }`}
                 >
                   {UNIT_DETAILS[unit].label}
@@ -96,7 +96,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
                 className={`w-full py-2 rounded-lg text-[9px] font-black transition-all border leading-tight ${
                   activeUnit === CLINICAL_UNITS[4] 
                     ? `${UNIT_DETAILS[CLINICAL_UNITS[4]].color} text-white border-transparent shadow-lg scale-[1.02]` 
-                    : 'bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-500'
+                    : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
                 }`}
               >
                 {UNIT_DETAILS[CLINICAL_UNITS[4]].label}
@@ -140,10 +140,10 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
             </>
           )}
           
-          <div className="pt-4 mt-4 border-t border-slate-800 space-y-1">
+          <div className="pt-4 mt-4 border-t border-slate-100 space-y-1">
             <button
               onClick={() => setSettingsOpen(true)}
-              className="w-full flex items-center space-x-3 p-3 rounded-lg transition-all text-slate-400 hover:bg-slate-800 hover:text-white"
+              className="w-full flex items-center space-x-3 p-3 rounded-lg transition-all text-slate-500 hover:bg-slate-50 hover:text-red-600"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -153,14 +153,14 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
             </button>
             <button
               onClick={() => setLogoutConfirmOpen(true)}
-              className="w-full flex items-center space-x-3 p-3 rounded-lg transition-all text-red-400 hover:bg-red-900/20 hover:text-red-300"
+              className="w-full flex items-center space-x-3 p-3 rounded-lg transition-all text-red-600 hover:bg-red-50 hover:text-red-700"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
               <span className={`${!isSidebarOpen && 'hidden'} font-medium`}>Sign Out</span>
             </button>
             <button
               onClick={() => setShortcutsOpen(true)}
-              className="w-full flex items-center space-x-3 p-3 rounded-lg transition-all text-slate-500 hover:bg-slate-800 hover:text-white mt-2"
+              className="w-full flex items-center space-x-3 p-3 rounded-lg transition-all text-slate-400 hover:bg-slate-50 hover:text-slate-900 mt-2"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
               <span className={`${!isSidebarOpen && 'hidden'} font-medium`}>Keyboard Help</span>
@@ -168,15 +168,15 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) =>
           </div>
         </nav>
 
-        <div className="p-4 border-t border-slate-800">
-          <div className="flex items-center space-x-3 p-2 text-slate-400">
-             <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold text-xs shrink-0">
+        <div className="p-4 border-t border-slate-100">
+          <div className="flex items-center space-x-3 p-2 text-slate-600">
+             <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold text-xs shrink-0 border border-slate-200">
                {currentUser?.displayName?.[0] || 'U'}
              </div>
              {isSidebarOpen && <div className="overflow-hidden">
-               <p className="text-xs font-bold text-white truncate">{currentUser?.displayName || 'User'}</p>
+               <p className="text-xs font-bold text-slate-900 truncate">{currentUser?.displayName || 'User'}</p>
                <div className="flex items-center gap-2">
-                 <p className="text-[10px] text-red-400 font-bold uppercase tracking-tighter">{currentUser?.role}</p>
+                 <p className="text-[10px] text-red-600 font-bold uppercase tracking-tighter">{currentUser?.role}</p>
                  {isAdmin && (
                    <span className="px-1.5 py-0.5 bg-red-600 text-white text-[8px] font-black rounded uppercase tracking-widest shadow-sm">
                      Admin
