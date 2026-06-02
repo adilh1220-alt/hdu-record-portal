@@ -130,6 +130,22 @@ const EndoscopyPage: React.FC = () => {
       setProcedureSearch(editingRecord.procedure);
       setFormDate(editingRecord.date);
     } else {
+      // Check if we have a draft in LocalStorage for new endoscopy records
+      const savedDraft = localStorage.getItem(`hdu_draft_endoscopy_${activeUnit}`);
+      if (savedDraft && isModalOpen) {
+        try {
+          const draft = JSON.parse(savedDraft);
+          setFormName(draft.name || '');
+          setFormRegNo(draft.regNo || '');
+          setFormDoctor(draft.doctor || '');
+          setFormProcedure(draft.procedure || '');
+          setProcedureSearch(draft.procedure || '');
+          setFormDate(draft.date || new Date().toISOString().split('T')[0]);
+          return;
+        } catch (e) {
+          console.error("Failed to parse endoscopy draft", e);
+        }
+      }
       setFormName('');
       setFormRegNo('');
       setFormDoctor('');
@@ -137,7 +153,24 @@ const EndoscopyPage: React.FC = () => {
       setProcedureSearch('');
       setFormDate(new Date().toISOString().split('T')[0]);
     }
-  }, [editingRecord, isModalOpen]);
+  }, [editingRecord, isModalOpen, activeUnit]);
+
+  // Auto-save fields to LocalStorage for new endoscopy record draft
+  useEffect(() => {
+    if (!editingRecord && isModalOpen) {
+      const data = {
+        name: formName,
+        regNo: formRegNo,
+        doctor: formDoctor,
+        procedure: formProcedure,
+        date: formDate,
+      };
+      
+      if (formName || formRegNo || formDoctor || formProcedure) {
+        localStorage.setItem(`hdu_draft_endoscopy_${activeUnit}`, JSON.stringify(data));
+      }
+    }
+  }, [formName, formRegNo, formDoctor, formProcedure, formDate, editingRecord, isModalOpen, activeUnit]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -300,6 +333,8 @@ const EndoscopyPage: React.FC = () => {
         date: formDate
       };
       await setDoc(recordRef, recordData);
+      // Remove draft from LocalStorage on successful submit
+      localStorage.removeItem(`hdu_draft_endoscopy_${activeUnit}`);
       setIsModalOpen(false);
       setEditingRecord(null);
     } catch (err) {

@@ -46,20 +46,32 @@ interface AdmissionFormProps {
 
 const AdmissionForm = React.memo(({ editingPatient, autoSerialNo, onSave, onArchive, isSaving }: AdmissionFormProps) => {
   const { activeUnit } = useUnit();
-  const [formName, setFormName] = useState(editingPatient?.name || '');
-  const [formRegNo, setFormRegNo] = useState(editingPatient?.regNo || '');
-  const [formGender, setFormGender] = useState(editingPatient?.gender || '');
-  const [formCategory, setFormCategory] = useState(editingPatient?.category || '');
-  const [formLocation, setFormLocation] = useState(editingPatient?.location || '');
-  const [formCodeStatus, setFormCodeStatus] = useState(editingPatient?.codeStatus || '');
-  const [formConsultant, setFormConsultant] = useState(editingPatient?.consultant || '');
-  const [formInDate, setFormInDate] = useState(editingPatient?.admissionDate || new Date().toISOString().split('T')[0]);
-  const [formOutDate, setFormOutDate] = useState(editingPatient?.dischargeDate || '');
+
+  const draft = useMemo(() => {
+    if (editingPatient) return null;
+    try {
+      const saved = localStorage.getItem(`hdu_draft_admission_${activeUnit}`);
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      console.error("Failed to parse admission draft", e);
+      return null;
+    }
+  }, [editingPatient, activeUnit]);
+
+  const [formName, setFormName] = useState(editingPatient?.name || draft?.name || '');
+  const [formRegNo, setFormRegNo] = useState(editingPatient?.regNo || draft?.regNo || '');
+  const [formGender, setFormGender] = useState(editingPatient?.gender || draft?.gender || '');
+  const [formCategory, setFormCategory] = useState(editingPatient?.category || draft?.category || '');
+  const [formLocation, setFormLocation] = useState(editingPatient?.location || draft?.location || '');
+  const [formCodeStatus, setFormCodeStatus] = useState(editingPatient?.codeStatus || draft?.codeStatus || '');
+  const [formConsultant, setFormConsultant] = useState(editingPatient?.consultant || draft?.consultant || '');
+  const [formInDate, setFormInDate] = useState(editingPatient?.admissionDate || draft?.admissionDate || new Date().toISOString().split('T')[0]);
+  const [formOutDate, setFormOutDate] = useState(editingPatient?.dischargeDate || draft?.dischargeDate || '');
   
   const [errors, setErrors] = useState<FormErrors>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   
-  const [consultantSearch, setConsultantSearch] = useState(editingPatient?.consultant || '');
+  const [consultantSearch, setConsultantSearch] = useState(editingPatient?.consultant || draft?.consultant || '');
   const [isConsultantListOpen, setIsConsultantListOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -139,6 +151,27 @@ const AdmissionForm = React.memo(({ editingPatient, autoSerialNo, onSave, onArch
     }, 0);
   };
 
+  // Auto-save fields to LocalStorage for new admissions
+  useEffect(() => {
+    if (!editingPatient) {
+      const data = {
+        name: formName,
+        regNo: formRegNo,
+        gender: formGender,
+        category: formCategory,
+        location: formLocation,
+        codeStatus: formCodeStatus,
+        consultant: formConsultant,
+        admissionDate: formInDate,
+        dischargeDate: formOutDate,
+      };
+      
+      if (formName || formRegNo || formGender || formCategory || formLocation || formCodeStatus || formConsultant) {
+        localStorage.setItem(`hdu_draft_admission_${activeUnit}`, JSON.stringify(data));
+      }
+    }
+  }, [formName, formRegNo, formGender, formCategory, formLocation, formCodeStatus, formConsultant, formInDate, formOutDate, editingPatient, activeUnit]);
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (!isConsultantListOpen) {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -200,6 +233,9 @@ const AdmissionForm = React.memo(({ editingPatient, autoSerialNo, onSave, onArch
     if (formOutDate) {
         status = PatientStatus.DISCHARGED;
     }
+
+    // Remove draft from LocalStorage on successful submit
+    localStorage.removeItem(`hdu_draft_admission_${activeUnit}`);
 
     onSave({
       unit: editingPatient ? editingPatient.unit : activeUnit,
