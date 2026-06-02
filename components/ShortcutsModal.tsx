@@ -19,6 +19,7 @@ const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose }) => {
     { key: 'Alt + N', action: 'New Admission / Add Stock / Log Procedure' },
     { key: 'Alt + S', action: 'Focus Search Bar' },
     { key: 'Alt + E', action: 'Open Export Modal' },
+    { key: 'Alt + P', action: 'Print Active View' },
     { key: 'Alt + H', action: 'Show Keyboard Shortcuts' },
   ];
 

@@ -33,7 +33,7 @@ const MainAppContent: React.FC = () => {
         }
       }
 
-      // Action Shortcuts: Alt + N (New), Alt + S (Search), Alt + E (Export)
+      // Action Shortcuts: Alt + N (New), Alt + S (Search), Alt + E (Export), Alt + P (Print)
       if (e.altKey) {
         if (e.key.toLowerCase() === 'n') {
           e.preventDefault();
@@ -44,6 +44,9 @@ const MainAppContent: React.FC = () => {
         } else if (e.key.toLowerCase() === 'e') {
           e.preventDefault();
           window.dispatchEvent(new CustomEvent('app:export'));
+        } else if (e.key.toLowerCase() === 'p') {
+          e.preventDefault();
+          window.print();
         }
       }
     };
