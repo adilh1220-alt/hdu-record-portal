@@ -594,7 +594,7 @@ const EndoscopyPage: React.FC = () => {
       </Modal>
 
       <ConfirmModal isOpen={isConfirmOpen} onClose={() => setIsConfirmOpen(false)} onConfirm={handleDelete} title="Purge Record" message="Permanently delete this procedure log entry?" />
-      <ExportModal isOpen={isExportModalOpen} onClose={() => setIsExportModalOpen(false)} onExport={(opts) => exportEndoscopyPDF(sortedAndFiltered, { generatedBy: opts.generatedBy, filters: `Unit: ${activeUnit}` })} title="Endoscopy Audit Export" />
+      <ExportModal isOpen={isExportModalOpen} onClose={() => setIsExportModalOpen(false)} onExport={(opts) => exportEndoscopyPDF(sortedAndFiltered, { generatedBy: opts.generatedBy, filters: 'Unit: Endoscopy Unit' })} title="Endoscopy Audit Export" />
     </div>
   );
 };
