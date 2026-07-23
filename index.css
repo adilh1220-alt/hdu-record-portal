@@ -20,3 +20,65 @@
   color: #94a3b8 !important;
   font-weight: 500 !important;
 }
+
+/* Smooth global transitions for UI elements during theme switching */
+body,
+aside,
+main,
+header,
+footer,
+div,
+section,
+nav,
+button,
+input,
+select,
+textarea,
+h1, h2, h3, h4, h5, h6,
+p,
+span,
+a,
+svg,
+label {
+  transition-property: background-color, border-color, text-decoration-color, color, fill, stroke, box-shadow, opacity;
+  transition-duration: 350ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Ensure that animated spin classes are not restricted by global transition-duration */
+.animate-spin {
+  transition: none !important;
+}
+
+@keyframes gentlePulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.88;
+    transform: scale(1.025);
+    box-shadow: 0 0 12px rgba(99, 102, 241, 0.35);
+  }
+}
+
+.animate-gentle-pulse {
+  animation: gentlePulse 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes greenGentlePulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.88;
+    transform: scale(1.025);
+    box-shadow: 0 0 12px rgba(16, 185, 129, 0.35);
+  }
+}
+
+.animate-green-gentle-pulse {
+  animation: greenGentlePulse 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+

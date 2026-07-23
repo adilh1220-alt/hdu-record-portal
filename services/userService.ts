@@ -17,8 +17,8 @@ export const userService = {
         ...(doc.data() as Record<string, any>)
       })) as AuthUser[];
     } catch (error) {
-      console.error("Error fetching users:", error);
-      throw error;
+      console.warn("Error fetching users (offline mode fallback):", error);
+      return [];
     }
   },
 
@@ -30,8 +30,8 @@ export const userService = {
       }
       return null;
     } catch (error) {
-      console.error("Error fetching user:", error);
-      throw error;
+      console.warn("Error fetching user by UID (offline mode fallback):", error);
+      return null;
     }
   },
 

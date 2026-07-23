@@ -7,6 +7,7 @@ import { db } from '../services/firebaseConfig';
 import { IncidentRecord, ClinicalUnit } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useUnit } from '../contexts/UnitContext';
+import { activityService } from '../services/activityService';
 import { UNIT_DETAILS, INCIDENT_CATEGORIES, CLINICAL_UNITS } from '../constants';
 import { exportIncidentsPDF } from '../services/pdfService';
 import { downloadCSV } from '../services/exportService';
@@ -32,14 +33,49 @@ interface IncidentFormProps {
 }
 
 const IncidentForm = React.memo(({ editingIncident, autoSerialNo, onSave, isSaving, activeUnit, currentUser }: IncidentFormProps) => {
-  const [formName, setFormName] = useState(editingIncident?.patientName || '');
-  const [formRegNo, setFormRegNo] = useState(editingIncident?.regNo || '');
-  const [formDate, setFormDate] = useState(editingIncident?.incidentDate || new Date().toISOString().split('T')[0]);
-  const [formCategory, setFormCategory] = useState(editingIncident?.category || '');
-  const [formUnit, setFormUnit] = useState<ClinicalUnit>(editingIncident?.unit || activeUnit);
-  const [formDescription, setFormDescription] = useState(editingIncident?.description || '');
+  const STORAGE_KEY = editingIncident 
+    ? `hdu_draft_incident_${activeUnit}_edit_${editingIncident.id}`
+    : `hdu_draft_incident_${activeUnit}`;
+
+  const getDraftValue = (field: string, defaultValue: any) => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed[field] !== undefined) {
+          return parsed[field];
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return defaultValue;
+  };
+
+  const [hasRestoredDraft, setHasRestoredDraft] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return !!(parsed.patientName || parsed.regNo || parsed.category || parsed.description);
+      }
+    } catch {
+      // ignore
+    }
+    return false;
+  });
+
+  const [formName, setFormName] = useState(() => getDraftValue('patientName', editingIncident?.patientName || ''));
+  const [formRegNo, setFormRegNo] = useState(() => getDraftValue('regNo', editingIncident?.regNo || ''));
+  const [formDate, setFormDate] = useState(() => getDraftValue('incidentDate', editingIncident?.incidentDate || new Date().toISOString().split('T')[0]));
+  const [formCategory, setFormCategory] = useState(() => getDraftValue('category', editingIncident?.category || ''));
+  const [formUnit, setFormUnit] = useState<ClinicalUnit>(() => getDraftValue('unit', editingIncident?.unit || activeUnit));
+  const [formDescription, setFormDescription] = useState(() => getDraftValue('description', editingIncident?.description || ''));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
+
+  const [isDraftSaving, setIsDraftSaving] = useState(false);
+  const [lastSavedTime, setLastSavedTime] = useState<string | null>(null);
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
@@ -66,6 +102,43 @@ const IncidentForm = React.memo(({ editingIncident, autoSerialNo, onSave, isSavi
     return Object.keys(e).length === 0;
   }, [formName, formRegNo, formDate, formCategory]);
 
+  // Debounced Auto-save to LocalStorage
+  useEffect(() => {
+    const isChanged = 
+      formName !== (editingIncident?.patientName || '') ||
+      formRegNo !== (editingIncident?.regNo || '') ||
+      formDate !== (editingIncident?.incidentDate || new Date().toISOString().split('T')[0]) ||
+      formCategory !== (editingIncident?.category || '') ||
+      formUnit !== (editingIncident?.unit || activeUnit) ||
+      formDescription !== (editingIncident?.description || '');
+
+    if (!isChanged && !editingIncident) {
+      return;
+    }
+
+    setIsDraftSaving(true);
+    const timer = setTimeout(() => {
+      try {
+        const draftData = {
+          patientName: formName,
+          regNo: formRegNo,
+          incidentDate: formDate,
+          category: formCategory,
+          unit: formUnit,
+          description: formDescription,
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(draftData));
+        setLastSavedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+      } catch (e) {
+        console.error('Failed to auto-save draft:', e);
+      } finally {
+        setIsDraftSaving(false);
+      }
+    }, 1000); // 1s debounce
+
+    return () => clearTimeout(timer);
+  }, [formName, formRegNo, formDate, formCategory, formUnit, formDescription, STORAGE_KEY, editingIncident, activeUnit]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -82,6 +155,12 @@ const IncidentForm = React.memo(({ editingIncident, autoSerialNo, onSave, isSavi
     }
 
     if (isSaving) return;
+
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch (err) {
+      console.error(err);
+    }
 
     onSave({
       id: editingIncident?.id || '',
@@ -107,6 +186,35 @@ const IncidentForm = React.memo(({ editingIncident, autoSerialNo, onSave, isSavi
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {hasRestoredDraft && (
+        <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="flex h-2 w-2 rounded-full bg-amber-500 animate-pulse"></span>
+            <p className="text-[10px] font-bold text-amber-500 uppercase tracking-wider">Unsaved draft auto-restored</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              try {
+                localStorage.removeItem(STORAGE_KEY);
+                setHasRestoredDraft(false);
+                setFormName(editingIncident?.patientName || '');
+                setFormRegNo(editingIncident?.regNo || '');
+                setFormDate(editingIncident?.incidentDate || new Date().toISOString().split('T')[0]);
+                setFormCategory(editingIncident?.category || '');
+                setFormUnit(editingIncident?.unit || activeUnit);
+                setFormDescription(editingIncident?.description || '');
+                setLastSavedTime(null);
+              } catch (e) {
+                console.error(e);
+              }
+            }}
+            className="text-[9px] font-black text-amber-500 hover:text-amber-600 underline uppercase tracking-wider cursor-pointer"
+          >
+            Discard Draft
+          </button>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-4">
         <InputWrapper label="Serial No (Internal)" field="serial">
           <input 
@@ -189,6 +297,22 @@ const IncidentForm = React.memo(({ editingIncident, autoSerialNo, onSave, isSavi
           />
         </div>
       </InputWrapper>
+
+      <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-wider text-slate-400 min-h-[14px] px-1">
+        {isDraftSaving ? (
+          <span className="flex items-center gap-1.5 text-amber-500">
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+            Auto-saving draft...
+          </span>
+        ) : lastSavedTime ? (
+          <span className="flex items-center gap-1.5 text-emerald-600">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+            Draft auto-saved at {lastSavedTime}
+          </span>
+        ) : (
+          <span>Auto-save active</span>
+        )}
+      </div>
 
       <button 
         type="submit" 
@@ -384,6 +508,16 @@ const SafetyIncidentsPage: React.FC = () => {
       // setDoc will create the document if it doesn't exist, or overwrite it if it does.
       await setDoc(incidentRef, finalData);
       
+      const actionType = incidentData.id ? 'MODIFY' : 'CREATE';
+      const actionLabel = incidentData.id ? 'Modified' : 'Created';
+      await activityService.logActivity(
+        actionType,
+        'Safety Incident',
+        `${actionLabel} safety incident report for patient ${incidentData.patientName} (Reg No: ${incidentData.regNo}) - Category: ${incidentData.category}`,
+        currentUser?.displayName || currentUser?.email || 'Anonymous User',
+        activeUnit
+      );
+      
       setIsModalOpen(false);
       setEditingIncident(null);
     } catch (err) {
@@ -396,7 +530,20 @@ const SafetyIncidentsPage: React.FC = () => {
   const handleDelete = async () => {
     if (idToDelete) {
       try {
+        const inc = incidents.find(i => i.id === idToDelete);
+        const patientName = inc ? inc.patientName : 'Unknown';
+        const regNo = inc ? inc.regNo : 'Unknown';
+        
         await deleteDoc(doc(db, 'safety_incidents', idToDelete));
+        
+        await activityService.logActivity(
+          'DELETE',
+          'Safety Incident',
+          `Deleted safety incident report for patient ${patientName} (Reg No: ${regNo})`,
+          currentUser?.displayName || currentUser?.email || 'Anonymous User',
+          activeUnit
+        );
+        
         setIdToDelete(null);
         setIsConfirmOpen(false);
       } catch (err) {
@@ -452,18 +599,21 @@ const SafetyIncidentsPage: React.FC = () => {
       <div className="flex flex-col gap-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex flex-1 gap-2">
-            <div className="relative flex-1 max-w-lg">
+            <div className="relative flex-1 max-w-lg" title="Search Incidents (Alt+S)">
               <input 
                 ref={searchInputRef}
                 type="text" 
                 placeholder={`Search Patient Name, MR#, Category...`}
-                className="pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl w-full text-[11px] font-bold outline-none focus:ring-2 focus:ring-red-100 shadow-sm transition-all"
+                className="pl-10 pr-16 py-2.5 border border-slate-200 rounded-xl w-full text-[11px] font-bold outline-none focus:ring-2 focus:ring-red-100 shadow-sm transition-all dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:focus:ring-red-950"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
               <svg className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
+              <kbd className="pointer-events-none absolute right-3 top-3 hidden sm:flex items-center gap-0.5 rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[9px] font-black text-slate-400 shadow-sm dark:bg-slate-800 dark:border-slate-700 dark:text-slate-500">
+                Alt+S
+              </kbd>
             </div>
             {canManageRecords && (
               <button 

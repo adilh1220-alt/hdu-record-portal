@@ -24,61 +24,64 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const unsubscribe = authService.onAuthStateChanged(async (user) => {
       if (user) {
+        let role: 'Admin' | 'Consultant' | 'Staff' = 'Staff';
+        let status: 'Active' | 'Left' = 'Active';
+        let assignedUnit: string | undefined = undefined;
+
         try {
           // Fetch authoritative role from Firestore
           const userDoc = await getDoc(doc(db, 'users', user.uid));
-          let role: 'Admin' | 'Consultant' | 'Staff' = 'Staff';
-          let status: 'Active' | 'Left' = 'Active';
-          let assignedUnit: string | undefined = undefined;
-          
           if (userDoc.exists()) {
             const data = userDoc.data() as any;
             role = data.role || 'Staff';
             status = data.status || 'Active';
             assignedUnit = data.assignedUnit;
           }
-
-          // MASTER BYPASS: Always grant Admin to specific superuser
-          if (user.email === 'adilh1220@gmail.com') {
-            role = 'Admin';
-            status = 'Active';
-          }
-
-          // Force logout if status is 'Left'
-          if (status === 'Left') {
-            await authService.logout();
-            setCurrentUser(null);
-            setLoading(false);
-            return;
-          }
-
-          const sanitizedUser: AuthUser = {
-            uid: user.uid,
-            email: user.email,
-            displayName: user.displayName || 'HDU Staff',
-            role: role,
-            status: status,
-            assignedUnit: assignedUnit as any
-          };
-          
-          setCurrentUser(sanitizedUser);
-          localStorage.setItem('hdu_session', JSON.stringify(sanitizedUser));
-          localStorage.setItem(`hdu_role_${user.uid}`, role);
         } catch (error) {
-          console.error("Error fetching user data from Firestore:", error);
-          
-          // Emergency fallback for the bypass email even if Firestore fails
-          if (user.email === 'adilh1220@gmail.com') {
-            const bypassUser: AuthUser = {
-              uid: user.uid,
-              email: user.email,
-              displayName: user.displayName || 'Super Admin',
-              role: 'Admin',
-              status: 'Active'
-            };
-            setCurrentUser(bypassUser);
+          console.warn("Firestore user fetch offline/unreachable fallback:", error);
+          const cachedSession = localStorage.getItem('hdu_session');
+          if (cachedSession) {
+            try {
+              const parsed = JSON.parse(cachedSession);
+              if (parsed.uid === user.uid) {
+                role = parsed.role || role;
+                status = parsed.status || status;
+                assignedUnit = parsed.assignedUnit || assignedUnit;
+              }
+            } catch (e) {}
+          }
+          const savedRole = localStorage.getItem(`hdu_role_${user.uid}`);
+          if (savedRole && (savedRole === 'Admin' || savedRole === 'Consultant' || savedRole === 'Staff')) {
+            role = savedRole as any;
           }
         }
+
+        // MASTER BYPASS: Always grant Admin to specific superuser
+        if (user.email === 'adilh1220@gmail.com') {
+          role = 'Admin';
+          status = 'Active';
+        }
+
+        // Force logout if status is 'Left'
+        if (status === 'Left') {
+          await authService.logout();
+          setCurrentUser(null);
+          setLoading(false);
+          return;
+        }
+
+        const sanitizedUser: AuthUser = {
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName || 'HDU Staff',
+          role: role,
+          status: status,
+          assignedUnit: assignedUnit as any
+        };
+        
+        setCurrentUser(sanitizedUser);
+        localStorage.setItem('hdu_session', JSON.stringify(sanitizedUser));
+        localStorage.setItem(`hdu_role_${user.uid}`, role);
       } else {
         setCurrentUser(null);
         localStorage.removeItem('hdu_session');

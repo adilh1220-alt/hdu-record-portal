@@ -9,6 +9,17 @@ export enum PatientStatus {
 
 export type PatientCategory = 'Medicine' | 'Surgery' | 'Urology' | 'Nephrology' | 'Cardiology' | 'Others';
 export type CodeStatus = 'Full Code' | 'DNR' | 'DNI';
+export type TriagePriority = 'Critical' | 'Urgent' | 'Stable';
+
+export interface TransferLog {
+  timestamp: string;
+  fromUnit: ClinicalUnit | 'External';
+  toUnit: ClinicalUnit | 'External';
+  fromLocation?: string;
+  toLocation?: string;
+  reason: string;
+  performedBy: string;
+}
 
 export interface Patient {
   id: string;
@@ -22,9 +33,11 @@ export interface Patient {
   category: PatientCategory;
   location: string;
   codeStatus: CodeStatus;
+  triagePriority?: TriagePriority;
   consultant: string;
   status?: PatientStatus;
   lengthOfStay: number;
+  transferHistory?: TransferLog[];
 }
 
 export interface InventoryItem {
@@ -40,6 +53,12 @@ export interface InventoryItem {
   notes?: string;
 }
 
+export interface EndoscopyImage {
+  id: string;
+  url: string; // base64 or data URL
+  title: string;
+}
+
 export interface EndoscopyRecord {
   id: string;
   referringUnit: ClinicalUnit;
@@ -49,6 +68,40 @@ export interface EndoscopyRecord {
   doctor: string;
   procedure: string;
   date: string;
+  time?: string;
+  
+  // Expanded endoscopy procedure report fields
+  age?: string;
+  gender?: string;
+  dob?: string;
+  referringPhysician?: string;
+  indications?: string;
+  instruments?: string;
+  medications?: string;
+  visualization?: string;
+  tolerance?: string;
+  complications?: string;
+  limitations?: string;
+  procedureTechnique?: string;
+  findings?: string;
+  esophagusFindings?: string;
+  stomachFindings?: string;
+  antrumFindings?: string;
+  duodenumFindings?: string;
+  duodenumBulbFindings?: string;
+  duodenum2ndPartFindings?: string;
+  colonFindings?: string;
+  rectumFindings?: string;
+  sigmoidColonFindings?: string;
+  transverseColonFindings?: string;
+  descendingColonFindings?: string;
+  ascendingColonFindings?: string;
+  caecumFindings?: string;
+  diagnosis?: string;
+  recommendations?: string;
+  icdCodes?: string;
+  cptCodes?: string;
+  images?: EndoscopyImage[];
 }
 
 export type TaskPriority = 'High' | 'Medium' | 'Low';

@@ -8,10 +8,12 @@ import { exportInventoryPDF, ReportMetadata } from '../services/pdfService';
 import { downloadCSV } from '../services/exportService';
 import { useAuth } from '../contexts/AuthContext';
 import { useUnit } from '../contexts/UnitContext';
+import { activityService } from '../services/activityService';
 import { INVENTORY_CATEGORIES, INVENTORY_UNITS } from '../constants';
 import Modal from './Modal';
 import ConfirmModal from './ConfirmModal';
 import ExportModal from './ExportModal';
+import { VoiceDictationButton } from './VoiceDictationButton';
 
 type SortKey = keyof InventoryItem;
 type SortDirection = 'asc' | 'desc';
@@ -48,7 +50,7 @@ const InventoryTable: React.FC = () => {
 
   const prevIdsRef = useRef<Set<string>>(new Set());
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const { isAdmin, canManageRecords } = useAuth();
+  const { currentUser, isAdmin, canManageRecords } = useAuth();
 
   useEffect(() => {
     const handleNewRecord = () => {
@@ -224,7 +226,19 @@ const InventoryTable: React.FC = () => {
   const confirmDelete = async () => {
     if (idToDelete && isAdmin) {
       try {
+        const item = items.find(i => i.id === idToDelete);
+        const itemName = item ? item.name : 'Unknown';
+        
         await deleteDoc(doc(db, 'inventory', idToDelete));
+        
+        await activityService.logActivity(
+          'DELETE',
+          'Inventory Item',
+          `Deleted inventory item: ${itemName}`,
+          currentUser?.displayName || currentUser?.email || 'Anonymous User',
+          activeUnit
+        );
+        
         setIdToDelete(null);
       } catch (err) {
         console.error("Delete Error:", err);
@@ -294,8 +308,24 @@ const InventoryTable: React.FC = () => {
 
       if (editingItem) {
         await updateDoc(doc(db, 'inventory', editingItem.id), itemData);
+        
+        await activityService.logActivity(
+          'MODIFY',
+          'Inventory Item',
+          `Modified inventory item: ${itemData.name} (Qty: ${itemData.quantity} ${itemData.measurementUnit})`,
+          currentUser?.displayName || currentUser?.email || 'Anonymous User',
+          activeUnit
+        );
       } else {
         await addDoc(collection(db, 'inventory'), itemData);
+        
+        await activityService.logActivity(
+          'CREATE',
+          'Inventory Item',
+          `Added new inventory item: ${itemData.name} (Qty: ${itemData.quantity} ${itemData.measurementUnit}) to ${activeUnit}`,
+          currentUser?.displayName || currentUser?.email || 'Anonymous User',
+          activeUnit
+        );
       }
       
       setIsModalOpen(false);
@@ -360,18 +390,28 @@ const InventoryTable: React.FC = () => {
       <div className="flex flex-col gap-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex flex-1 flex-col sm:flex-row gap-3">
-            <div className="relative flex-1 max-w-md">
+            <div className="relative flex-1 max-w-md" title={`Search ${activeUnit} stock (Alt+S)`}>
               <input 
                 ref={searchInputRef}
                 type="text" 
                 placeholder={`Search ${activeUnit} stock...`} 
-                className="pl-10 pr-4 py-2 border border-slate-200 rounded-lg w-full focus:ring-2 focus:ring-red-100 outline-none transition-all text-[10px] font-bold shadow-sm"
+                className="pl-10 pr-32 py-2 border border-slate-200 rounded-lg w-full focus:ring-2 focus:ring-red-100 outline-none transition-all text-[10px] font-bold shadow-sm dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:focus:ring-red-950"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
               <svg className="w-5 h-5 text-slate-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
+              <div className="absolute right-2 top-1 flex items-center gap-1.5">
+                <VoiceDictationButton 
+                  onTranscript={(text) => setSearchTerm(text)}
+                  size="sm"
+                  lightTheme={true}
+                />
+                <kbd className="pointer-events-none hidden sm:flex items-center gap-0.5 rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[8px] font-black text-slate-400 shadow-sm dark:bg-slate-800 dark:border-slate-700 dark:text-slate-500">
+                  Alt+S
+                </kbd>
+              </div>
             </div>
             
             <select 

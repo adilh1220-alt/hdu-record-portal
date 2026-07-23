@@ -6,9 +6,11 @@ import { db } from '../services/firebaseConfig';
 import { ClinicalTask, TaskPriority, ClinicalUnit } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useUnit } from '../contexts/UnitContext';
+import { activityService } from '../services/activityService';
 import { TASK_PRIORITIES, PRIORITY_COLORS, UNIT_DETAILS } from '../constants';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
+import { VoiceDictationButton } from '../components/VoiceDictationButton';
 
 const TasksPage: React.FC = () => {
   const { activeUnit } = useUnit();
@@ -32,11 +34,73 @@ const TasksPage: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [sortBy, setSortBy] = useState<'created' | 'due'>('created');
 
+  const STORAGE_KEY = `hdu_draft_task_${activeUnit}`;
+
+  const getDraftValue = (field: string, defaultValue: any) => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed[field] !== undefined) {
+          return parsed[field];
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return defaultValue;
+  };
+
+  const [hasRestoredDraft, setHasRestoredDraft] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return !!(parsed.title || parsed.description || parsed.dueDate);
+      }
+    } catch {
+      // ignore
+    }
+    return false;
+  });
+
   // Form State
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [priority, setPriority] = useState<TaskPriority>('Medium');
-  const [dueDate, setDueDate] = useState('');
+  const [title, setTitle] = useState(() => getDraftValue('title', ''));
+  const [description, setDescription] = useState(() => getDraftValue('description', ''));
+  const [priority, setPriority] = useState<TaskPriority>(() => getDraftValue('priority', 'Medium'));
+  const [dueDate, setDueDate] = useState(() => getDraftValue('dueDate', ''));
+
+  const [isDraftSaving, setIsDraftSaving] = useState(false);
+  const [lastSavedTime, setLastSavedTime] = useState<string | null>(null);
+
+  // Debounced Auto-save to LocalStorage
+  useEffect(() => {
+    const isChanged = title !== '' || description !== '' || priority !== 'Medium' || dueDate !== '';
+
+    if (!isChanged) {
+      return;
+    }
+
+    setIsDraftSaving(true);
+    const timer = setTimeout(() => {
+      try {
+        const draftData = {
+          title,
+          description,
+          priority,
+          dueDate,
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(draftData));
+        setLastSavedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+      } catch (e) {
+        console.error('Failed to auto-save draft:', e);
+      } finally {
+        setIsDraftSaving(false);
+      }
+    }, 1000); // 1s debounce
+
+    return () => clearTimeout(timer);
+  }, [title, description, priority, dueDate, STORAGE_KEY]);
 
   useEffect(() => {
     setLoading(true);
@@ -81,9 +145,10 @@ const TasksPage: React.FC = () => {
 
     setIsSaving(true);
     try {
+      const taskTitle = title.trim().toUpperCase();
       await addDoc(collection(db, 'clinical_tasks'), {
         unit: activeUnit,
-        title: title.trim().toUpperCase(),
+        title: taskTitle,
         description: description.trim(),
         priority,
         status: 'Pending',
@@ -91,11 +156,28 @@ const TasksPage: React.FC = () => {
         assignedBy: currentUser?.displayName || 'Unknown Staff',
         createdAt: new Date().toISOString()
       });
+      
+      await activityService.logActivity(
+        'CREATE',
+        'Clinical Task',
+        `Created task: ${taskTitle} (Priority: ${priority})`,
+        currentUser?.displayName || currentUser?.email || 'Anonymous User',
+        activeUnit
+      );
+
+      try {
+        localStorage.removeItem(STORAGE_KEY);
+      } catch (err) {
+        console.error(err);
+      }
+
       setIsModalOpen(false);
+      setHasRestoredDraft(false);
       setTitle('');
       setDescription('');
       setPriority('Medium');
       setDueDate('');
+      setLastSavedTime(null);
     } catch (err) {
       console.error("Failed to commit task:", err);
     } finally {
@@ -108,6 +190,14 @@ const TasksPage: React.FC = () => {
     try {
       const newStatus = task.status === 'Pending' ? 'Completed' : 'Pending';
       await updateDoc(doc(db, 'clinical_tasks', task.id), { status: newStatus });
+      
+      await activityService.logActivity(
+        'MODIFY',
+        'Clinical Task',
+        `Marked task "${task.title}" as ${newStatus}`,
+        currentUser?.displayName || currentUser?.email || 'Anonymous User',
+        activeUnit
+      );
     } catch (err) {
       console.error("Status Toggle Failed:", err);
     }
@@ -116,7 +206,18 @@ const TasksPage: React.FC = () => {
   const deleteTask = async () => {
     if (!idToDelete) return;
     try {
+      const task = tasks.find(t => t.id === idToDelete);
+      const taskTitle = task ? task.title : 'Unknown Task';
       await deleteDoc(doc(db, 'clinical_tasks', idToDelete));
+      
+      await activityService.logActivity(
+        'DELETE',
+        'Clinical Task',
+        `Deleted task: ${taskTitle}`,
+        currentUser?.displayName || currentUser?.email || 'Anonymous User',
+        activeUnit
+      );
+      
       setIdToDelete(null);
     } catch (err) {
       console.error("Purge Failed:", err);
@@ -273,6 +374,33 @@ const TasksPage: React.FC = () => {
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Clinical Order Registration">
         <form onSubmit={handleAddTask} className="space-y-4">
+          {hasRestoredDraft && (
+            <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="flex h-2 w-2 rounded-full bg-amber-500 animate-pulse"></span>
+                <p className="text-[10px] font-bold text-amber-500 uppercase tracking-wider">Unsaved draft auto-restored</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    localStorage.removeItem(STORAGE_KEY);
+                    setHasRestoredDraft(false);
+                    setTitle('');
+                    setDescription('');
+                    setPriority('Medium');
+                    setDueDate('');
+                    setLastSavedTime(null);
+                  } catch (e) {
+                    console.error(e);
+                  }
+                }}
+                className="text-[9px] font-black text-amber-500 hover:text-amber-600 underline uppercase tracking-wider cursor-pointer"
+              >
+                Discard Draft
+              </button>
+            </div>
+          )}
           <div className="space-y-1">
             <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Procedure/Task Title *</label>
             <input 
@@ -307,7 +435,13 @@ const TasksPage: React.FC = () => {
           </div>
 
           <div className="space-y-1">
-            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Clinical Notes</label>
+            <div className="flex items-center justify-between">
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Clinical Notes</label>
+              <VoiceDictationButton 
+                onTranscript={(text) => setDescription(prev => prev ? `${prev} ${text}` : text)} 
+                lightTheme 
+              />
+            </div>
             <textarea 
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -315,6 +449,22 @@ const TasksPage: React.FC = () => {
               rows={3}
               className="w-full px-4 py-3 rounded-xl border border-slate-200 text-[11px] font-bold outline-none focus:ring-1 focus:ring-red-200 resize-none"
             />
+          </div>
+
+          <div className="flex items-center justify-between px-1 text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+            {isDraftSaving ? (
+              <span className="flex items-center gap-1.5 text-red-500 animate-pulse">
+                <svg className="animate-spin h-3 w-3 text-red-500" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Auto-saving draft...
+              </span>
+            ) : lastSavedTime ? (
+              <span>Draft auto-saved at {lastSavedTime}</span>
+            ) : (
+              <span>Draft auto-saved locally</span>
+            )}
           </div>
 
           <button 

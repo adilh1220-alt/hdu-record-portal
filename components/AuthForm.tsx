@@ -20,8 +20,17 @@ const AuthForm: React.FC = () => {
   const [resetEmail, setResetEmail] = useState('');
   const [resetLoading, setResetLoading] = useState(false);
   const [resetMessage, setResetMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [showInactivityAlert, setShowInactivityAlert] = useState(false);
 
   const { login } = useAuth();
+
+  // Detect inactivity logout on mount
+  useEffect(() => {
+    if (localStorage.getItem('hdu_inactivity_logout') === 'true') {
+      setShowInactivityAlert(true);
+      localStorage.removeItem('hdu_inactivity_logout');
+    }
+  }, []);
 
   // Clear error alert after 5 seconds
   useEffect(() => {
@@ -128,6 +137,31 @@ const AuthForm: React.FC = () => {
         </div>
 
         <div className="p-8">
+          {showInactivityAlert && (
+            <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
+              <svg className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <div className="flex-1">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black uppercase text-amber-800 tracking-wider">Session Expired</h4>
+                  <button 
+                    onClick={() => setShowInactivityAlert(false)} 
+                    className="text-amber-500 hover:text-amber-700 p-0.5 rounded transition-colors"
+                    aria-label="Dismiss alert"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <p className="text-[11px] font-semibold text-amber-700 mt-1 leading-relaxed">
+                  You were automatically signed out after 15 minutes of inactivity for compliance and patient-data security.
+                </p>
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-1.5">
               <label className="text-[10px] font-bold text-slate-700 uppercase tracking-widest ml-1">Email Address</label>

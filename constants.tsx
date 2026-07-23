@@ -37,6 +37,13 @@ export const ENDOSCOPY_PROCEDURES = [
 export const CATEGORIES: string[] = ['Medicine', 'Surgery', 'Urology', 'Nephrology', 'Cardiology', 'Others'];
 export const LOCATIONS: string[] = ['OT', 'WARD', 'ICU', 'ER', 'Pvt Ward'];
 export const CODE_STATUSES: any[] = ['Full Code', 'DNR', 'DNI'];
+export const TRIAGE_PRIORITIES = ['Critical', 'Urgent', 'Stable'];
+
+export const TRIAGE_COLORS: Record<string, string> = {
+  Critical: 'bg-red-100 text-red-800 border-red-200 font-bold',
+  Urgent: 'bg-amber-100 text-amber-800 border-amber-200 font-medium',
+  Stable: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+};
 
 export const INVENTORY_CATEGORIES = [
   'Respiratory', 'Emergency', 'Consumables', 'PPE', 'Disposable', 'Medication'

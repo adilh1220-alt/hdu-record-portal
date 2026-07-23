@@ -182,11 +182,11 @@ const Dashboard: React.FC = () => {
   };
 
   const StatCard = ({ title, value, icon, color, subText, suffix = "" }: { title: string, value: number | string, icon: any, color: string, subText: string, suffix?: string }) => (
-    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-start justify-between transition-all hover:shadow-md hover:border-slate-300">
+    <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-start justify-between transition-all hover:shadow-md hover:border-slate-300 dark:hover:border-slate-700">
       <div>
-        <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">{title}</p>
-        <h3 className="text-3xl font-black mt-1 text-slate-800 tracking-tighter">{value}{suffix}</h3>
-        <p className="text-[9px] text-slate-400 mt-2 font-bold uppercase tracking-tight">{subText}</p>
+        <p className="text-slate-500 dark:text-slate-400 text-[10px] font-black uppercase tracking-widest">{title}</p>
+        <h3 className="text-3xl font-black mt-1 text-slate-800 dark:text-slate-100 tracking-tighter">{value}{suffix}</h3>
+        <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-2 font-bold uppercase tracking-tight">{subText}</p>
       </div>
       <div className={`${color} p-3 rounded-xl text-white shadow-lg`}>
         {icon}
@@ -204,12 +204,12 @@ const Dashboard: React.FC = () => {
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
-             <h2 className="text-2xl font-black text-slate-800 tracking-tight uppercase">{UNIT_DETAILS[activeUnit].label} Dashboard</h2>
+             <h2 className="text-2xl font-black text-slate-800 dark:text-slate-100 tracking-tight uppercase">{UNIT_DETAILS[activeUnit].label} Dashboard</h2>
              <span className={`px-3 py-1 rounded text-[8px] font-black text-white uppercase tracking-widest ${UNIT_DETAILS[activeUnit].color}`}>
                Unit: {activeUnit}
              </span>
           </div>
-          <p className="text-slate-500 text-sm font-medium">Performance tracking for fiscal year {selectedYear}</p>
+          <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Performance tracking for fiscal year {selectedYear}</p>
         </div>
         
         <div className="flex items-center gap-3">
@@ -307,11 +307,11 @@ const Dashboard: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 gap-8">
-        <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
+        <div className="bg-white dark:bg-slate-900 p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
           <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-4">
             <div>
-              <h3 className="text-sm font-black text-slate-800 uppercase tracking-[0.2em]">Admission Velocity</h3>
-              <p className="text-xs text-slate-500 font-medium mt-1">Monthly breakdown for {activeUnit}</p>
+              <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-[0.2em]">Admission Velocity</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">Monthly breakdown for {activeUnit}</p>
             </div>
           </div>
           <div id="admission-velocity-chart" className="w-full h-[350px]">
@@ -357,11 +357,11 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-        <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
+        <div className="bg-white dark:bg-slate-900 p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
           <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-4">
             <div>
-              <h3 className="text-sm font-black text-slate-800 uppercase tracking-[0.2em]">Most Frequent Procedures</h3>
-              <p className="text-xs text-slate-500 font-medium mt-1">Top 5 procedures for {selectedYear}</p>
+              <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-[0.2em]">Most Frequent Procedures</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">Top 5 procedures for {selectedYear}</p>
             </div>
           </div>
           <div id="frequent-procedures-chart" className="w-full h-[350px]">
@@ -375,7 +375,7 @@ const Dashboard: React.FC = () => {
                   dataKey="name" 
                   axisLine={false} 
                   tickLine={false} 
-                  tick={{fill: '#475569', fontSize: 10, fontWeight: 700}}
+                  tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 700}}
                   width={90}
                 />
                 <Tooltip 
@@ -399,11 +399,11 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-        <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
+        <div className="bg-white dark:bg-slate-900 p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
           <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-4">
             <div>
-              <h3 className="text-sm font-black text-slate-800 uppercase tracking-[0.2em]">Unit Mortality Velocity</h3>
-              <p className="text-xs text-slate-500 font-medium mt-1">Monthly breakdown for {activeUnit} Expiry Logs</p>
+              <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-[0.2em]">Unit Mortality Velocity</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">Monthly breakdown for {activeUnit} Expiry Logs</p>
             </div>
           </div>
           <div id="mortality-velocity-chart" className="w-full h-[350px]">

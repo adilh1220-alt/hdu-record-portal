@@ -1,17 +1,20 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 // @ts-ignore
 import { collection, onSnapshot, setDoc, doc, deleteDoc, query, orderBy, updateDoc, where } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
-import { Patient, PatientStatus, PatientCategory, CodeStatus } from '../types';
-import { exportPatientsPDF } from '../services/pdfService';
+import { Patient, PatientStatus, PatientCategory, CodeStatus, TriagePriority, ClinicalUnit } from '../types';
+import { exportPatientsPDF, exportPatientSummaryPDF } from '../services/pdfService';
 import { downloadCSV } from '../services/exportService';
 import { useAuth } from '../contexts/AuthContext';
 import { useUnit } from '../contexts/UnitContext';
-import { CONSULTANTS, CATEGORIES, LOCATIONS, CODE_STATUSES } from '../constants';
+import { activityService } from '../services/activityService';
+import { CONSULTANTS, CATEGORIES, LOCATIONS, CODE_STATUSES, TRIAGE_PRIORITIES, TRIAGE_COLORS, CLINICAL_UNITS, UNIT_DETAILS } from '../constants';
 import Modal from './Modal';
 import ConfirmModal from './ConfirmModal';
 import ExportModal from './ExportModal';
+import { VoiceDictationButton } from './VoiceDictationButton';
 
 interface FormErrors {
   name?: string;
@@ -47,36 +50,61 @@ interface AdmissionFormProps {
 const AdmissionForm = React.memo(({ editingPatient, autoSerialNo, onSave, onArchive, isSaving }: AdmissionFormProps) => {
   const { activeUnit } = useUnit();
 
-  const draft = useMemo(() => {
-    if (editingPatient) return null;
-    try {
-      const saved = localStorage.getItem(`hdu_draft_admission_${activeUnit}`);
-      return saved ? JSON.parse(saved) : null;
-    } catch (e) {
-      console.error("Failed to parse admission draft", e);
-      return null;
-    }
-  }, [editingPatient, activeUnit]);
+  const STORAGE_KEY = editingPatient 
+    ? `hdu_draft_admission_${activeUnit}_edit_${editingPatient.id}`
+    : `hdu_draft_admission_${activeUnit}`;
 
-  const [formName, setFormName] = useState(editingPatient?.name || draft?.name || '');
-  const [formRegNo, setFormRegNo] = useState(editingPatient?.regNo || draft?.regNo || '');
-  const [formGender, setFormGender] = useState(editingPatient?.gender || draft?.gender || '');
-  const [formCategory, setFormCategory] = useState(editingPatient?.category || draft?.category || '');
-  const [formLocation, setFormLocation] = useState(editingPatient?.location || draft?.location || '');
-  const [formCodeStatus, setFormCodeStatus] = useState(editingPatient?.codeStatus || draft?.codeStatus || '');
-  const [formConsultant, setFormConsultant] = useState(editingPatient?.consultant || draft?.consultant || '');
-  const [formInDate, setFormInDate] = useState(editingPatient?.admissionDate || draft?.admissionDate || new Date().toISOString().split('T')[0]);
-  const [formOutDate, setFormOutDate] = useState(editingPatient?.dischargeDate || draft?.dischargeDate || '');
+  const getDraftValue = (field: string, defaultValue: any) => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed[field] !== undefined) {
+          return parsed[field];
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return defaultValue;
+  };
+
+  const [hasRestoredDraft, setHasRestoredDraft] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return !!(parsed.name || parsed.regNo || parsed.gender || parsed.category || parsed.location || parsed.codeStatus || parsed.consultant);
+      }
+    } catch {
+      // ignore
+    }
+    return false;
+  });
+
+  const [formName, setFormName] = useState(() => getDraftValue('name', editingPatient?.name || ''));
+  const [formRegNo, setFormRegNo] = useState(() => getDraftValue('regNo', editingPatient?.regNo || ''));
+  const [formGender, setFormGender] = useState(() => getDraftValue('gender', editingPatient?.gender || ''));
+  const [formCategory, setFormCategory] = useState(() => getDraftValue('category', editingPatient?.category || ''));
+  const [formLocation, setFormLocation] = useState(() => getDraftValue('location', editingPatient?.location || ''));
+  const [formCodeStatus, setFormCodeStatus] = useState(() => getDraftValue('codeStatus', editingPatient?.codeStatus || ''));
+  const [formTriagePriority, setFormTriagePriority] = useState<TriagePriority>(() => getDraftValue('triagePriority', editingPatient?.triagePriority || 'Stable'));
+  const [formConsultant, setFormConsultant] = useState(() => getDraftValue('consultant', editingPatient?.consultant || ''));
+  const [formInDate, setFormInDate] = useState(() => getDraftValue('admissionDate', editingPatient?.admissionDate || new Date().toISOString().split('T')[0]));
+  const [formOutDate, setFormOutDate] = useState(() => getDraftValue('dischargeDate', editingPatient?.dischargeDate || ''));
   
   const [errors, setErrors] = useState<FormErrors>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   
-  const [consultantSearch, setConsultantSearch] = useState(editingPatient?.consultant || draft?.consultant || '');
+  const [consultantSearch, setConsultantSearch] = useState(() => getDraftValue('consultant', editingPatient?.consultant || ''));
   const [isConsultantListOpen, setIsConsultantListOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const { canManageRecords } = useAuth();
+
+  const [isDraftSaving, setIsDraftSaving] = useState(false);
+  const [lastSavedTime, setLastSavedTime] = useState<string | null>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -151,26 +179,50 @@ const AdmissionForm = React.memo(({ editingPatient, autoSerialNo, onSave, onArch
     }, 0);
   };
 
-  // Auto-save fields to LocalStorage for new admissions
+  // Debounced Auto-save to LocalStorage
   useEffect(() => {
-    if (!editingPatient) {
-      const data = {
-        name: formName,
-        regNo: formRegNo,
-        gender: formGender,
-        category: formCategory,
-        location: formLocation,
-        codeStatus: formCodeStatus,
-        consultant: formConsultant,
-        admissionDate: formInDate,
-        dischargeDate: formOutDate,
-      };
-      
-      if (formName || formRegNo || formGender || formCategory || formLocation || formCodeStatus || formConsultant) {
-        localStorage.setItem(`hdu_draft_admission_${activeUnit}`, JSON.stringify(data));
-      }
+    const isChanged = 
+      formName !== (editingPatient?.name || '') ||
+      formRegNo !== (editingPatient?.regNo || '') ||
+      formGender !== (editingPatient?.gender || '') ||
+      formCategory !== (editingPatient?.category || '') ||
+      formLocation !== (editingPatient?.location || '') ||
+      formCodeStatus !== (editingPatient?.codeStatus || '') ||
+      formTriagePriority !== (editingPatient?.triagePriority || 'Stable') ||
+      formConsultant !== (editingPatient?.consultant || '') ||
+      formInDate !== (editingPatient?.admissionDate || new Date().toISOString().split('T')[0]) ||
+      formOutDate !== (editingPatient?.dischargeDate || '');
+
+    if (!isChanged && !editingPatient) {
+      return;
     }
-  }, [formName, formRegNo, formGender, formCategory, formLocation, formCodeStatus, formConsultant, formInDate, formOutDate, editingPatient, activeUnit]);
+
+    setIsDraftSaving(true);
+    const timer = setTimeout(() => {
+      try {
+        const draftData = {
+          name: formName,
+          regNo: formRegNo,
+          gender: formGender,
+          category: formCategory,
+          location: formLocation,
+          codeStatus: formCodeStatus,
+          triagePriority: formTriagePriority,
+          consultant: formConsultant,
+          admissionDate: formInDate,
+          dischargeDate: formOutDate,
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(draftData));
+        setLastSavedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+      } catch (e) {
+        console.error('Failed to auto-save draft:', e);
+      } finally {
+        setIsDraftSaving(false);
+      }
+    }, 1000); // 1s debounce
+
+    return () => clearTimeout(timer);
+  }, [formName, formRegNo, formGender, formCategory, formLocation, formCodeStatus, formTriagePriority, formConsultant, formInDate, formOutDate, STORAGE_KEY, editingPatient]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (!isConsultantListOpen) {
@@ -235,7 +287,11 @@ const AdmissionForm = React.memo(({ editingPatient, autoSerialNo, onSave, onArch
     }
 
     // Remove draft from LocalStorage on successful submit
-    localStorage.removeItem(`hdu_draft_admission_${activeUnit}`);
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch (err) {
+      console.error(err);
+    }
 
     onSave({
       unit: editingPatient ? editingPatient.unit : activeUnit,
@@ -247,6 +303,7 @@ const AdmissionForm = React.memo(({ editingPatient, autoSerialNo, onSave, onArch
       category: formCategory as PatientCategory,
       location: formLocation,
       codeStatus: formCodeStatus as CodeStatus,
+      triagePriority: formTriagePriority,
       consultant: formConsultant,
       lengthOfStay: los,
       dischargeDate: formOutDate || undefined,
@@ -262,6 +319,40 @@ const AdmissionForm = React.memo(({ editingPatient, autoSerialNo, onSave, onArch
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {hasRestoredDraft && (
+        <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="flex h-2 w-2 rounded-full bg-amber-500 animate-pulse"></span>
+            <p className="text-[10px] font-bold text-amber-500 uppercase tracking-wider">Unsaved draft auto-restored</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              try {
+                localStorage.removeItem(STORAGE_KEY);
+                setHasRestoredDraft(false);
+                setFormName(editingPatient?.name || '');
+                setFormRegNo(editingPatient?.regNo || '');
+                setFormGender(editingPatient?.gender || '');
+                setFormCategory(editingPatient?.category || '');
+                setFormLocation(editingPatient?.location || '');
+                setFormCodeStatus(editingPatient?.codeStatus || '');
+                setFormTriagePriority(editingPatient?.triagePriority || 'Stable');
+                setFormConsultant(editingPatient?.consultant || '');
+                setConsultantSearch(editingPatient?.consultant || '');
+                setFormInDate(editingPatient?.admissionDate || new Date().toISOString().split('T')[0]);
+                setFormOutDate(editingPatient?.dischargeDate || '');
+                setLastSavedTime(null);
+              } catch (e) {
+                console.error(e);
+              }
+            }}
+            className="text-[9px] font-black text-amber-500 hover:text-amber-600 underline uppercase tracking-wider cursor-pointer"
+          >
+            Discard Draft
+          </button>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-4">
         <InputWrapper label="Serial No (Internal)" field="serialNo">
           <input 
@@ -322,7 +413,7 @@ const AdmissionForm = React.memo(({ editingPatient, autoSerialNo, onSave, onArch
           </select>
         </InputWrapper>
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <InputWrapper label="Location *" field="location" error={errors.location} touched={touched.location}>
           <select 
             id="hdu-field-location"
@@ -345,6 +436,16 @@ const AdmissionForm = React.memo(({ editingPatient, autoSerialNo, onSave, onArch
           >
             <option value="">Select</option>
             {CODE_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </InputWrapper>
+        <InputWrapper label="Triage Priority *" field="triagePriority">
+          <select 
+            id="hdu-field-triagePriority"
+            value={formTriagePriority} 
+            onChange={(e) => setFormTriagePriority(e.target.value as TriagePriority)} 
+            className={getInputClass('triagePriority')}
+          >
+            {TRIAGE_PRIORITIES.map(tp => <option key={tp} value={tp}>{tp}</option>)}
           </select>
         </InputWrapper>
       </div>
@@ -449,6 +550,22 @@ const AdmissionForm = React.memo(({ editingPatient, autoSerialNo, onSave, onArch
         </div>
       </div>
 
+      <div className="flex items-center justify-between px-1 text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+        {isDraftSaving ? (
+          <span className="flex items-center gap-1.5 text-red-500 animate-pulse">
+            <svg className="animate-spin h-3 w-3 text-red-500" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            Auto-saving draft...
+          </span>
+        ) : lastSavedTime ? (
+          <span>Draft auto-saved at {lastSavedTime}</span>
+        ) : (
+          <span>Draft auto-saved locally</span>
+        )}
+      </div>
+
       <div className="pt-2 flex flex-col gap-3">
         <button 
           type="submit"
@@ -473,15 +590,553 @@ const AdmissionForm = React.memo(({ editingPatient, autoSerialNo, onSave, onArch
   );
 });
 
+interface TransferModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  patient: Patient | null;
+  onTransfer: (destUnit: ClinicalUnit, destLocation: string, reason: string) => Promise<void>;
+  isSaving: boolean;
+}
+
+const TransferModal: React.FC<TransferModalProps> = ({ isOpen, onClose, patient, onTransfer, isSaving }) => {
+  const [destUnit, setDestUnit] = useState<ClinicalUnit>('HDU');
+  const [destLocation, setDestLocation] = useState('');
+  const [reason, setReason] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (patient) {
+      const otherUnits = CLINICAL_UNITS.filter(u => u !== patient.unit);
+      if (otherUnits.length > 0) {
+        setDestUnit(otherUnits[0]);
+      }
+      setDestLocation('');
+      setReason('');
+      setError('');
+    }
+  }, [patient]);
+
+  if (!patient) return null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!destUnit) {
+      setError('Destination Unit is required');
+      return;
+    }
+    if (!destLocation.trim()) {
+      setError('Destination Location is required');
+      return;
+    }
+    if (!reason.trim()) {
+      setError('Transfer reason is required');
+      return;
+    }
+    onTransfer(destUnit, destLocation.trim(), reason.trim());
+  };
+
+  const otherUnits = CLINICAL_UNITS.filter(u => u !== patient.unit);
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={`Transfer Patient: ${patient.name}`} maxWidth="max-w-md">
+      <form onSubmit={handleSubmit} className="space-y-4 text-[10px] uppercase font-bold text-slate-700">
+        <div>
+          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Current Placement</span>
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex items-center justify-between text-[10px]">
+            <div>
+              <p className="text-slate-900">{UNIT_DETAILS[patient.unit]?.label || patient.unit}</p>
+              <p className="text-[8px] text-slate-400 mt-0.5">Location: {patient.location || 'N/A'}</p>
+            </div>
+            <span className="bg-slate-200 px-2.5 py-1 rounded text-slate-700">{patient.unit}</span>
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Destination Unit *</label>
+          <select 
+            value={destUnit} 
+            onChange={(e) => setDestUnit(e.target.value as ClinicalUnit)}
+            className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-red-100 bg-white cursor-pointer"
+          >
+            {otherUnits.map(unit => (
+              <option key={unit} value={unit}>
+                {UNIT_DETAILS[unit]?.label || unit} ({unit})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Destination Location *</label>
+          <div className="flex gap-2">
+            <select
+              value={LOCATIONS.includes(destLocation) ? destLocation : ''}
+              onChange={(e) => setDestLocation(e.target.value)}
+              className="px-3 py-2 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-red-100 bg-white cursor-pointer flex-1"
+            >
+              <option value="">Select Location...</option>
+              {LOCATIONS.map(loc => (
+                <option key={loc} value={loc}>{loc}</option>
+              ))}
+              <option value="custom">Custom...</option>
+            </select>
+            {(!LOCATIONS.includes(destLocation) || destLocation === 'custom') && (
+              <input 
+                type="text" 
+                placeholder="Enter Specific Location/Bed..." 
+                value={destLocation === 'custom' ? '' : destLocation}
+                onChange={(e) => setDestLocation(e.target.value)}
+                className="px-3 py-2 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-red-100 flex-1 placeholder:text-slate-300"
+              />
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          <div className="flex items-center justify-between">
+            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Reason for Transfer *</label>
+            <VoiceDictationButton 
+              onTranscript={(text) => setReason(prev => prev ? `${prev} ${text}` : text)} 
+              lightTheme 
+            />
+          </div>
+          <textarea 
+            rows={3}
+            placeholder="E.g., Clinical deterioration requiring intensive monitoring, step-down to ward, scheduled surgery..."
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            className="w-full px-3 py-2 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-red-100 placeholder:text-slate-300 font-medium normal-case"
+          />
+        </div>
+
+        {error && (
+          <p className="text-[8px] font-bold text-red-500 uppercase tracking-tighter">{error}</p>
+        )}
+
+        <div className="pt-2 flex gap-3">
+          <button 
+            type="button" 
+            onClick={onClose}
+            className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors uppercase text-[10px] tracking-wider"
+          >
+            Cancel
+          </button>
+          <button 
+            type="submit" 
+            disabled={isSaving}
+            className="flex-1 py-2.5 rounded-xl bg-red-600 text-white hover:bg-red-700 transition-colors uppercase text-[10px] tracking-wider shadow-lg shadow-red-100 flex items-center justify-center gap-1"
+          >
+            {isSaving ? 'Processing...' : 'Confirm Transfer'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+};
+
+interface HistoryModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  patient: Patient | null;
+}
+
+const HistoryModal: React.FC<HistoryModalProps> = ({ isOpen, onClose, patient }) => {
+  const { currentUser } = useAuth();
+  if (!patient) return null;
+
+  const currentDisplayName = currentUser?.displayName || currentUser?.email || 'Medical Practitioner';
+  const history = patient.transferHistory || [];
+
+  const handlePrintQuickSummary = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    exportPatientSummaryPDF(patient, currentDisplayName);
+  };
+
+  const formatDateTime = (isoString: string) => {
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return isoString;
+    return d.toLocaleString('en-US', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={`Transfer Timeline: ${patient.name}`} maxWidth="max-w-lg">
+      <div className="space-y-6 text-[10px] uppercase font-bold text-slate-700">
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Patient Details</span>
+            <button
+              onClick={handlePrintQuickSummary}
+              className="text-[8px] bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded font-black uppercase tracking-wider transition-all duration-200 flex items-center gap-1 shadow-sm active:scale-95 animate-fade-in"
+              title="Print Clinical Quick Summary"
+            >
+              <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 1.523a1.125 1.125 0 01-1.12 1.227H7.231c-.615 0-1.114-.507-1.12-1.125L6.34 18m11.32 0h-11.32m11.32 0a3 3 0 003-3V9.75a3 3 0 00-3-3h-11.32a3 3 0 00-3 3V15a3 3 0 003 3m11.32-11.25V4.5a2.25 2.25 0 00-2.25-2.25h-6.75a2.25 2.25 0 00-2.25 2.25v2.25m6.75 0h-6.75M8.25 10.5h.008v.008H8.25V10.5zm.375 0a.375 0 11-.75 0 .375 0 01.75 0z" />
+              </svg>
+              Print Quick Summary
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100 text-[10px] transition-all duration-300 hover:shadow-md hover:shadow-slate-100 hover:bg-white hover:-translate-y-0.5 cursor-pointer">
+            <div>
+              <p className="text-slate-400 font-bold">MR Number</p>
+              <p className="text-slate-900 mt-0.5">{patient.regNo}</p>
+            </div>
+            <div>
+              <p className="text-slate-400 font-bold">Admission Date</p>
+              <p className="text-slate-900 mt-0.5">{new Date(patient.admissionDate).toLocaleDateString()}</p>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-4">Movement Trail</span>
+          {history.length === 0 ? (
+            <div className="text-center py-8 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
+              <svg className="w-8 h-8 text-slate-300 mx-auto mb-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L17.5 12M21 7.5H7.5" />
+              </svg>
+              <p className="text-[9px] text-slate-400 uppercase tracking-widest">No transfers recorded for this patient.</p>
+              <p className="text-[8px] text-slate-300 tracking-wide mt-1 normal-case">The patient has remained in {UNIT_DETAILS[patient.unit]?.label || patient.unit} since admission.</p>
+            </div>
+          ) : (
+            <div className="relative border-l border-slate-200 ml-3 pl-6 space-y-6">
+              {history.map((log, index) => (
+                <div key={index} className="relative">
+                  <span className="absolute -left-[31px] top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-100 border border-red-200 ring-4 ring-white text-red-600">
+                    <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                    </svg>
+                  </span>
+                  
+                  <div>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                      <h4 className="text-[10px] font-black text-slate-900 flex items-center gap-1.5">
+                        <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 border border-slate-200">{log.fromUnit}</span>
+                        <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+                        <span className="bg-red-50 text-red-700 px-1.5 py-0.5 rounded border border-red-100">{log.toUnit}</span>
+                      </h4>
+                      <span className="text-[8px] font-bold text-slate-400 font-mono tracking-wider">{formatDateTime(log.timestamp)}</span>
+                    </div>
+                    
+                    <div className="mt-2 text-[9px] text-slate-600 font-medium normal-case space-y-1 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                      <p><strong className="uppercase font-bold text-[8px] text-slate-400 tracking-wider">Placement Transition:</strong> {log.fromLocation || 'N/A'} &rarr; {log.toLocation || 'N/A'}</p>
+                      <p><strong className="uppercase font-bold text-[8px] text-slate-400 tracking-wider">Transfer Reason:</strong> {log.reason}</p>
+                      <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wider mt-1">Authorized By: {log.performedBy}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="pt-2">
+          <button 
+            type="button" 
+            onClick={onClose}
+            className="w-full py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors uppercase text-[10px] tracking-wider"
+          >
+            Close Timeline
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+};
+
+interface PrintSummaryModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  patient: Patient | null;
+}
+
+const PrintSummaryModal: React.FC<PrintSummaryModalProps> = ({ isOpen, onClose, patient }) => {
+  const { currentUser } = useAuth();
+  
+  if (!patient) return null;
+
+  const currentDisplayName = currentUser?.displayName || currentUser?.email || 'Medical Practitioner';
+
+  const handleBrowserPrint = () => {
+    window.print();
+  };
+
+  const handleDownloadPDF = () => {
+    exportPatientSummaryPDF(patient, currentDisplayName);
+  };
+
+  const formatDateTime = (isoString: string) => {
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return isoString;
+    return d.toLocaleString('en-US', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Patient Summary Report" maxWidth="max-w-3xl">
+      <style>{`
+        @media print {
+          body * {
+            visibility: hidden !important;
+          }
+          #clinical-print-section, #clinical-print-section * {
+            visibility: visible !important;
+          }
+          #clinical-print-section {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            height: auto !important;
+            background: white !important;
+            color: black !important;
+            padding: 24px !important;
+            margin: 0 !important;
+          }
+        }
+      `}</style>
+
+      <div className="space-y-6">
+        {/* On-screen control bar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200 print:hidden">
+          <div>
+            <h4 className="text-[10px] font-black text-slate-800 uppercase tracking-wider">Clinical Export Suite</h4>
+            <p className="text-[8px] text-slate-400 font-bold uppercase mt-0.5">Select your preferred output format for medical records.</p>
+          </div>
+          <div className="flex gap-2">
+            <button 
+              onClick={handleBrowserPrint}
+              className="px-4 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-800 transition-colors uppercase text-[9px] font-black tracking-wider flex items-center gap-1.5 active:scale-95 shadow-sm"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 1.523a1.125 1.125 0 01-1.12 1.227H7.231c-.615 0-1.114-.507-1.12-1.125L6.34 18m11.32 0h-11.32m11.32 0a3 3 0 003-3V9.75a3 3 0 00-3-3h-11.32a3 3 0 00-3 3V15a3 3 0 003 3m11.32-11.25V4.5a2.25 2.25 0 00-2.25-2.25h-6.75a2.25 2.25 0 00-2.25 2.25v2.25m6.75 0h-6.75M8.25 10.5h.008v.008H8.25V10.5zm.375 0a.375 0 11-.75 0 .375 0 01.75 0z" />
+              </svg>
+              Print Document
+            </button>
+            <button 
+              onClick={handleDownloadPDF}
+              className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors uppercase text-[9px] font-black tracking-wider flex items-center gap-1.5 active:scale-95 shadow-sm shadow-red-100"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+              </svg>
+              Save As PDF
+            </button>
+          </div>
+        </div>
+
+        {/* Printable Area */}
+        <div 
+          id="clinical-print-section" 
+          className="bg-white p-6 border border-slate-200 rounded-2xl shadow-sm text-slate-800 space-y-6 overflow-y-auto max-h-[60vh] print:max-h-none print:border-none print:shadow-none font-sans"
+        >
+          {/* Header Banner */}
+          <div className="border-b-4 border-slate-900 pb-4 text-center space-y-1.5">
+            <h1 className="text-lg md:text-xl font-black text-slate-900 tracking-tight uppercase">
+              HIGH DEPENDENCY UNIT (HDU) CLINICAL REGISTRY
+            </h1>
+            <h2 className="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest">
+              Patient Summary &amp; Movement Audit Record
+            </h2>
+            <div className="flex items-center justify-center gap-4 text-[8px] md:text-[9px] text-slate-400 font-mono uppercase tracking-wider pt-1">
+              <span>Record ID: {patient.id}</span>
+              <span>•</span>
+              <span>Generated by: {currentDisplayName}</span>
+              <span>•</span>
+              <span>Timestamp: {new Date().toLocaleString()}</span>
+            </div>
+          </div>
+
+          {/* Core Demographics Grid */}
+          <div className="space-y-2">
+            <h3 className="text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1">I. PATIENT PROFILE</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-[10px] font-bold text-slate-700 uppercase">
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1 transition-all duration-300 hover:shadow-md hover:shadow-slate-100 hover:bg-white hover:-translate-y-0.5 cursor-pointer">
+                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider block">Full Name</span>
+                <span className="text-slate-900 block font-black text-xs">{patient.name}</span>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1 transition-all duration-300 hover:shadow-md hover:shadow-slate-100 hover:bg-white hover:-translate-y-0.5 cursor-pointer">
+                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider block">MR Number</span>
+                <span className="text-slate-900 block font-mono font-black text-xs">{patient.regNo}</span>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1 transition-all duration-300 hover:shadow-md hover:shadow-slate-100 hover:bg-white hover:-translate-y-0.5 cursor-pointer">
+                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider block">Patient Gender</span>
+                <span className="text-slate-900 block">{patient.gender}</span>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1 transition-all duration-300 hover:shadow-md hover:shadow-slate-100 hover:bg-white hover:-translate-y-0.5 cursor-pointer">
+                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider block">Patient Category</span>
+                <span className="text-slate-900 block">{patient.category}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Placement and Clinical Flags */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Clinical Placement Card */}
+            <div className="space-y-2">
+              <h3 className="text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1">II. CURRENT PLACEMENT</h3>
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 text-[10px] font-bold text-slate-700 uppercase space-y-2 transition-all duration-300 hover:shadow-md hover:shadow-slate-100 hover:bg-white hover:-translate-y-0.5 cursor-pointer">
+                <div className="flex justify-between items-center border-b border-slate-200/50 pb-2">
+                  <span className="text-slate-400 font-bold uppercase text-[8px] tracking-wider">Clinical Ward</span>
+                  <span className="bg-slate-200 text-slate-800 px-2 py-0.5 rounded text-[9px]">{patient.unit} Unit</span>
+                </div>
+                <div className="flex justify-between items-center border-b border-slate-200/50 pb-2">
+                  <span className="text-slate-400 font-bold uppercase text-[8px] tracking-wider">Assigned Bed Location</span>
+                  <span className="text-slate-900 font-black">{patient.location || 'N/A'}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 font-bold uppercase text-[8px] tracking-wider">Admitting Consultant</span>
+                  <span className="text-slate-900 font-black">{patient.consultant}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Critical Codes Card */}
+            <div className="space-y-2">
+              <h3 className="text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1">III. CLINICAL FLAGS</h3>
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 text-[10px] font-bold text-slate-700 uppercase space-y-2 transition-all duration-300 hover:shadow-md hover:shadow-slate-100 hover:bg-white hover:-translate-y-0.5 cursor-pointer">
+                <div className="flex justify-between items-center border-b border-slate-200/50 pb-2">
+                  <span className="text-slate-400 font-bold uppercase text-[8px] tracking-wider">Triage Status Priority</span>
+                  <span className={`px-2 py-0.5 rounded text-[8px] border ${TRIAGE_COLORS[patient.triagePriority || 'Stable'] || 'bg-slate-100 text-slate-800 border-slate-200'}`}>
+                    {patient.triagePriority || 'Stable'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center border-b border-slate-200/50 pb-2">
+                  <span className="text-slate-400 font-bold uppercase text-[8px] tracking-wider">Resuscitation Code Status</span>
+                  <span className={`px-1.5 py-0.5 rounded text-[8px] font-black ${patient.codeStatus === 'Full Code' ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-red-100 text-red-700 border border-red-200'}`}>
+                    {patient.codeStatus}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 font-bold uppercase text-[8px] tracking-wider">Duration of stay (LOS)</span>
+                  <span className="text-red-600 font-black text-xs">{patient.lengthOfStay || 0} Days</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Admission & Discharge Timestamps */}
+          <div className="space-y-2">
+            <h3 className="text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1">IV. ADMISSION PERIOD</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[10px] font-bold text-slate-700 uppercase">
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-center justify-between">
+                <div>
+                  <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider block">Admitted timestamp</span>
+                  <span className="text-slate-900 block font-mono mt-0.5">{formatDateTime(patient.admissionDate)}</span>
+                </div>
+                <svg className="w-5 h-5 text-slate-300" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-center justify-between">
+                <div>
+                  <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider block">Discharged timestamp</span>
+                  <span className="text-slate-900 block font-mono mt-0.5">
+                    {patient.dischargeDate ? formatDateTime(patient.dischargeDate) : (
+                      <span className="text-green-600 font-black">ACTIVE ADMISSION (IN-CENSUS)</span>
+                    )}
+                  </span>
+                </div>
+                <svg className="w-5 h-5 text-slate-300" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          {/* Movement Trail Log */}
+          <div className="space-y-3">
+            <h3 className="text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1">V. CLINICAL TRANSFER TIMELINE</h3>
+            {(!patient.transferHistory || patient.transferHistory.length === 0) ? (
+              <div className="text-center py-6 bg-slate-50/50 border border-dashed border-slate-200 rounded-xl">
+                <p className="text-[9px] text-slate-400 uppercase tracking-widest font-bold">No Unit Transfers Logged</p>
+                <p className="text-[8px] text-slate-300 uppercase tracking-wide mt-1">Patient has remained in current location since initial entry.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-[9px] font-bold text-slate-700 uppercase">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-slate-400">
+                      <th className="py-2 font-bold tracking-wider">Date &amp; Time</th>
+                      <th className="py-2 font-bold tracking-wider">Unit Transition</th>
+                      <th className="py-2 font-bold tracking-wider">Location Change</th>
+                      <th className="py-2 font-bold tracking-wider">Reason for Transfer</th>
+                      <th className="py-2 font-bold tracking-wider">Authorized Staff</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {patient.transferHistory.map((log, index) => (
+                      <tr key={index} className="text-[9px]">
+                        <td className="py-2.5 font-mono text-slate-500 font-normal">{formatDateTime(log.timestamp)}</td>
+                        <td className="py-2.5 font-black text-slate-900">{log.fromUnit} &rarr; {log.toUnit}</td>
+                        <td className="py-2.5 text-slate-600">{log.fromLocation || 'N/A'} &rarr; {log.toLocation || 'N/A'}</td>
+                        <td className="py-2.5 font-medium normal-case text-slate-600 tracking-tight">{log.reason}</td>
+                        <td className="py-2.5 text-slate-500">{log.performedBy}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Signature & Clinic Seal Sign-Off Box */}
+          <div className="pt-10 grid grid-cols-2 gap-8 text-center text-[9px] font-bold text-slate-400 uppercase tracking-wider print:pt-16">
+            <div className="space-y-1">
+              <div className="border-b border-slate-300 w-full h-8"></div>
+              <span>Attending clinician signature</span>
+            </div>
+            <div className="space-y-1">
+              <div className="border-b border-slate-300 w-full h-8"></div>
+              <span>Witness / nursing charge signature</span>
+            </div>
+          </div>
+
+          <div className="pt-8 border-t border-slate-100 text-center text-[7px] text-slate-400 uppercase tracking-widest font-bold leading-relaxed">
+            Clinical report compiled officially by the HDU Registry Systems.
+            <br />
+            Confidential medical information. For authorized healthcare provider use only.
+          </div>
+        </div>
+
+        {/* Modal Footer Controls */}
+        <div className="flex justify-end print:hidden">
+          <button 
+            type="button" 
+            onClick={onClose}
+            className="px-6 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors uppercase text-[10px] tracking-wider font-bold"
+          >
+            Close Report
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+};
+
 type SortKey = keyof Patient;
 type SortDirection = 'asc' | 'desc';
 
 const PatientTable: React.FC = () => {
   const { activeUnit } = useUnit();
-  const { isAdmin, canManageRecords } = useAuth();
+  const { isAdmin, canManageRecords, currentUser } = useAuth();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [mrnFilter, setMrnFilter] = useState('');
+  const [nameFilter, setNameFilter] = useState('');
   
   const [startDateInput, setStartDateInput] = useState('');
   const [endDateInput, setEndDateInput] = useState('');
@@ -494,6 +1149,14 @@ const PatientTable: React.FC = () => {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isMortalityConfirmOpen, setIsMortalityConfirmOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+  const [transferringPatient, setTransferringPatient] = useState<Patient | null>(null);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [historyPatient, setHistoryPatient] = useState<Patient | null>(null);
+  const [isPrintSummaryModalOpen, setIsPrintSummaryModalOpen] = useState(false);
+  const [printPatient, setPrintPatient] = useState<Patient | null>(null);
+
   const [idToDelete, setIdToDelete] = useState<string | null>(null);
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
   const [patientToArchive, setPatientToArchive] = useState<Patient | null>(null);
@@ -590,6 +1253,15 @@ const PatientTable: React.FC = () => {
       if (editingPatient) {
         const patientRef = doc(db, 'patients', editingPatient.id);
         await updateDoc(patientRef, { ...patientData });
+        
+        await activityService.logActivity(
+          'MODIFY',
+          'Patient Record',
+          `Modified clinical record for patient ${patientData.name} (Reg No: ${patientData.regNo})`,
+          currentUser?.displayName || currentUser?.email || 'Anonymous User',
+          activeUnit
+        );
+        
         setShowUpdateToast(true);
         setTimeout(() => setShowUpdateToast(false), 3000);
       } else {
@@ -598,6 +1270,14 @@ const PatientTable: React.FC = () => {
           id: newRef.id,
           ...patientData
         });
+        
+        await activityService.logActivity(
+          'CREATE',
+          'Patient Record',
+          `Admitted new patient ${patientData.name} (Reg No: ${patientData.regNo}) to ${activeUnit}`,
+          currentUser?.displayName || currentUser?.email || 'Anonymous User',
+          activeUnit
+        );
       }
       setIsModalOpen(false);
       setEditingPatient(null);
@@ -608,15 +1288,63 @@ const PatientTable: React.FC = () => {
     }
   };
 
+  const handleTransfer = async (destUnit: ClinicalUnit, destLocation: string, reason: string) => {
+    if (!transferringPatient || !canManageRecords) return;
+    setIsSaving(true);
+    try {
+      const timestamp = new Date().toISOString();
+      const currentDisplayName = currentUser?.displayName || currentUser?.email || 'Medical Staff';
+      
+      const newTransferLog = {
+        timestamp,
+        fromUnit: transferringPatient.unit,
+        toUnit: destUnit,
+        fromLocation: transferringPatient.location,
+        toLocation: destLocation,
+        reason,
+        performedBy: currentDisplayName,
+      };
+
+      const existingHistory = transferringPatient.transferHistory || [];
+      const updatedHistory = [...existingHistory, newTransferLog];
+
+      const patientRef = doc(db, 'patients', transferringPatient.id);
+      await updateDoc(patientRef, {
+        unit: destUnit,
+        location: destLocation,
+        transferHistory: updatedHistory
+      });
+
+      await activityService.logActivity(
+        'MODIFY',
+        'Patient Record',
+        `Transferred patient ${transferringPatient.name} (Reg No: ${transferringPatient.regNo}) from ${transferringPatient.unit} to ${destUnit} (Reason: ${reason})`,
+        currentUser?.displayName || currentUser?.email || 'Anonymous User',
+        activeUnit
+      );
+
+      setTransferringPatient(null);
+      setIsTransferModalOpen(false);
+      
+      setShowUpdateToast(true);
+      setTimeout(() => setShowUpdateToast(false), 3000);
+    } catch (err) {
+      console.error("Failed to transfer patient:", err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleExportAction = (opts: any) => {
     const reportTitle = `${activeUnit} Clinical Census`;
-    const headers = ['S.No', 'Reg No', 'Patient Name', 'Gender', 'Category', 'Code', 'Consultant', 'In-Date', 'Out-Date', 'LOS'];
+    const headers = ['S.No', 'Reg No', 'Patient Name', 'Gender', 'Category', 'Triage', 'Code', 'Consultant', 'In-Date', 'Out-Date', 'LOS'];
     const rows = sortedAndFiltered.map(p => [
       p.serialNo, 
       p.regNo, 
       p.name, 
       p.gender,
       p.category, 
+      p.triagePriority || 'Stable',
       p.codeStatus, 
       p.consultant, 
       p.admissionDate,
@@ -687,11 +1415,13 @@ const PatientTable: React.FC = () => {
     setAppliedStartDate('');
     setAppliedEndDate('');
     setConsultantFilter('');
+    setMrnFilter('');
+    setNameFilter('');
   };
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, appliedStartDate, appliedEndDate, consultantFilter, activeUnit]);
+  }, [searchTerm, appliedStartDate, appliedEndDate, consultantFilter, activeUnit, mrnFilter, nameFilter]);
 
   const sortedAndFiltered = useMemo(() => {
     const tokens = searchTerm.toLowerCase().trim().split(/\s+/).filter(t => t.length > 0);
@@ -730,7 +1460,17 @@ const PatientTable: React.FC = () => {
 
       const matchesConsultant = !consultantFilter || p.consultant === consultantFilter;
 
-      return matchesSearch && matchesStartDate && matchesEndDate && matchesConsultant;
+      let matchesMrn = true;
+      if (mrnFilter.trim()) {
+        matchesMrn = p.regNo.toLowerCase().includes(mrnFilter.toLowerCase().trim());
+      }
+
+      let matchesName = true;
+      if (nameFilter.trim()) {
+        matchesName = p.name.toLowerCase().includes(nameFilter.toLowerCase().trim());
+      }
+
+      return matchesSearch && matchesStartDate && matchesEndDate && matchesConsultant && matchesMrn && matchesName;
     });
 
     return [...filtered].sort((a, b) => {
@@ -756,7 +1496,7 @@ const PatientTable: React.FC = () => {
       }
       return 0;
     });
-  }, [patients, searchTerm, appliedStartDate, appliedEndDate, sortConfig]);
+  }, [patients, searchTerm, appliedStartDate, appliedEndDate, sortConfig, consultantFilter, mrnFilter, nameFilter]);
 
   const totalPages = Math.ceil(sortedAndFiltered.length / itemsPerPage);
   const paginatedPatients = useMemo(() => {
@@ -782,6 +1522,15 @@ const PatientTable: React.FC = () => {
       };
       await setDoc(doc(db, 'mortality_records', patientToArchive.id), archiveData);
       await deleteDoc(doc(db, 'patients', patientToArchive.id));
+      
+      await activityService.logActivity(
+        'MODIFY',
+        'Patient Record',
+        `Archived patient ${patientToArchive.name} (Reg No: ${patientToArchive.regNo}) to Mortality Records (Deceased)`,
+        currentUser?.displayName || currentUser?.email || 'Anonymous User',
+        activeUnit
+      );
+      
       setIsModalOpen(false);
       setEditingPatient(null);
       setPatientToArchive(null);
@@ -822,18 +1571,28 @@ const PatientTable: React.FC = () => {
       <div className="flex flex-col gap-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex flex-1 gap-2">
-            <div className="relative flex-1 max-w-lg">
+            <div className="relative flex-1 max-w-lg" title="Search patients (Alt+S)">
               <input 
                 ref={searchInputRef}
                 type="text" 
                 placeholder="Search by Patient Name, MR Number, Consultant, or Location..."
-                className="pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl w-full text-[11px] font-bold outline-none focus:ring-2 focus:ring-red-100 shadow-sm transition-all"
+                className="pl-10 pr-36 py-2.5 border border-slate-200 rounded-xl w-full text-[11px] font-bold outline-none focus:ring-2 focus:ring-red-100 shadow-sm transition-all dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:focus:ring-red-950"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
               <svg className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
+              <div className="absolute right-2 top-1.5 flex items-center gap-1.5">
+                <VoiceDictationButton 
+                  onTranscript={(text) => setSearchTerm(text)}
+                  size="sm"
+                  lightTheme={true}
+                />
+                <kbd className="pointer-events-none hidden sm:flex items-center gap-0.5 rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[9px] font-black text-slate-400 shadow-sm dark:bg-slate-800 dark:border-slate-700 dark:text-slate-500">
+                  Alt+S
+                </kbd>
+              </div>
             </div>
             {canManageRecords && (
               <button 
@@ -932,6 +1691,12 @@ const PatientTable: React.FC = () => {
                     <div className="flex items-center">Patient Identity <SortIndicator column="name" /></div>
                   </th>
                   <th 
+                    className={`px-4 py-4 w-28 text-center cursor-pointer transition-all duration-200 group ${sortConfig.key === 'triagePriority' ? 'bg-slate-800 text-red-400' : 'hover:bg-slate-800'}`} 
+                    onClick={() => handleSort('triagePriority')}
+                  >
+                    <div className="flex items-center justify-center">Triage <SortIndicator column="triagePriority" /></div>
+                  </th>
+                  <th 
                     className={`px-4 py-4 w-28 cursor-pointer transition-all duration-200 group ${sortConfig.key === 'category' ? 'bg-slate-800 text-red-400' : 'hover:bg-slate-800'}`} 
                     onClick={() => handleSort('category')}
                   >
@@ -975,66 +1740,154 @@ const PatientTable: React.FC = () => {
                   </th>
                   <th className="px-4 py-4 w-28 text-right bg-slate-900">Action</th>
                 </tr>
+                <tr className="bg-slate-800/90 border-t border-slate-700/50">
+                  <th className="px-2 py-1.5 bg-slate-800 text-center"></th>
+                  <th className="px-3 py-1.5 bg-slate-800">
+                    <div className="relative">
+                      <input 
+                        type="text"
+                        placeholder="Search Reg No..."
+                        value={mrnFilter}
+                        onChange={(e) => setMrnFilter(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-full bg-slate-950/60 border border-slate-700/80 rounded px-2 py-1 text-[9px] font-extrabold outline-none text-slate-100 placeholder-slate-500 focus:ring-1 focus:ring-red-400 transition-all uppercase"
+                      />
+                      {mrnFilter && (
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); setMrnFilter(''); }}
+                          className="absolute right-2 top-1.5 text-slate-400 hover:text-white text-[9px] font-black cursor-pointer"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  </th>
+                  <th className="px-3 py-1.5 bg-slate-800">
+                    <div className="relative">
+                      <input 
+                        type="text"
+                        placeholder="Search Name..."
+                        value={nameFilter}
+                        onChange={(e) => setNameFilter(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-full bg-slate-950/60 border border-slate-700/80 rounded px-2.5 py-1 text-[9px] font-extrabold outline-none text-slate-100 placeholder-slate-500 focus:ring-1 focus:ring-red-400 transition-all uppercase"
+                      />
+                      {nameFilter && (
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); setNameFilter(''); }}
+                          className="absolute right-2 top-1.5 text-slate-400 hover:text-white text-[9px] font-black cursor-pointer"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  </th>
+                  <th className="px-2 py-1.5 bg-slate-800"></th>
+                  <th className="px-2 py-1.5 bg-slate-800"></th>
+                  <th className="px-2 py-1.5 bg-slate-800"></th>
+                  <th className="px-2 py-1.5 bg-slate-800"></th>
+                  <th className="px-2 py-1.5 bg-slate-800"></th>
+                  <th className="px-2 py-1.5 bg-slate-800"></th>
+                  <th className="px-2 py-1.5 bg-slate-800"></th>
+                  <th className="px-2 py-1.5 bg-slate-800"></th>
+                  <th className="px-2 py-1.5 bg-slate-800 text-right"></th>
+                </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 text-[10px] font-bold text-slate-700 uppercase">
-                {paginatedPatients.map(p => (
-                  <tr 
-                    key={p.id} 
-                    className={`transition-all group cursor-pointer ${
-                      newlyAddedId === p.id 
-                        ? 'bg-blue-50/70 border-l-4 border-l-blue-500 animate-in fade-in duration-1000' 
-                        : 'hover:bg-slate-50'
-                    }`}
-                    onClick={() => { setEditingPatient(p); setIsModalOpen(true); }}
-                  >
-                    <td className="px-4 py-3 text-center text-slate-400">{p.serialNo}</td>
-                    <td className="px-4 py-3 font-mono text-slate-900">{p.regNo}</td>
-                    <td className="px-4 py-3">
-                        <div>
-                            <div className="flex items-center gap-1.5">
-                                <p className="text-slate-900 uppercase">{p.name}</p>
-                            </div>
-                            <p className="text-[8px] text-slate-400">{p.gender}</p>
-                        </div>
-                    </td>
-                    <td className="px-4 py-3">
-                       <span className="bg-slate-100 px-2 py-0.5 rounded text-[8px] border border-slate-200">{p.category}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                       <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-[8px] border border-blue-100">{p.location || 'N/A'}</span>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={`px-1.5 py-0.5 rounded text-[8px] ${p.codeStatus === 'Full Code' ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-red-100 text-red-700 border border-red-200'}`}>
-                        {p.codeStatus}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 truncate">{p.consultant}</td>
-                    <td className="px-4 py-3 text-center text-slate-500 font-mono">{formatDate(p.admissionDate)}</td>
-                    <td className="px-4 py-3 text-center text-slate-500 font-mono">
-                      <span className={!p.dischargeDate ? "text-green-600 font-black tracking-tighter" : ""}>
-                        {formatDate(p.dischargeDate)}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-center text-red-600 bg-red-50/20">{calculateDynamicLOS(p.admissionDate, p.dischargeDate)}d</td>
-                    <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end space-x-1 opacity-0 group-hover:opacity-100 transition-all">
-                            {canManageRecords && (
-                                <button onClick={(e) => { e.stopPropagation(); setEditingPatient(p); setIsModalOpen(true); }} className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all active:scale-95" title="Edit Admission">
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                                </button>
-                            )}
-                            {isAdmin && (
-                                <button onClick={(e) => { e.stopPropagation(); setIdToDelete(p.id); setIsConfirmOpen(true); }} className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all active:scale-95" title="Purge Record">
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                </button>
-                            )}
-                        </div>
-                    </td>
-                  </tr>
-                ))}
-                {paginatedPatients.length === 0 && (
-                    <tr><td colSpan={11} className="px-4 py-10 text-center text-slate-400 italic font-medium">No records match your search or date criteria.</td></tr>
-                )}
+              <tbody className="divide-y divide-slate-100 text-[10px] font-bold text-slate-700 uppercase relative">
+                <AnimatePresence mode="popLayout" initial={false}>
+                  {paginatedPatients.map((p, idx) => (
+                    <motion.tr 
+                      key={p.id} 
+                      layout="position"
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -12 }}
+                      transition={{ 
+                        duration: 0.22,
+                        delay: Math.min(idx * 0.02, 0.12),
+                        ease: "easeOut" 
+                      }}
+                      className={`transition-all group cursor-pointer ${
+                        newlyAddedId === p.id 
+                          ? 'bg-blue-50/70 border-l-4 border-l-blue-500' 
+                          : 'hover:bg-slate-50'
+                      }`}
+                      onClick={() => { setEditingPatient(p); setIsModalOpen(true); }}
+                    >
+                      <td className="px-4 py-3 text-center text-slate-400">{p.serialNo}</td>
+                      <td className="px-4 py-3 font-mono text-slate-900">{p.regNo}</td>
+                      <td className="px-4 py-3">
+                          <div>
+                              <div className="flex items-center gap-1.5">
+                                  <p className="text-slate-900 uppercase">{p.name}</p>
+                              </div>
+                              <p className="text-[8px] text-slate-400">{p.gender}</p>
+                          </div>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                         <span className={`px-2 py-0.5 rounded text-[8px] border ${TRIAGE_COLORS[p.triagePriority || 'Stable'] || 'bg-slate-100 text-slate-800 border-slate-200'}`}>
+                           {p.triagePriority || 'Stable'}
+                         </span>
+                      </td>
+                      <td className="px-4 py-3">
+                         <span className="bg-slate-100 px-2 py-0.5 rounded text-[8px] border border-slate-200">{p.category}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                         <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-[8px] border border-blue-100">{p.location || 'N/A'}</span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                         <span className={`px-1.5 py-0.5 rounded text-[8px] ${p.codeStatus === 'Full Code' ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-red-100 text-red-700 border border-red-200'}`}>
+                          {p.codeStatus}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 truncate">{p.consultant}</td>
+                      <td className="px-4 py-3 text-center text-slate-500 font-mono">{formatDate(p.admissionDate)}</td>
+                      <td className="px-4 py-3 text-center text-slate-500 font-mono">
+                        <span className={!p.dischargeDate ? "text-green-600 font-black tracking-tighter" : ""}>
+                          {formatDate(p.dischargeDate)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center text-red-600 bg-red-50/20">{calculateDynamicLOS(p.admissionDate, p.dischargeDate)}d</td>
+                      <td className="px-4 py-3 text-right">
+                          <div className="flex items-center justify-end space-x-1 opacity-0 group-hover:opacity-100 transition-all">
+                              {canManageRecords && (
+                                  <>
+                                      <button onClick={(e) => { e.stopPropagation(); setEditingPatient(p); setIsModalOpen(true); }} className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all active:scale-95" title="Edit Admission">
+                                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                      </button>
+                                      <button onClick={(e) => { e.stopPropagation(); setTransferringPatient(p); setIsTransferModalOpen(true); }} className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all active:scale-95" title="Transfer Patient">
+                                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L17.5 12M21 7.5H7.5" /></svg>
+                                      </button>
+                                  </>
+                              )}
+                              <button onClick={(e) => { e.stopPropagation(); setHistoryPatient(p); setIsHistoryModalOpen(true); }} className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all active:scale-95" title="Transfer History Timeline">
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                              </button>
+                              <button onClick={(e) => { e.stopPropagation(); setPrintPatient(p); setIsPrintSummaryModalOpen(true); }} className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-all active:scale-95" title="Print Clinical Summary">
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 1.523a1.125 1.125 0 01-1.12 1.227H7.231c-.615 0-1.114-.507-1.12-1.125L6.34 18m11.32 0h-11.32m11.32 0a3 3 0 003-3V9.75a3 3 0 00-3-3h-11.32a3 3 0 00-3 3V15a3 3 0 003 3m11.32-11.25V4.5a2.25 2.25 0 00-2.25-2.25h-6.75a2.25 2.25 0 00-2.25 2.25v2.25m6.75 0h-6.75M8.25 10.5h.008v.008H8.25V10.5zm.375 0a.375 0 11-.75 0 .375 0 01.75 0z" />
+                                  </svg>
+                              </button>
+                              {isAdmin && (
+                                  <button onClick={(e) => { e.stopPropagation(); setIdToDelete(p.id); setIsConfirmOpen(true); }} className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all active:scale-95" title="Purge Record">
+                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                  </button>
+                              )}
+                          </div>
+                      </td>
+                    </motion.tr>
+                  ))}
+                  {paginatedPatients.length === 0 && (
+                      <motion.tr
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        <td colSpan={12} className="px-4 py-10 text-center text-slate-400 italic font-medium">No records match your search or date criteria.</td>
+                      </motion.tr>
+                  )}
+                </AnimatePresence>
               </tbody>
             </table>
           )}
@@ -1111,7 +1964,24 @@ const PatientTable: React.FC = () => {
       <ConfirmModal 
         isOpen={isConfirmOpen} 
         onClose={() => setIsConfirmOpen(false)} 
-        onConfirm={async () => { if(idToDelete) { await deleteDoc(doc(db, 'patients', idToDelete)); setIdToDelete(null); } }} 
+        onConfirm={async () => { 
+          if (idToDelete) { 
+            const pat = patients.find(p => p.id === idToDelete);
+            const patName = pat ? pat.name : 'Unknown';
+            const patReg = pat ? pat.regNo : 'Unknown';
+            await deleteDoc(doc(db, 'patients', idToDelete)); 
+            
+            await activityService.logActivity(
+              'DELETE',
+              'Patient Record',
+              `Deleted clinical record for patient ${patName} (Reg No: ${patReg})`,
+              currentUser?.displayName || currentUser?.email || 'Anonymous User',
+              activeUnit
+            );
+            
+            setIdToDelete(null); 
+          } 
+        }} 
         title="Confirm Purge" 
         message="Permanently delete this clinical admission record?" 
       />
@@ -1131,6 +2001,26 @@ const PatientTable: React.FC = () => {
         onClose={() => setIsExportModalOpen(false)} 
         onExport={handleExportAction} 
         title="Census Audit Export" 
+      />
+
+      <TransferModal
+        isOpen={isTransferModalOpen}
+        onClose={() => { setIsTransferModalOpen(false); setTransferringPatient(null); }}
+        patient={transferringPatient}
+        onTransfer={handleTransfer}
+        isSaving={isSaving}
+      />
+
+      <HistoryModal
+        isOpen={isHistoryModalOpen}
+        onClose={() => { setIsHistoryModalOpen(false); setHistoryPatient(null); }}
+        patient={historyPatient}
+      />
+
+      <PrintSummaryModal
+        isOpen={isPrintSummaryModalOpen}
+        onClose={() => { setIsPrintSummaryModalOpen(false); setPrintPatient(null); }}
+        patient={printPatient}
       />
     </div>
   );

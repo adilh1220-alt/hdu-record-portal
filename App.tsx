@@ -10,12 +10,16 @@ import SafetyIncidentsPage from './pages/SafetyIncidentsPage';
 import TasksPage from './pages/TasksPage';
 import AuthForm from './components/AuthForm';
 import UserManagement from './pages/UserManagement';
+import ActivityLogsPage from './pages/ActivityLogsPage';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { UnitProvider, useUnit } from './contexts/UnitContext';
 import { UNIT_DETAILS } from './constants';
+import { PrintPreviewModal } from './components/PrintPreviewModal';
+import { IdleTimer } from './components/IdleTimer';
 
 const MainAppContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [isPrintPreviewOpen, setPrintPreviewOpen] = useState(false);
   const { currentUser, isAdmin } = useAuth();
   const { activeUnit } = useUnit();
 
@@ -24,11 +28,9 @@ const MainAppContent: React.FC = () => {
       // Tab Navigation: Alt + 1-7
       if (e.altKey && !isNaN(Number(e.key))) {
         const key = Number(e.key);
-        const tabs = ['dashboard', 'active', 'tasks', 'inventory', 'mortality', 'safety', 'endoscopy'];
+        const tabs = ['dashboard', 'active', 'tasks', 'inventory', 'mortality', 'safety', 'endoscopy-report', 'endoscopy-logs'];
         if (key >= 1 && key <= tabs.length) {
           const targetTab = tabs[key - 1];
-          // Check permissions for endoscopy
-          if (targetTab === 'endoscopy' && !isAdmin) return;
           setActiveTab(targetTab);
         }
       }
@@ -46,7 +48,10 @@ const MainAppContent: React.FC = () => {
           window.dispatchEvent(new CustomEvent('app:export'));
         } else if (e.key.toLowerCase() === 'p') {
           e.preventDefault();
-          window.print();
+          setPrintPreviewOpen(true);
+        } else if (e.key.toLowerCase() === 'l' && isAdmin) {
+          e.preventDefault();
+          setActiveTab('activity-logs');
         }
       }
     };
@@ -90,8 +95,21 @@ const MainAppContent: React.FC = () => {
         );
       case 'tasks':
         return <TasksPage />;
-      case 'endoscopy':
-        return isAdmin ? <EndoscopyPage /> : <Dashboard />;
+      case 'endoscopy-report':
+        return (
+          <EndoscopyPage
+            key="endoscopy-report"
+            initialWorkspaceOpen={true}
+            onExit={() => setActiveTab('endoscopy-logs')}
+          />
+        );
+      case 'endoscopy-logs':
+        return (
+          <EndoscopyPage
+            key="endoscopy-logs"
+            initialWorkspaceOpen={false}
+          />
+        );
       case 'inventory':
         return <InventoryTable />;
       case 'mortality':
@@ -100,15 +118,29 @@ const MainAppContent: React.FC = () => {
         return <SafetyIncidentsPage />;
       case 'users':
         return isAdmin ? <UserManagement /> : <Dashboard />;
+      case 'activity-logs':
+        return isAdmin ? <ActivityLogsPage /> : <Dashboard />;
       default:
         return <Dashboard />;
     }
   };
 
   return (
-    <Layout activeTab={activeTab} setActiveTab={setActiveTab}>
-      {renderContent()}
-    </Layout>
+    <>
+      <IdleTimer />
+      <Layout 
+        activeTab={activeTab} 
+        setActiveTab={setActiveTab}
+        onPrintClick={() => setPrintPreviewOpen(true)}
+      >
+        {renderContent()}
+      </Layout>
+      <PrintPreviewModal 
+        isOpen={isPrintPreviewOpen} 
+        onClose={() => setPrintPreviewOpen(false)} 
+        initialTab={activeTab} 
+      />
+    </>
   );
 };
 

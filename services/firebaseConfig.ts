@@ -4,7 +4,9 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 // @ts-ignore
 import { getAuth } from 'firebase/auth';
 // @ts-ignore
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, initializeFirestore } from 'firebase/firestore';
+// @ts-ignore
+import { getStorage } from 'firebase/storage';
 
 // Production Firebase Configuration
 const firebaseConfig = {
@@ -21,7 +23,18 @@ const firebaseConfig = {
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 // Fix: Access getAuth directly through named import
 const auth = getAuth(app);
-const db = getFirestore(app);
 
-export { auth, db, firebaseConfig };
+// Use initializeFirestore with experimentalForceLongPolling to ensure reliable connectivity in containerized/sandboxed environments
+let db;
+try {
+  db = initializeFirestore(app, {
+    experimentalForceLongPolling: true
+  });
+} catch (e) {
+  db = getFirestore(app);
+}
+
+const storage = getStorage(app);
+
+export { auth, db, storage, firebaseConfig };
 

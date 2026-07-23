@@ -7,6 +7,7 @@ import { exportPatientsPDF } from '../services/pdfService';
 import { downloadCSV } from '../services/exportService';
 import { useAuth } from '../contexts/AuthContext';
 import { useUnit } from '../contexts/UnitContext';
+import { activityService } from '../services/activityService';
 import { CONSULTANTS, CATEGORIES, LOCATIONS, CODE_STATUSES, UNIT_DETAILS } from '../constants';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
@@ -28,15 +29,50 @@ interface MortalityFormProps {
 }
 
 const MortalityForm = React.memo(({ editingPatient, autoSerialNo, onSave, isSaving, activeUnit }: MortalityFormProps) => {
-  const [formName, setFormName] = useState(editingPatient?.name || '');
-  const [formRegNo, setFormRegNo] = useState(editingPatient?.regNo || '');
-  const [formGender, setFormGender] = useState(editingPatient?.gender || '');
-  const [formCategory, setFormCategory] = useState(editingPatient?.category || '');
-  const [formLocation, setFormLocation] = useState(editingPatient?.location || '');
-  const [formCodeStatus, setFormCodeStatus] = useState(editingPatient?.codeStatus || '');
-  const [formConsultant, setFormConsultant] = useState(editingPatient?.consultant || '');
-  const [formInDate, setFormInDate] = useState(editingPatient?.admissionDate || new Date().toISOString().split('T')[0]);
-  const [formExpiryDate, setFormExpiryDate] = useState(editingPatient?.dischargeDate || new Date().toISOString().split('T')[0]);
+  const STORAGE_KEY = editingPatient 
+    ? `hdu_draft_mortality_${activeUnit}_edit_${editingPatient.id}`
+    : `hdu_draft_mortality_${activeUnit}`;
+
+  const getDraftValue = (field: string, defaultValue: any) => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed[field] !== undefined) {
+          return parsed[field];
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return defaultValue;
+  };
+
+  const [hasRestoredDraft, setHasRestoredDraft] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return !!(parsed.name || parsed.regNo || parsed.gender || parsed.category || parsed.location || parsed.codeStatus || parsed.consultant);
+      }
+    } catch {
+      // ignore
+    }
+    return false;
+  });
+
+  const [formName, setFormName] = useState(() => getDraftValue('name', editingPatient?.name || ''));
+  const [formRegNo, setFormRegNo] = useState(() => getDraftValue('regNo', editingPatient?.regNo || ''));
+  const [formGender, setFormGender] = useState(() => getDraftValue('gender', editingPatient?.gender || ''));
+  const [formCategory, setFormCategory] = useState(() => getDraftValue('category', editingPatient?.category || ''));
+  const [formLocation, setFormLocation] = useState(() => getDraftValue('location', editingPatient?.location || ''));
+  const [formCodeStatus, setFormCodeStatus] = useState(() => getDraftValue('codeStatus', editingPatient?.codeStatus || ''));
+  const [formConsultant, setFormConsultant] = useState(() => getDraftValue('consultant', editingPatient?.consultant || ''));
+  const [formInDate, setFormInDate] = useState(() => getDraftValue('admissionDate', editingPatient?.admissionDate || new Date().toISOString().split('T')[0]));
+  const [formExpiryDate, setFormExpiryDate] = useState(() => getDraftValue('dischargeDate', editingPatient?.dischargeDate || new Date().toISOString().split('T')[0]));
+
+  const [isDraftSaving, setIsDraftSaving] = useState(false);
+  const [lastSavedTime, setLastSavedTime] = useState<string | null>(null);
 
   const los = useMemo(() => {
     if (!formInDate || !formExpiryDate) return 0;
@@ -52,9 +88,58 @@ const MortalityForm = React.memo(({ editingPatient, autoSerialNo, onSave, isSavi
     return formName.trim() && formRegNo.trim() && formGender && formCategory && formLocation && formCodeStatus && formConsultant && formInDate && formExpiryDate;
   }, [formName, formRegNo, formGender, formCategory, formLocation, formCodeStatus, formConsultant, formInDate, formExpiryDate]);
 
+  // Debounced Auto-save to LocalStorage
+  useEffect(() => {
+    const isChanged = 
+      formName !== (editingPatient?.name || '') ||
+      formRegNo !== (editingPatient?.regNo || '') ||
+      formGender !== (editingPatient?.gender || '') ||
+      formCategory !== (editingPatient?.category || '') ||
+      formLocation !== (editingPatient?.location || '') ||
+      formCodeStatus !== (editingPatient?.codeStatus || '') ||
+      formConsultant !== (editingPatient?.consultant || '') ||
+      formInDate !== (editingPatient?.admissionDate || new Date().toISOString().split('T')[0]) ||
+      formExpiryDate !== (editingPatient?.dischargeDate || new Date().toISOString().split('T')[0]);
+
+    if (!isChanged && !editingPatient) {
+      return;
+    }
+
+    setIsDraftSaving(true);
+    const timer = setTimeout(() => {
+      try {
+        const draftData = {
+          name: formName,
+          regNo: formRegNo,
+          gender: formGender,
+          category: formCategory,
+          location: formLocation,
+          codeStatus: formCodeStatus,
+          consultant: formConsultant,
+          admissionDate: formInDate,
+          dischargeDate: formExpiryDate,
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(draftData));
+        setLastSavedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+      } catch (e) {
+        console.error('Failed to auto-save draft:', e);
+      } finally {
+        setIsDraftSaving(false);
+      }
+    }, 1000); // 1s debounce
+
+    return () => clearTimeout(timer);
+  }, [formName, formRegNo, formGender, formCategory, formLocation, formCodeStatus, formConsultant, formInDate, formExpiryDate, STORAGE_KEY, editingPatient]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!isFormValid || isSaving) return;
+
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch (err) {
+      console.error(err);
+    }
 
     onSave({
       id: editingPatient?.id || '',
@@ -76,6 +161,38 @@ const MortalityForm = React.memo(({ editingPatient, autoSerialNo, onSave, isSavi
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {hasRestoredDraft && (
+        <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="flex h-2 w-2 rounded-full bg-amber-500 animate-pulse"></span>
+            <p className="text-[10px] font-bold text-amber-500 uppercase tracking-wider">Unsaved draft auto-restored</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              try {
+                localStorage.removeItem(STORAGE_KEY);
+                setHasRestoredDraft(false);
+                setFormName(editingPatient?.name || '');
+                setFormRegNo(editingPatient?.regNo || '');
+                setFormGender(editingPatient?.gender || '');
+                setFormCategory(editingPatient?.category || '');
+                setFormLocation(editingPatient?.location || '');
+                setFormCodeStatus(editingPatient?.codeStatus || '');
+                setFormConsultant(editingPatient?.consultant || '');
+                setFormInDate(editingPatient?.admissionDate || new Date().toISOString().split('T')[0]);
+                setFormExpiryDate(editingPatient?.dischargeDate || new Date().toISOString().split('T')[0]);
+                setLastSavedTime(null);
+              } catch (e) {
+                console.error(e);
+              }
+            }}
+            className="text-[9px] font-black text-amber-500 hover:text-amber-600 underline uppercase tracking-wider cursor-pointer"
+          >
+            Discard Draft
+          </button>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-4">
         <InputWrapper label="Serial No (Internal)" field="serial">
           <input 
@@ -197,6 +314,21 @@ const MortalityForm = React.memo(({ editingPatient, autoSerialNo, onSave, isSavi
         <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Calculated LOS:</span>
         <span className="text-sm font-black text-white">{los} Days</span>
       </div>
+      <div className="flex items-center justify-between px-1 text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+        {isDraftSaving ? (
+          <span className="flex items-center gap-1.5 text-red-500 animate-pulse">
+            <svg className="animate-spin h-3 w-3 text-red-500" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            Auto-saving draft...
+          </span>
+        ) : lastSavedTime ? (
+          <span>Draft auto-saved at {lastSavedTime}</span>
+        ) : (
+          <span>Draft auto-saved locally</span>
+        )}
+      </div>
       <button 
         type="submit" 
         disabled={!isFormValid || isSaving} 
@@ -242,7 +374,7 @@ const MortalityPage: React.FC = () => {
 
   const prevIdsRef = useRef<Set<string>>(new Set());
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const { isAdmin, canManageRecords } = useAuth();
+  const { currentUser, isAdmin, canManageRecords } = useAuth();
 
   useEffect(() => {
     const handleNewRecord = () => {
@@ -430,6 +562,17 @@ const MortalityPage: React.FC = () => {
       const patientRef = patientData.id ? doc(db, 'mortality_records', patientData.id) : doc(collection(db, 'mortality_records'));
       const finalData = { ...patientData, id: patientRef.id };
       await setDoc(patientRef, finalData);
+      
+      const actionType = patientData.id ? 'MODIFY' : 'CREATE';
+      const actionLabel = patientData.id ? 'Modified' : 'Created';
+      await activityService.logActivity(
+        actionType,
+        'Mortality Record',
+        `${actionLabel} mortality record for patient ${patientData.name} (Reg No: ${patientData.regNo})`,
+        currentUser?.displayName || currentUser?.email || 'Anonymous User',
+        activeUnit
+      );
+
       setIsModalOpen(false);
       setEditingPatient(null);
     } catch (err) {
@@ -462,16 +605,19 @@ const MortalityPage: React.FC = () => {
       <div className="flex flex-col gap-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex flex-1 gap-2">
-            <div className="flex-1 flex items-center bg-white border border-slate-200 px-3 py-2 rounded-lg max-w-md focus-within:ring-1 focus-within:ring-red-200 shadow-sm">
+            <div className="flex-1 flex items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-3 py-2 rounded-lg max-w-md focus-within:ring-1 focus-within:ring-red-200 dark:focus-within:ring-red-950 shadow-sm relative" title={`Search ${activeUnit} Archive (Alt+S)`}>
               <svg className="w-4 h-4 text-slate-400 mx-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
               <input 
                 ref={searchInputRef}
                 type="text" 
                 placeholder={`Search ${activeUnit} Archive...`}
-                className="bg-transparent text-[10px] font-bold outline-none flex-1 uppercase"
+                className="bg-transparent text-[10px] font-bold outline-none flex-1 uppercase pr-14 dark:text-slate-100"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
+              <kbd className="pointer-events-none absolute right-3 hidden sm:flex items-center gap-0.5 rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[8px] font-black text-slate-400 shadow-sm dark:bg-slate-850 dark:border-slate-750 dark:text-slate-500">
+                Alt+S
+              </kbd>
             </div>
             {canManageRecords && (
               <button 
@@ -634,7 +780,30 @@ const MortalityPage: React.FC = () => {
         />
       </Modal>
 
-      <ConfirmModal isOpen={isConfirmOpen} onClose={() => setIsConfirmOpen(false)} onConfirm={async () => { if(idToDelete) { await deleteDoc(doc(db, 'mortality_records', idToDelete)); setIdToDelete(null); } }} title="Purge Archive Entry" message="Permanently remove this record from the archive?" />
+      <ConfirmModal 
+        isOpen={isConfirmOpen} 
+        onClose={() => setIsConfirmOpen(false)} 
+        onConfirm={async () => { 
+          if(idToDelete) { 
+            const pat = patients.find(p => p.id === idToDelete);
+            const patName = pat ? pat.name : 'Unknown';
+            const patReg = pat ? pat.regNo : 'Unknown';
+            await deleteDoc(doc(db, 'mortality_records', idToDelete)); 
+            
+            await activityService.logActivity(
+              'DELETE',
+              'Mortality Record',
+              `Deleted mortality record for patient ${patName} (Reg No: ${patReg})`,
+              currentUser?.displayName || currentUser?.email || 'Anonymous User',
+              activeUnit
+            );
+            
+            setIdToDelete(null); 
+          } 
+        }} 
+        title="Purge Archive Entry" 
+        message="Permanently remove this record from the archive?" 
+      />
       <ExportModal 
         isOpen={isExportModalOpen} 
         onClose={() => setIsExportModalOpen(false)} 

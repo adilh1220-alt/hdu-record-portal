@@ -1,0 +1,375 @@
+/* print.css - Comprehensive high-fidelity stylesheet for A4 printing of HDU Clinical Portal pages */
+
+@media print {
+  /* 1. Global Reset & Print-ready Canvas */
+  html, body {
+    background-color: #ffffff !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Reset layout wrapper scroll constraints to let content flow across pages */
+  #root, 
+  .flex, 
+  div, 
+  main,
+  aside {
+    height: auto !important;
+    min-height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    overflow-y: visible !important;
+    overflow-x: visible !important;
+    position: static !important;
+    display: block !important;
+    float: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    transform: none !important;
+    transition: none !important;
+    animation: none !important;
+  }
+
+  /* 2. Hide Non-Print & Interactive Elements */
+  aside,
+  nav,
+  footer,
+  button,
+  input,
+  select,
+  textarea,
+  .no-print,
+  .interactive,
+  .modal-backdrop,
+  .modal,
+  .confirm-modal,
+  .settings-modal,
+  .shortcuts-modal,
+  .export-modal,
+  /* Hide search boxes and filter blocks */
+  div[class*="bg-white"][class*="p-3"][class*="rounded-xl"][class*="shadow-sm"],
+  div[class*="flex-wrap"][class*="items-center"][class*="gap-3"],
+  /* Hide specific action-buttons, plus signs, export triggers */
+  svg[class*="w-4 h-4"][class*="text-slate-400"] {
+    display: none !important;
+  }
+
+  /* Force hide columns containing action buttons */
+  th:last-child, 
+  td:last-child,
+  .action-column {
+    display: none !important;
+  }
+
+  /* 3. Main Content Printing Canvas styling */
+  main {
+    padding: 1cm 0 !important;
+    margin: 0 !important;
+    background-color: #ffffff !important;
+    background: #ffffff !important;
+  }
+
+  /* 4. Page Setup Margins for A4 */
+  @page {
+    size: A4 portrait;
+    margin: 1.6cm 1.2cm 1.6cm 1.2cm;
+  }
+
+  /* 5. Typography and Headers formatting */
+  h1 {
+    font-size: 20pt !important;
+    font-weight: 800 !important;
+    color: #0f172a !important;
+    letter-spacing: -0.02em !important;
+    margin-bottom: 0.5rem !important;
+    page-break-after: avoid !important;
+  }
+
+  h2 {
+    font-size: 14pt !important;
+    font-weight: 700 !important;
+    color: #1e293b !important;
+    margin-top: 1.5rem !important;
+    margin-bottom: 0.5rem !important;
+    page-break-after: avoid !important;
+  }
+
+  h3 {
+    font-size: 11pt !important;
+    font-weight: 700 !important;
+    color: #334155 !important;
+    margin-top: 1rem !important;
+    margin-bottom: 0.5rem !important;
+    page-break-after: avoid !important;
+  }
+
+  p, li, span, div {
+    font-size: 9.5pt !important;
+    color: #334155 !important;
+    line-height: 1.5 !important;
+  }
+
+  /* 6. Clean Grid Layout linearization */
+  .grid, 
+  div[class*="grid-cols-"],
+  div[class*="lg:grid-cols-"] {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 15px !important;
+    width: 100% !important;
+  }
+
+  .grid > *, 
+  div[class*="grid-cols-"] > *,
+  div[class*="lg:grid-cols-"] > * {
+    width: 100% !important;
+    flex: 1 1 100% !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Standard Card Styles */
+  .card, 
+  div[class*="bg-white"][class*="rounded-xl"][class*="border"] {
+    background-color: #ffffff !important;
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 8px !important;
+    padding: 15px !important;
+    margin-bottom: 20px !important;
+    box-shadow: none !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* 7. Beautiful Tables for A4 Print */
+  table {
+    width: 100% !important;
+    max-width: 100% !important;
+    border-collapse: collapse !important;
+    border-spacing: 0 !important;
+    page-break-inside: auto !important;
+    margin-top: 10px !important;
+    margin-bottom: 20px !important;
+  }
+
+  tr {
+    page-break-inside: avoid !important;
+    page-break-after: auto !important;
+  }
+
+  thead {
+    display: table-header-group !important;
+  }
+
+  tr {
+    border-bottom: 1px solid #cbd5e1 !important;
+  }
+
+  th {
+    background-color: #f1f5f9 !important;
+    background: #f1f5f9 !important;
+    color: #0f172a !important;
+    font-weight: bold !important;
+    text-transform: uppercase !important;
+    font-size: 8.5pt !important;
+    letter-spacing: 0.05em !important;
+    padding: 8px 10px !important;
+    border-bottom: 2px solid #94a3b8 !important;
+    text-align: left !important;
+  }
+
+  td {
+    font-size: 8.5pt !important;
+    color: #334155 !important;
+    padding: 8px 10px !important;
+    text-align: left !important;
+    white-space: normal !important; /* Allow wrapping so columns don't overflow */
+    word-break: break-word !important;
+  }
+
+  /* Priority and Category badges formatting */
+  span[class*="bg-red-100"], 
+  span[class*="bg-amber-100"], 
+  span[class*="bg-green-100"], 
+  span[class*="bg-slate-100"] {
+    border: 1px solid #cbd5e1 !important;
+    padding: 1px 4px !important;
+    border-radius: 3px !important;
+    font-size: 7.5pt !important;
+    font-weight: bold !important;
+  }
+
+  /* 8. Recharts & Visual Chart Printing Optimization */
+  .recharts-responsive-container,
+  .recharts-wrapper,
+  div[class*="recharts"] {
+    width: 100% !important;
+    height: 220px !important;
+    max-height: 220px !important;
+    page-break-inside: avoid !important;
+    margin-bottom: 20px !important;
+    display: block !important;
+  }
+
+  /* Make sure SVG chart lines and bars print correctly */
+  svg {
+    max-width: 100% !important;
+    height: auto !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* 9. Page Break Utilities */
+  .page-break {
+    page-break-before: always !important;
+  }
+
+  /* ========================================== */
+  /* 10. Endoscopy Report High-Fidelity Override */
+  /* ========================================== */
+
+  /* Ensure the sheet itself retains flex column style but is bounded to page */
+  .endoscopy-print-sheet {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    max-width: 210mm !important; /* Standard A4 page width */
+    margin: 0 auto !important;
+    padding: 0 !important; /* Rely on page margins */
+    background: #ffffff !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  /* Reset the block constraint on header so logo and table align side-by-side */
+  .endoscopy-print-header {
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    align-items: flex-start !important;
+    gap: 15px !important;
+    width: 100% !important;
+    margin-bottom: 10px !important;
+  }
+
+  .endoscopy-print-header > div {
+    display: block !important;
+    width: auto !important;
+    max-width: none !important;
+    flex: 0 1 auto !important;
+  }
+
+  /* Ensure main grid stays grid and displays side-by-side */
+  .endoscopy-print-main-grid {
+    display: grid !important;
+    grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+    gap: 16px !important;
+    width: 100% !important;
+    margin-top: 10px !important;
+    flex-direction: row !important; /* Override vertical flex */
+  }
+
+  /* Left column: All text details */
+  .endoscopy-print-left-col {
+    display: block !important;
+    grid-column: span 9 / span 9 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: none !important;
+  }
+
+  /* Right column: Images list container */
+  .endoscopy-print-right-col {
+    display: flex !important;
+    flex-direction: column !important;
+    grid-column: span 3 / span 3 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    border-left: 1px solid #cbd5e1 !important;
+    padding-left: 12px !important;
+    gap: 8px !important;
+    flex: none !important;
+  }
+
+  .endoscopy-print-right-col h4 {
+    display: none !important;
+  }
+
+  /* Metrics grids within text column */
+  .endoscopy-print-metrics-grid-2 {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    width: 100% !important;
+    flex-direction: row !important;
+  }
+
+  .endoscopy-print-metrics-grid-2 > div {
+    display: block !important;
+    width: 100% !important;
+    flex: none !important;
+  }
+
+  .endoscopy-print-metrics-grid-4 {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    width: 100% !important;
+    flex-direction: row !important;
+  }
+
+  .endoscopy-print-metrics-grid-4 > div {
+    display: block !important;
+    width: 100% !important;
+    flex: none !important;
+  }
+
+  /* Image list layout */
+  .endoscopy-print-image-list {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  /* Image cards inside list */
+  .endoscopy-print-image-card {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    max-width: 120px !important; /* Make card smaller on print to guarantee 1-page fit */
+    margin: 0 auto !important;
+    padding: 3px !important;
+    background-color: #f8fafc !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 6px !important;
+    box-shadow: none !important;
+    page-break-inside: avoid !important;
+    flex: none !important;
+  }
+
+  .endoscopy-print-image-card img {
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    aspect-ratio: 4/3 !important;
+    object-fit: cover !important;
+    border-radius: 4px !important;
+  }
+
+  .endoscopy-print-image-card p {
+    font-size: 7.5pt !important;
+    font-weight: bold !important;
+    text-align: center !important;
+    margin-top: 3px !important;
+    color: #475569 !important;
+  }
+}
