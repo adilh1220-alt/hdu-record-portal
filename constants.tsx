@@ -27,7 +27,7 @@ export const CONSULTANTS = [
 ];
 
 export const ENDOSCOPY_DOCTORS = [
-  'Dr. Shahid Majid', 'Dr. Fahad', 'Dr. Aneel Kumar'
+  'Dr. Shahid Majid', 'Dr. Mohammad Fahad', 'Dr. Aneel Kumar'
 ];
 
 export const ENDOSCOPY_PROCEDURES = [

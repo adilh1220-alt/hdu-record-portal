@@ -3,10 +3,21 @@ import { Patient, InventoryItem, EndoscopyRecord, IncidentRecord } from '../type
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
+export interface SummaryItem {
+  label: string;
+  value: string | number;
+}
+
+export interface SummarySection {
+  title: string;
+  items: SummaryItem[];
+}
+
 export interface ReportMetadata {
   generatedBy: string;
   filters: string;
   period?: string;
+  customSummarySections?: SummarySection[];
 }
 
 const calculateLOSValue = (admissionDate: string) => {
@@ -187,33 +198,72 @@ export const exportToPDF = (title: string, headers: string[], rows: any[][], met
     }
   });
 
-  // Summary Section
+  // Dynamic Multi-Column Summary Section
   const finalY = (doc as any).lastAutoTable.finalY || tableStartY + 20;
   const pageHeight = doc.internal.pageSize.height;
-  
-  // Check if we need a new page for the summary
-  if (finalY + 40 > pageHeight) {
+
+  const summarySections = metadata.customSummarySections || [
+    {
+      title: 'REPORT SUMMARY',
+      items: [{ label: 'Total Records Processed', value: rows.length }]
+    }
+  ];
+
+  const maxItems = Math.max(...summarySections.map(s => s.items.length), 1);
+  const neededHeight = Math.max(26, 12 + (maxItems * 5.5));
+
+  let summaryY = finalY + 10;
+  if (summaryY + neededHeight + 15 > pageHeight) {
     doc.addPage();
     doc.setPage(doc.getNumberOfPages());
+    summaryY = 20;
   }
 
-  const summaryY = (finalY + 40 > pageHeight) ? 20 : finalY + 15;
+  const numCols = summarySections.length;
+  const totalUsableWidth = 268; // 297mm - 14mm left - 15mm right margin
+  const gap = 5;
+  const colWidth = (totalUsableWidth - (numCols - 1) * gap) / numCols;
 
-  doc.setDrawColor(226, 232, 240);
-  doc.setFillColor(248, 250, 252);
-  doc.roundedRect(14, summaryY, 268, 25, 3, 3, 'F');
-  doc.roundedRect(14, summaryY, 268, 25, 3, 3, 'S');
+  summarySections.forEach((section, colIdx) => {
+    const colX = 14 + colIdx * (colWidth + gap);
 
-  doc.setFontSize(10);
-  doc.setTextColor(30, 41, 59);
-  doc.setFont('helvetica', 'bold');
-  doc.text("REPORT SUMMARY", 20, summaryY + 10);
-  
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.setTextColor(71, 85, 105);
-  doc.text(`Total Records Processed: ${rows.length}`, 20, summaryY + 18);
-  
+    // Header bar
+    doc.setFillColor(15, 23, 42); // Slate-900
+    doc.roundedRect(colX, summaryY, colWidth, 7, 2, 2, 'F');
+
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(255, 255, 255);
+    doc.text(section.title.toUpperCase(), colX + 4, summaryY + 4.8);
+
+    // Body container
+    const bodyY = summaryY + 7;
+    const bodyHeight = neededHeight - 7;
+    doc.setFillColor(248, 250, 252); // Slate-50
+    doc.setDrawColor(226, 232, 240); // Slate-200
+    doc.roundedRect(colX, bodyY, colWidth, bodyHeight, 2, 2, 'FD');
+
+    // Items list
+    let itemY = bodyY + 5.5;
+    section.items.forEach((item) => {
+      doc.setFontSize(7.5);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(51, 65, 85); // Slate-700
+
+      const labelText = String(item.label);
+      const valText = String(item.value);
+
+      const maxLabelWidth = colWidth - 28;
+      const splitLabel = doc.splitTextToSize(labelText, maxLabelWidth);
+      doc.text(splitLabel[0], colX + 4, itemY);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 23, 42); // Slate-900
+      doc.text(valText, colX + colWidth - 4, itemY, { align: 'right' });
+
+      itemY += 5.5;
+    });
+  });
 
   doc.save(`${title.replace(/\s+/g, '_').toLowerCase()}_${new Date().getTime()}.pdf`);
 };
@@ -289,26 +339,129 @@ export const exportPatientsPDF = (patients: Patient[], metadata: ReportMetadata)
     p.dischargeDate || 'N/A',
     p.lengthOfStay
   ]);
-  exportToPDF("Clinical Patient Record", headers, rows, metadata);
+
+  const activeCount = patients.filter(p => !p.dischargeDate).length;
+  const dischargedCount = patients.filter(p => !!p.dischargeDate).length;
+  const criticalCount = patients.filter(p => p.triagePriority === 'Critical').length;
+  const urgentCount = patients.filter(p => p.triagePriority === 'Urgent').length;
+  const stableCount = patients.filter(p => !p.triagePriority || p.triagePriority === 'Stable').length;
+
+  const summarySections: SummarySection[] = [
+    {
+      title: 'PATIENT VOLUME & STATUS',
+      items: [
+        { label: 'Total Records', value: patients.length },
+        { label: 'Active Admissions', value: activeCount },
+        { label: 'Discharged Records', value: dischargedCount }
+      ]
+    },
+    {
+      title: 'TRIAGE PRIORITY BREAKDOWN',
+      items: [
+        { label: 'Critical Priority', value: criticalCount },
+        { label: 'Urgent Priority', value: urgentCount },
+        { label: 'Stable / Standard', value: stableCount }
+      ]
+    }
+  ];
+
+  exportToPDF("Clinical Patient Record", headers, rows, {
+    ...metadata,
+    customSummarySections: metadata.customSummarySections || summarySections
+  });
 };
 
 export const exportInventoryPDF = (inventory: InventoryItem[], metadata: ReportMetadata) => {
   const headers = ['Item Name', 'Category', 'Stock', 'Min', 'Unit', 'Last Updated'];
-  // Fix: Changed i.unit to i.measurementUnit to match updated InventoryItem interface
   const rows = inventory.map(i => [i.name, i.category, i.quantity, i.minThreshold, i.measurementUnit, i.lastUpdated]);
-  exportToPDF("Inventory Audit Report", headers, rows, metadata);
+
+  const lowStock = inventory.filter(i => i.quantity <= i.minThreshold).length;
+  const categories = new Set(inventory.map(i => i.category)).size;
+
+  const summarySections: SummarySection[] = [
+    {
+      title: 'INVENTORY STOCK SUMMARY',
+      items: [
+        { label: 'Total Inventory Items', value: inventory.length },
+        { label: 'Low / Critical Stock Items', value: lowStock },
+        { label: 'Product Categories', value: categories }
+      ]
+    }
+  ];
+
+  exportToPDF("Inventory Audit Report", headers, rows, {
+    ...metadata,
+    customSummarySections: metadata.customSummarySections || summarySections
+  });
 };
 
 export const exportEndoscopyPDF = (records: EndoscopyRecord[], metadata: ReportMetadata) => {
-  const headers = ['Reg No', 'Patient Name', 'Doctor', 'Procedure', 'Date'];
-  const rows = records.map(r => [
+  const headers = ['S.No', 'Reg No', 'Patient Name', 'Doctor / Physician', 'Procedure', 'Date'];
+  const rows = records.map((r, idx) => [
+    r.serialNo || (idx + 1).toString().padStart(3, '0'),
     r.regNo,
     r.name,
-    r.doctor,
-    r.procedure,
-    r.date
+    r.doctor || 'N/A',
+    r.procedure || 'N/A',
+    r.date || 'N/A'
   ]);
-  exportToPDF("Endoscopy Procedure Log", headers, rows, metadata);
+
+  const totalCases = records.length;
+  const uniquePatients = new Set(records.map(r => r.regNo)).size;
+
+  // Case counts per procedure
+  const procedureCounts: Record<string, number> = {};
+  records.forEach(r => {
+    const proc = r.procedure?.trim() || 'Unspecified';
+    procedureCounts[proc] = (procedureCounts[proc] || 0) + 1;
+  });
+
+  // Case counts per doctor
+  const doctorCounts: Record<string, number> = {};
+  records.forEach(r => {
+    const docName = r.doctor?.trim() || 'Unspecified';
+    doctorCounts[docName] = (doctorCounts[docName] || 0) + 1;
+  });
+
+  // Date span
+  const dates = records.map(r => r.date).filter(Boolean).sort();
+  const dateRangeStr = dates.length > 0 
+    ? (dates[0] === dates[dates.length - 1] ? dates[0] : `${dates[0]} to ${dates[dates.length - 1]}`)
+    : 'N/A';
+
+  const summarySections: SummarySection[] = [
+    {
+      title: 'OVERALL CASE METRICS',
+      items: [
+        { label: 'Total Procedures / Cases', value: `${totalCases} case${totalCases !== 1 ? 's' : ''}` },
+        { label: 'Unique Patients Served', value: `${uniquePatients} patient${uniquePatients !== 1 ? 's' : ''}` },
+        { label: 'Date Range Covered', value: dateRangeStr }
+      ]
+    },
+    {
+      title: 'INDIVIDUAL CASE COUNT BY PROCEDURE',
+      items: Object.entries(procedureCounts)
+        .sort((a, b) => b[1] - a[1])
+        .map(([proc, count]) => ({
+          label: proc,
+          value: `${count} case${count > 1 ? 's' : ''} (${totalCases > 0 ? ((count / totalCases) * 100).toFixed(0) : 0}%)`
+        }))
+    },
+    {
+      title: 'CASE COUNT BY PHYSICIAN',
+      items: Object.entries(doctorCounts)
+        .sort((a, b) => b[1] - a[1])
+        .map(([docName, count]) => ({
+          label: docName,
+          value: `${count} case${count > 1 ? 's' : ''} (${totalCases > 0 ? ((count / totalCases) * 100).toFixed(0) : 0}%)`
+        }))
+    }
+  ];
+
+  exportToPDF("Endoscopy Procedure Log Report", headers, rows, {
+    ...metadata,
+    customSummarySections: summarySections
+  });
 };
 
 export const exportIncidentsPDF = (incidents: IncidentRecord[], metadata: ReportMetadata) => {
@@ -322,7 +475,34 @@ export const exportIncidentsPDF = (incidents: IncidentRecord[], metadata: Report
     i.reportedBy,
     i.description ? i.description.replace(/<[^>]*>/g, '') : 'N/A'
   ]);
-  exportToPDF("Clinical Incident Report", headers, rows, metadata);
+
+  const categoryCounts: Record<string, number> = {};
+  incidents.forEach(i => {
+    const cat = i.category || 'General';
+    categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+  });
+
+  const summarySections: SummarySection[] = [
+    {
+      title: 'INCIDENT AUDIT SUMMARY',
+      items: [
+        { label: 'Total Incidents Logged', value: incidents.length },
+        { label: 'Categories Tracked', value: Object.keys(categoryCounts).length }
+      ]
+    },
+    {
+      title: 'INCIDENTS BY CATEGORY',
+      items: Object.entries(categoryCounts).slice(0, 4).map(([cat, count]) => ({
+        label: cat,
+        value: `${count} case${count > 1 ? 's' : ''}`
+      }))
+    }
+  ];
+
+  exportToPDF("Clinical Incident Report", headers, rows, {
+    ...metadata,
+    customSummarySections: metadata.customSummarySections || summarySections
+  });
 };
 
 export const exportPatientSummaryPDF = (patient: Patient, generatedBy: string) => {

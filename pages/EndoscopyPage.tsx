@@ -295,7 +295,6 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
   const [lastSavedTime, setLastSavedTime] = useState<string | null>(null);
   const [isDraftSaving, setIsDraftSaving] = useState(false);
   const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState('');
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isCompactView, setIsCompactView] = useState(false);
 
@@ -1629,8 +1628,6 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
       }
 
       // 4. Show temporary visual success toast
-      setSuccessMsg(`Report for "${recordData.name}" saved successfully to ${activeUnit} archives!`);
-      setTimeout(() => setSuccessMsg(''), 6000);
       showToast(`Report for "${recordData.name}" saved successfully to ${activeUnit} archives!`, 'success');
 
       // 5. Reset the form back to blank so the user can enter another patient
@@ -1696,8 +1693,6 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
         }
         
         setIdToDelete(null);
-        setSuccessMsg(`Endoscopy record for ${patientName} deleted successfully.`);
-        setTimeout(() => setSuccessMsg(''), 4000);
         showToast(`Report for patient ${patientName} has been deleted.`, 'error', 'Record Deleted');
       } catch (err) {
         console.error("Failed to delete record:", err);
@@ -1857,8 +1852,6 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                 type="button"
                 onClick={() => {
                   resetForm();
-                  setSuccessMsg("Form cleared successfully.");
-                  setTimeout(() => setSuccessMsg(''), 3000);
                   showToast("Form cleared successfully.", "info");
                 }}
                 disabled={isSaving}
@@ -1940,19 +1933,6 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
               </button>
             </div>
           </div>
-
-          {/* Success Alert Banner */}
-          {successMsg && (
-            <div className="bg-emerald-950/40 border border-emerald-500/20 rounded-xl p-4 flex items-center space-x-3 text-emerald-400 animate-in slide-in-from-top duration-300 relative z-10">
-              <svg className="w-5 h-5 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wider">Operation Completed Successfully</p>
-                <p className="text-[10px] font-medium opacity-90">{successMsg}</p>
-              </div>
-            </div>
-          )}
 
           {/* Unsaved Draft Restore Banner */}
           {draftToRestore && (
@@ -2890,8 +2870,6 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                           
                           // Scroll to top of the page so they can edit the loaded form
                           window.scrollTo({ top: 0, behavior: 'smooth' });
-                          setSuccessMsg(`Loaded ${record.name}'s report for editing.`);
-                          setTimeout(() => setSuccessMsg(''), 4000);
                           showToast(`Loaded ${record.name}'s report for editing.`, "info");
                         }}
                       >
@@ -2959,8 +2937,6 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                                 setFormImages(record.images || []);
                                 
                                 window.scrollTo({ top: 0, behavior: 'smooth' });
-                                setSuccessMsg(`Loaded ${record.name}'s report for editing.`);
-                                setTimeout(() => setSuccessMsg(''), 4000);
                                 showToast(`Loaded ${record.name}'s report for editing.`, "info");
                               }} 
                               className="p-1 rounded bg-white hover:bg-slate-100 text-slate-500 hover:text-indigo-600 border border-slate-200 hover:border-slate-300 transition-all cursor-pointer"
