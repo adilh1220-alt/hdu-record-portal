@@ -21,6 +21,16 @@ export interface TransferLog {
   performedBy: string;
 }
 
+export interface DispatchLog {
+  id: string;
+  channel: 'whatsapp' | 'email';
+  recipient: string;
+  status: 'sent' | 'failed' | 'delivered' | 'simulated';
+  timestamp: string;
+  messageId?: string;
+  details?: string;
+}
+
 export interface Patient {
   id: string;
   unit: ClinicalUnit;
@@ -38,6 +48,8 @@ export interface Patient {
   status?: PatientStatus;
   lengthOfStay: number;
   transferHistory?: TransferLog[];
+  whatsappNumber?: string;
+  emailAddress?: string;
 }
 
 export interface InventoryItem {
@@ -101,6 +113,9 @@ export interface EndoscopyRecord {
   recommendations?: string;
   icdCodes?: string;
   cptCodes?: string;
+  whatsappNumber?: string;
+  emailAddress?: string;
+  dispatchHistory?: DispatchLog[];
   images?: EndoscopyImage[];
 }
 

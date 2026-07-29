@@ -407,6 +407,7 @@ const InventoryTable: React.FC = () => {
                   onTranscript={(text) => setSearchTerm(text)}
                   size="sm"
                   lightTheme={true}
+                  context="inventory"
                 />
                 <kbd className="pointer-events-none hidden sm:flex items-center gap-0.5 rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[8px] font-black text-slate-400 shadow-sm dark:bg-slate-800 dark:border-slate-700 dark:text-slate-500">
                   Alt+S

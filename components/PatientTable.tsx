@@ -945,7 +945,7 @@ const PrintSummaryModal: React.FC<PrintSummaryModalProps> = ({ isOpen, onClose, 
           {/* Header Banner */}
           <div className="border-b-4 border-slate-900 pb-4 text-center space-y-1.5">
             <h1 className="text-lg md:text-xl font-black text-slate-900 tracking-tight uppercase">
-              HIGH DEPENDENCY UNIT (HDU) CLINICAL REGISTRY
+              MEDILOG CLINICAL RECORD REGISTRY
             </h1>
             <h2 className="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest">
               Patient Summary &amp; Movement Audit Record
@@ -1105,7 +1105,7 @@ const PrintSummaryModal: React.FC<PrintSummaryModalProps> = ({ isOpen, onClose, 
           </div>
 
           <div className="pt-8 border-t border-slate-100 text-center text-[7px] text-slate-400 uppercase tracking-widest font-bold leading-relaxed">
-            Clinical report compiled officially by the HDU Registry Systems.
+            Clinical report compiled officially by MediLog Record Systems.
             <br />
             Confidential medical information. For authorized healthcare provider use only.
           </div>
@@ -1588,6 +1588,7 @@ const PatientTable: React.FC = () => {
                   onTranscript={(text) => setSearchTerm(text)}
                   size="sm"
                   lightTheme={true}
+                  context="search"
                 />
                 <kbd className="pointer-events-none hidden sm:flex items-center gap-0.5 rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[9px] font-black text-slate-400 shadow-sm dark:bg-slate-800 dark:border-slate-700 dark:text-slate-500">
                   Alt+S

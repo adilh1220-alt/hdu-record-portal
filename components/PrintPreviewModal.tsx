@@ -8,7 +8,7 @@ import {
 import { db } from '../services/firebaseConfig';
 import { useAuth } from '../contexts/AuthContext';
 import { useUnit } from '../contexts/UnitContext';
-import { CLINICAL_UNITS, UNIT_DETAILS } from '../constants';
+import { CLINICAL_UNITS, UNIT_DETAILS, formatProcedureDisplay } from '../constants';
 import { 
   Patient, 
   ClinicalTask, 
@@ -30,7 +30,8 @@ import {
   User, 
   FileSignature, 
   Building,
-  History
+  History,
+  Table
 } from 'lucide-react';
 
 interface PrintPreviewModalProps {
@@ -38,6 +39,8 @@ interface PrintPreviewModalProps {
   onClose: () => void;
   initialTab?: string;
 }
+
+type LayoutMode = 'compact' | 'narrative';
 
 type ReportType = 
   | 'current' 
@@ -71,6 +74,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
   // Configuration States
   const [selectedUnit, setSelectedUnit] = useState<ClinicalUnit | 'ALL'>(activeUnit);
   const [reportType, setReportType] = useState<ReportType>('current');
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>('compact');
   const [customRemarks, setCustomRemarks] = useState('');
   const [includeSignatures, setIncludeSignatures] = useState(true);
   const [includeMetrics, setIncludeMetrics] = useState(true);
@@ -437,6 +441,42 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
             </select>
           </div>
 
+          {/* 2b. Layout Switcher (Compact Table vs Detailed Narrative) */}
+          <div className="space-y-1.5 pt-1">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Record Presentation View</label>
+            <div className="grid grid-cols-2 gap-1.5 bg-slate-950/70 p-1.5 rounded-xl border border-slate-800">
+              <button
+                type="button"
+                onClick={() => setLayoutMode('compact')}
+                className={`flex items-center justify-center space-x-1.5 py-2 px-2 rounded-lg text-xs font-bold transition-all ${
+                  layoutMode === 'compact'
+                    ? 'bg-red-600 text-white shadow-md'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+              >
+                <Table className="w-3.5 h-3.5" />
+                <span>Compact Table</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setLayoutMode('narrative')}
+                className={`flex items-center justify-center space-x-1.5 py-2 px-2 rounded-lg text-xs font-bold transition-all ${
+                  layoutMode === 'narrative'
+                    ? 'bg-red-600 text-white shadow-md'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>Detailed Narrative</span>
+              </button>
+            </div>
+            <p className="text-[10px] text-slate-400 font-medium leading-tight">
+              {layoutMode === 'compact' 
+                ? 'Condensed tabular layout optimized for quick overview logs.' 
+                : 'Structured narrative layout with full observations formatted for physical chart filing.'}
+            </p>
+          </div>
+
           {/* 3. Custom Remarks (Handover/Notes) */}
           <div className="space-y-1.5">
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Report Handover Remarks / Notes</label>
@@ -742,13 +782,13 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
                   <div className="w-6 h-6 bg-red-600 rounded flex items-center justify-center text-white font-black text-sm">
                     +
                   </div>
-                  <h1 className="text-xl font-black text-red-600 uppercase tracking-tight leading-none">The Kidney Centre</h1>
+                  <h1 className="text-xl font-black text-red-600 uppercase tracking-tight leading-none">MediLog</h1>
                 </div>
                 <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest mt-1">
-                  High Dependency Unit & Clinical Intake Portal
+                  Clinical Recording & Inpatient Intake Portal
                 </p>
                 <p className="text-[8px] text-slate-400 font-medium">
-                  24-Hour Clinical Monitoring & Organ Dysfunction Support
+                  24-Hour Clinical Recording, Reporting & Analytics
                 </p>
               </div>
 
@@ -779,7 +819,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
               {getReportTitle()}
             </h2>
             <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">
-              This clinical summary compiles verified entries recorded in The Kidney Centre's HDU logs for {selectedUnit === 'ALL' ? 'all operational units' : `the ${UNIT_DETAILS[selectedUnit].label} unit`}. This is a privileged medical report for clinical auditing, inpatient handovers, and physician reviews.
+              This clinical summary compiles verified entries recorded in MediLog for {selectedUnit === 'ALL' ? 'all operational units' : `the ${UNIT_DETAILS[selectedUnit].label} unit`}. This is a privileged medical report for clinical auditing, inpatient handovers, and physician reviews.
             </p>
           </div>
 
@@ -824,7 +864,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
                 </h3>
                 {patients.length === 0 ? (
                   <p className="text-[10px] text-slate-400 italic">No patients currently logged for the selected scope.</p>
-                ) : (
+                ) : layoutMode === 'compact' ? (
                   <table className="w-full text-left text-xs border-collapse border border-slate-200">
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-200 print-bg-slate">
@@ -863,6 +903,77 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
                       ))}
                     </tbody>
                   </table>
+                ) : (
+                  <div className="space-y-3">
+                    {patients.map((p, idx) => (
+                      <div key={p.id || idx} className="p-3.5 bg-slate-50/70 rounded-xl border border-slate-200 print-bg-slate space-y-2.5 break-inside-avoid">
+                        <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                          <div className="flex items-center space-x-2">
+                            {visibleColumns.census_bed && (
+                              <span className="font-mono text-xs font-black text-slate-800 bg-white px-2 py-0.5 rounded border border-slate-300">
+                                BED: {getBedLocation(p.location || 'N/A')}
+                              </span>
+                            )}
+                            {visibleColumns.census_name && (
+                              <h4 className="text-xs font-extrabold text-slate-900 uppercase">
+                                {getPatientName(p.name)}
+                              </h4>
+                            )}
+                            {visibleColumns.census_mrn && (
+                              <span className="text-[10px] font-mono text-slate-500">
+                                (MRN: {getMRN(p.regNo)})
+                              </span>
+                            )}
+                          </div>
+                          {visibleColumns.census_acuity && (
+                            <span className={`px-2 py-0.5 text-[9px] font-extrabold uppercase rounded border ${
+                              p.triagePriority === 'Critical' 
+                                ? 'bg-red-100 text-red-800 border-red-300' 
+                                : p.triagePriority === 'Urgent' 
+                                ? 'bg-amber-100 text-amber-800 border-amber-300' 
+                                : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                            }`}>
+                              {p.triagePriority || 'Stable'}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px]">
+                          {visibleColumns.census_admit && (
+                            <div>
+                              <span className="text-slate-500 font-bold block uppercase text-[8px]">Admit Date</span>
+                              <span className="font-semibold text-slate-800">{formatDate(p.admissionDate)}</span>
+                            </div>
+                          )}
+                          {visibleColumns.census_diagnosis && (
+                            <div>
+                              <span className="text-slate-500 font-bold block uppercase text-[8px]">Category / Diagnosis</span>
+                              <span className="font-semibold text-slate-800">{p.category || 'N/A'}</span>
+                            </div>
+                          )}
+                          {visibleColumns.census_consultant && (
+                            <div>
+                              <span className="text-slate-500 font-bold block uppercase text-[8px]">Attending Consultant</span>
+                              <span className="font-semibold text-slate-800">{p.consultant || 'N/A'}</span>
+                            </div>
+                          )}
+                          <div>
+                            <span className="text-slate-500 font-bold block uppercase text-[8px]">Code Status</span>
+                            <span className={`font-bold ${p.codeStatus === 'Full Code' ? 'text-emerald-700' : 'text-red-700'}`}>
+                              {p.codeStatus || 'Full Code'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="bg-white p-2.5 rounded-lg border border-slate-200 text-[10px] space-y-1">
+                          <p className="font-bold text-slate-700 uppercase text-[8.5px] tracking-wider">Clinical Narrative & Admission Summary:</p>
+                          <p className="text-slate-800 leading-relaxed font-medium">
+                            Patient <strong className="uppercase">{getPatientName(p.name)}</strong> ({p.gender || 'N/A'}, MRN: {getMRN(p.regNo)}) is currently admitted in bed location {getBedLocation(p.location || 'N/A')} under consultant {p.consultant} in {p.unit}. Admission was recorded on {formatDate(p.admissionDate)} with current length of stay of {p.lengthOfStay || 0} day(s). Primary clinical category is {p.category}, triage priority level is {p.triagePriority || 'Stable'}, and care directive is set to {p.codeStatus || 'Full Code'}.
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             )}
@@ -876,7 +987,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
                 </h3>
                 {tasks.length === 0 ? (
                   <p className="text-[10px] text-slate-400 italic">No tasks currently registered for the selected scope.</p>
-                ) : (
+                ) : layoutMode === 'compact' ? (
                   <table className="w-full text-left text-xs border-collapse border border-slate-200">
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-200 print-bg-slate">
@@ -926,6 +1037,48 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
                       ))}
                     </tbody>
                   </table>
+                ) : (
+                  <div className="space-y-3">
+                    {tasks.map((t, idx) => (
+                      <div key={t.id || idx} className="p-3.5 bg-slate-50/70 rounded-xl border border-slate-200 print-bg-slate space-y-2 break-inside-avoid">
+                        <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
+                          <div className="flex items-center space-x-2">
+                            {visibleColumns.tasks_priority && (
+                              <span className={`px-2 py-0.5 text-[8.5px] font-black uppercase rounded ${
+                                t.priority === 'High' ? 'bg-red-100 text-red-800 border border-red-300' : t.priority === 'Medium' ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-slate-200 text-slate-800 border border-slate-300'
+                              }`}>
+                                {t.priority} Priority
+                              </span>
+                            )}
+                            {visibleColumns.tasks_task && (
+                              <h4 className="text-xs font-bold text-slate-900">{t.title}</h4>
+                            )}
+                          </div>
+                          {visibleColumns.tasks_status && (
+                            <span className={`px-2 py-0.5 text-[8.5px] font-black uppercase rounded ${
+                              t.status === 'Completed' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                            }`}>
+                              {t.status}
+                            </span>
+                          )}
+                        </div>
+                        {visibleColumns.tasks_task && (
+                          <div className="text-[10px] text-slate-700 bg-white p-2.5 rounded-lg border border-slate-200 leading-relaxed">
+                            <p className="font-bold text-slate-800 uppercase text-[8.5px] mb-0.5">Intervention Detail / Narrative Instructions:</p>
+                            <p className="font-medium text-slate-800">{t.description || 'No detailed instructions attached.'}</p>
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between text-[9px] text-slate-500 font-mono pt-0.5">
+                          {visibleColumns.tasks_assigned && (
+                            <span>Assigned By: <strong className="text-slate-700 font-sans">{t.assignedBy}</strong></span>
+                          )}
+                          {visibleColumns.tasks_due && (
+                            <span>Scheduled Due: <strong className="text-slate-700 font-sans">{t.dueDate ? formatDate(t.dueDate) : 'Immediate'}</strong></span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             )}
@@ -939,7 +1092,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
                 </h3>
                 {inventory.length === 0 ? (
                   <p className="text-[10px] text-slate-400 italic">No inventory tracked under the selected unit scope.</p>
-                ) : (
+                ) : layoutMode === 'compact' ? (
                   <table className="w-full text-left text-xs border-collapse border border-slate-200">
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-200 print-bg-slate">
@@ -974,6 +1127,57 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
                       ))}
                     </tbody>
                   </table>
+                ) : (
+                  <div className="space-y-3">
+                    {inventory.map((i, idx) => (
+                      <div key={i.id || idx} className="p-3.5 bg-slate-50/70 rounded-xl border border-slate-200 print-bg-slate space-y-2 break-inside-avoid">
+                        <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
+                          <div>
+                            {visibleColumns.inv_item && (
+                              <h4 className="text-xs font-bold text-slate-900 uppercase">{i.name}</h4>
+                            )}
+                            {visibleColumns.inv_category && (
+                              <p className="text-[9px] text-slate-500 font-medium">Category: {i.category}</p>
+                            )}
+                          </div>
+                          {visibleColumns.inv_status && (
+                            <span className={`px-2 py-0.5 text-[8.5px] font-black uppercase rounded border ${
+                              i.quantity <= 0 
+                                ? 'bg-red-100 text-red-800 border-red-300' 
+                                : i.quantity <= i.minThreshold 
+                                ? 'bg-amber-100 text-amber-800 border-amber-300' 
+                                : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                            }`}>
+                              {i.quantity <= 0 ? 'Out of Stock' : i.quantity <= i.minThreshold ? 'Low Stock Warning' : 'Adequate Supply'}
+                            </span>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-[10px] bg-white p-2.5 rounded-lg border border-slate-200">
+                          {visibleColumns.inv_on_hand && (
+                            <div>
+                              <span className="text-slate-500 font-bold block uppercase text-[8px]">Stock On-Hand</span>
+                              <span className="font-bold text-slate-900">{i.quantity} {i.measurementUnit}</span>
+                            </div>
+                          )}
+                          {visibleColumns.inv_threshold && (
+                            <div>
+                              <span className="text-slate-500 font-bold block uppercase text-[8px]">Min Threshold</span>
+                              <span className="font-medium text-slate-700">{i.minThreshold} {i.measurementUnit}</span>
+                            </div>
+                          )}
+                          <div>
+                            <span className="text-slate-500 font-bold block uppercase text-[8px]">Expiry / Audit</span>
+                            <span className="font-mono text-slate-700">{formatDate(i.expiryDate)}</span>
+                          </div>
+                        </div>
+                        {i.notes && (
+                          <p className="text-[9.5px] text-slate-600 italic bg-white/60 p-2 rounded border border-slate-200">
+                            <strong>Stock Note:</strong> {i.notes}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             )}
@@ -987,7 +1191,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
                 </h3>
                 {mortality.length === 0 ? (
                   <p className="text-[10px] text-slate-400 italic">No mortality records logged for this unit.</p>
-                ) : (
+                ) : layoutMode === 'compact' ? (
                   <table className="w-full text-left text-xs border-collapse border border-slate-200">
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-200 print-bg-slate">
@@ -1014,6 +1218,58 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
                       ))}
                     </tbody>
                   </table>
+                ) : (
+                  <div className="space-y-3">
+                    {mortality.map((m, idx) => (
+                      <div key={m.id || idx} className="p-3.5 bg-red-50/40 rounded-xl border border-red-200 print-bg-red space-y-2.5 break-inside-avoid">
+                        <div className="flex items-center justify-between border-b border-red-200 pb-2">
+                          <div>
+                            {visibleColumns.mort_name && (
+                              <h4 className="text-xs font-black text-red-900 uppercase">{getPatientName(m.name)}</h4>
+                            )}
+                            {visibleColumns.mort_mrn && (
+                              <span className="text-[10px] font-mono text-slate-600">MRN: {getMRN(m.regNo)}</span>
+                            )}
+                          </div>
+                          <span className="px-2 py-0.5 text-[8.5px] font-black uppercase rounded bg-red-200 text-red-900 border border-red-300">
+                            Clinical Mortality Review
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px]">
+                          {visibleColumns.mort_admitted && (
+                            <div>
+                              <span className="text-slate-500 font-bold block uppercase text-[8px]">Admitted</span>
+                              <span className="font-semibold text-slate-800">{formatDate(m.admissionDate)}</span>
+                            </div>
+                          )}
+                          {visibleColumns.mort_deceased && (
+                            <div>
+                              <span className="text-slate-500 font-bold block uppercase text-[8px]">Deceased Date</span>
+                              <span className="font-bold text-red-700">{formatDate(m.dischargeDate)}</span>
+                            </div>
+                          )}
+                          {visibleColumns.mort_los && (
+                            <div>
+                              <span className="text-slate-500 font-bold block uppercase text-[8px]">Length of Stay</span>
+                              <span className="font-semibold text-slate-800">{m.lengthOfStay} Days</span>
+                            </div>
+                          )}
+                          {visibleColumns.mort_consultant && (
+                            <div>
+                              <span className="text-slate-500 font-bold block uppercase text-[8px]">Attending Consultant</span>
+                              <span className="font-semibold text-slate-800">{m.consultant}</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="bg-white p-2.5 rounded-lg border border-red-200 text-[10px] space-y-1">
+                          <p className="font-bold text-slate-800 uppercase text-[8.5px]">Clinical Review Narrative:</p>
+                          <p className="text-slate-700 leading-relaxed font-medium">
+                            Inpatient <strong className="uppercase">{getPatientName(m.name)}</strong> (MRN: {getMRN(m.regNo)}) was admitted on {formatDate(m.admissionDate)} under attending consultant {m.consultant}. Primary diagnosis recorded as {m.category}. Decease occurred on {formatDate(m.dischargeDate)} following {m.lengthOfStay} day(s) of HDU support. Record archived for clinical morbidity review.
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             )}
@@ -1027,7 +1283,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
                 </h3>
                 {incidents.length === 0 ? (
                   <p className="text-[10px] text-slate-400 italic">No incidents recorded under this clinical unit.</p>
-                ) : (
+                ) : layoutMode === 'compact' ? (
                   <table className="w-full text-left text-xs border-collapse border border-slate-200">
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-200 print-bg-slate">
@@ -1060,6 +1316,48 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
                       ))}
                     </tbody>
                   </table>
+                ) : (
+                  <div className="space-y-3">
+                    {incidents.map((inc, idx) => (
+                      <div key={inc.id || idx} className="p-3.5 bg-amber-50/40 rounded-xl border border-amber-200 print-bg-slate space-y-2.5 break-inside-avoid">
+                        <div className="flex items-center justify-between border-b border-amber-200 pb-2">
+                          <div className="flex items-center space-x-2">
+                            {visibleColumns.inc_serial && (
+                              <span className="font-mono text-xs font-bold text-slate-800 bg-white px-2 py-0.5 rounded border border-amber-300">
+                                SERIAL: {inc.serialNo || idx + 1}
+                              </span>
+                            )}
+                            {visibleColumns.inc_severity && (
+                              <h4 className="text-xs font-extrabold text-slate-900 uppercase">{inc.category}</h4>
+                            )}
+                          </div>
+                          {visibleColumns.inc_date && (
+                            <span className="text-[10px] font-mono text-slate-600">
+                              Date: {formatDate(inc.incidentDate)}
+                            </span>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-[10px]">
+                          {visibleColumns.inc_patient && (
+                            <div>
+                              <span className="text-slate-500 font-bold block uppercase text-[8px]">Patient / MRN</span>
+                              <span className="font-semibold text-slate-800">{getPatientName(inc.patientName)} (MRN: {getMRN(inc.regNo)})</span>
+                            </div>
+                          )}
+                          {visibleColumns.inc_reported && (
+                            <div>
+                              <span className="text-slate-500 font-bold block uppercase text-[8px]">Reported By</span>
+                              <span className="font-semibold text-slate-800">{inc.reportedBy}</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="bg-white p-2.5 rounded-lg border border-amber-200 text-[10px] space-y-1">
+                          <p className="font-bold text-slate-800 uppercase text-[8.5px]">Detailed Safety Incident Narrative:</p>
+                          <div className="text-slate-700 leading-relaxed font-medium" dangerouslySetInnerHTML={{ __html: inc.description || 'No detailed narrative recorded.' }}></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             )}
@@ -1073,7 +1371,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
                 </h3>
                 {endoscopy.length === 0 ? (
                   <p className="text-[10px] text-slate-400 italic">No endoscopy reports archived under this unit scope.</p>
-                ) : (
+                ) : layoutMode === 'compact' ? (
                   <table className="w-full text-left text-xs border-collapse border border-slate-200">
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-200 print-bg-slate">
@@ -1097,7 +1395,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
                           {visibleColumns.endo_date && <td className="p-1.5 text-[9.5px]">{formatDate(eRecord.date)} {eRecord.time || ''}</td>}
                           {visibleColumns.endo_procedure && (
                             <td className="p-1.5 text-[9.5px]">
-                              <p className="font-bold">{eRecord.procedure}</p>
+                              <p className="font-bold">{formatProcedureDisplay(eRecord.procedure)}</p>
                               <p className="text-[9px] text-slate-500">{eRecord.doctor}</p>
                             </td>
                           )}
@@ -1113,6 +1411,97 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
                       ))}
                     </tbody>
                   </table>
+                ) : (
+                  <div className="space-y-4">
+                    {endoscopy.map((eRecord, idx) => (
+                      <div key={eRecord.id || idx} className="p-4 bg-slate-50/80 rounded-xl border border-slate-300 print-bg-slate space-y-3 break-inside-avoid">
+                        <div className="flex items-center justify-between border-b-2 border-slate-800 pb-2">
+                          <div>
+                            {visibleColumns.endo_id && (
+                              <span className="text-[9px] font-mono font-bold text-red-600 uppercase tracking-widest block">
+                                PROCEDURE REPORT #{eRecord.serialNo || `ENDO-${idx + 1}`}
+                              </span>
+                            )}
+                            {visibleColumns.endo_procedure && (
+                              <h4 className="text-sm font-extrabold text-slate-900 uppercase">
+                                {formatProcedureDisplay(eRecord.procedure)}
+                              </h4>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            {visibleColumns.endo_date && (
+                              <span className="text-[10px] font-bold text-slate-800 block">
+                                Date: {formatDate(eRecord.date)} {eRecord.time || ''}
+                              </span>
+                            )}
+                            <span className="text-[9px] text-slate-500 font-medium">
+                              Unit: {eRecord.referringUnit || 'Endoscopy'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px] bg-white p-2.5 rounded-lg border border-slate-200">
+                          {visibleColumns.endo_patient && (
+                            <>
+                              <div>
+                                <span className="text-slate-500 font-bold block uppercase text-[8px]">Patient Name</span>
+                                <span className="font-extrabold text-slate-900 uppercase">{getPatientName(eRecord.name)}</span>
+                              </div>
+                              <div>
+                                <span className="text-slate-500 font-bold block uppercase text-[8px]">MR Number</span>
+                                <span className="font-mono font-bold text-slate-800">{getMRN(eRecord.regNo)}</span>
+                              </div>
+                            </>
+                          )}
+                          {visibleColumns.endo_procedure && (
+                            <div>
+                              <span className="text-slate-500 font-bold block uppercase text-[8px]">Endoscopist / Surgeon</span>
+                              <span className="font-bold text-slate-800">{eRecord.doctor}</span>
+                            </div>
+                          )}
+                          <div>
+                            <span className="text-slate-500 font-bold block uppercase text-[8px]">Ref. Physician</span>
+                            <span className="font-semibold text-slate-800">{eRecord.referringPhysician || 'N/A'}</span>
+                          </div>
+                        </div>
+
+                        {eRecord.indications && (
+                          <div className="bg-white p-2.5 rounded-lg border border-slate-200 text-[10px] space-y-0.5">
+                            <span className="text-slate-500 font-black uppercase text-[8.5px] block tracking-wider">Indications for Examination</span>
+                            <p className="text-slate-900 font-medium">{eRecord.indications}</p>
+                          </div>
+                        )}
+
+                        {visibleColumns.endo_findings && (
+                          <div className="bg-white p-2.5 rounded-lg border border-slate-200 text-[10px] space-y-2">
+                            <div>
+                              <span className="text-slate-500 font-black uppercase text-[8.5px] block tracking-wider mb-1">Detailed Findings & Observations Narrative</span>
+                              <p className="text-slate-800 leading-relaxed font-medium whitespace-pre-wrap">
+                                {eRecord.findings || 'No specific procedural observations recorded.'}
+                              </p>
+                            </div>
+
+                            {(eRecord.diagnosis || eRecord.recommendations) && (
+                              <div className="border-t border-slate-100 pt-1.5 grid grid-cols-1 md:grid-cols-2 gap-2">
+                                {eRecord.diagnosis && (
+                                  <div>
+                                    <span className="text-red-700 font-black uppercase text-[8.5px] block tracking-wider">Clinical Impression / Diagnosis</span>
+                                    <p className="text-slate-900 font-bold">{eRecord.diagnosis}</p>
+                                  </div>
+                                )}
+                                {eRecord.recommendations && (
+                                  <div>
+                                    <span className="text-slate-700 font-black uppercase text-[8.5px] block tracking-wider">Recommendations</span>
+                                    <p className="text-slate-800 font-medium">{eRecord.recommendations}</p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             )}
@@ -1159,7 +1548,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
                     High Dependency Unit Clinical Board
                   </p>
                   <p className="text-[8px] text-slate-400">
-                    The Kidney Centre Healthcare Alliance
+                    MediLog Clinical Healthcare Alliance
                   </p>
                 </div>
               </div>
@@ -1168,7 +1557,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
           
           {/* Print Footer Page Numbering Guideline */}
           <div className="mt-10 text-center text-[8px] text-slate-400 border-t border-slate-100 pt-3">
-            THE KIDNEY CENTRE MEDICAL RECORD SYSTEM • PRIVILEGED AND CONFIDENTIAL CLINICAL INFORMATION • DO NOT DUPLICATE WITHOUT AUTHORIZATION
+            MEDILOG MEDICAL RECORD SYSTEM • PRIVILEGED AND CONFIDENTIAL CLINICAL INFORMATION • DO NOT DUPLICATE WITHOUT AUTHORIZATION
           </div>
         </div>
       </div>

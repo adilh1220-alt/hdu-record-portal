@@ -9,7 +9,7 @@ import { exportEndoscopyPDF, exportSingleEndoscopyReportPDF, generateKidneyCentr
 import { useAuth } from '../contexts/AuthContext';
 import { useUnit } from '../contexts/UnitContext';
 import { activityService } from '../services/activityService';
-import { ENDOSCOPY_DOCTORS, ENDOSCOPY_PROCEDURES, UNIT_DETAILS, CONSULTANTS, CATEGORIES, CODE_STATUSES, TRIAGE_PRIORITIES } from '../constants';
+import { ENDOSCOPY_DOCTORS, ENDOSCOPY_PROCEDURES, UNIT_DETAILS, CONSULTANTS, CATEGORIES, CODE_STATUSES, TRIAGE_PRIORITIES, formatProcedureDisplay } from '../constants';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
 import ExportModal from '../components/ExportModal';
@@ -17,6 +17,7 @@ import ImageCropperModal from '../components/ImageCropperModal';
 import { motion, AnimatePresence } from 'motion/react';
 import { VoiceDictationButton } from '../components/VoiceDictationButton';
 import { EndoscopyReportPreviewSheet } from '../components/EndoscopyReportPreviewSheet';
+import WhatsAppDispatchModal, { COUNTRY_CODES } from '../components/WhatsAppDispatchModal';
 
 type SortKey = keyof EndoscopyRecord;
 type SortDirection = 'asc' | 'desc';
@@ -274,6 +275,42 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
   const [formRecommendations, setFormRecommendations] = useState('');
   const [formIcdCodes, setFormIcdCodes] = useState('');
   const [formCptCodes, setFormCptCodes] = useState('');
+  const [formWhatsappCountryCode, setFormWhatsappCountryCode] = useState('+92');
+  const [formWhatsappCustomCode, setFormWhatsappCustomCode] = useState('+');
+  const [formWhatsappLocalNumber, setFormWhatsappLocalNumber] = useState('');
+
+  const setWhatsappFromFullString = (fullNum: string) => {
+    if (!fullNum) {
+      setFormWhatsappCountryCode('+92');
+      setFormWhatsappCustomCode('+');
+      setFormWhatsappLocalNumber('');
+      return;
+    }
+    const matched = COUNTRY_CODES.find(c => c.code !== 'custom' && fullNum.startsWith(c.code));
+    if (matched) {
+      setFormWhatsappCountryCode(matched.code);
+      const local = fullNum.replace(matched.code, '').replace(/\D/g, '').replace(/^0+/, '');
+      setFormWhatsappLocalNumber(local);
+    } else if (fullNum.startsWith('+')) {
+      setFormWhatsappCountryCode('custom');
+      const match = fullNum.match(/^(\+\d{1,4})(.*)$/);
+      if (match) {
+        setFormWhatsappCustomCode(match[1]);
+        setFormWhatsappLocalNumber(match[2].replace(/\D/g, '').replace(/^0+/, ''));
+      } else {
+        setFormWhatsappCustomCode('+');
+        setFormWhatsappLocalNumber(fullNum.replace(/\D/g, '').replace(/^0+/, ''));
+      }
+    } else {
+      setFormWhatsappCountryCode('+92');
+      setFormWhatsappLocalNumber(fullNum.replace(/\D/g, '').replace(/^0+/, ''));
+    }
+  };
+
+  const activeWhatsappPrefix = formWhatsappCountryCode === 'custom' ? formWhatsappCustomCode : formWhatsappCountryCode;
+  const formWhatsappNumber = formWhatsappLocalNumber ? `${activeWhatsappPrefix}${formWhatsappLocalNumber.replace(/\D/g, '').replace(/^0+/, '')}` : '';
+  const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false);
+  const [selectedDispatchRecord, setSelectedDispatchRecord] = useState<EndoscopyRecord | null>(null);
   const [formImages, setFormImages] = useState<{ id: string; url: string; title: string }[]>([]);
   const [imageToCrop, setImageToCrop] = useState<{ id?: string; base64: string; title: string } | null>(null);
   const [cropQueue, setCropQueue] = useState<{ base64: string; title: string }[]>([]);
@@ -420,6 +457,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
     setFormRecommendations(draftToRestore.recommendations || '');
     setFormIcdCodes(draftToRestore.icdCodes || '');
     setFormCptCodes(draftToRestore.cptCodes || '');
+    setWhatsappFromFullString(draftToRestore.whatsappNumber || '');
     setFormImages(draftToRestore.images || []);
     setActiveTemplateId(draftToRestore.activeTemplateId || null);
     setDraftToRestore(null);
@@ -437,6 +475,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
     localStorage.removeItem(`hdu_draft_endoscopy_${activeUnit}`);
     setFormName('');
     setFormRegNo('');
+    setWhatsappFromFullString('');
     setFormDoctor('');
     setFormProcedure('');
     setProcedureSearch('');
@@ -761,21 +800,21 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
       cpt = "31624";
       instrumentsText = "Olympus BF-H190";
     } else if (type === 'hemorrhage_bronchoscopy') {
-      name = 'Bronchoscopy - Hemorrhage & BAL';
+      name = 'Flexible Bronchoscopy - Hemorrhage & BAL';
       procedureName = "Flexible Bronchoscopy";
       indicationsText = "Hemoptysis, diffuse alveolar infiltrates on chest CT, suspected Diffuse Alveolar Hemorrhage (DAH).";
       esophagusText = "Normal laryngeal mucosa, vocal cords are mobile.";
       stomachText = "Trachea is normal. Carina is mildly congested but sharp.";
       duodenumText = "Bilateral bronchial trees show diffuse mucosal erythema and active bloody secretions originating from the Right Lower Lobe (RLL). No obstructing mass or foreign body seen.";
       colonText = "Serial Bronchoalveolar lavage (BAL) performed in RLL showing progressive bloodier return across three sequential aliquots, confirming diffuse alveolar hemorrhage.";
-      generalFindings = "Bronchoscopy showed diffuse mucosal erythema with active bleeding in RLL and progressive bloodier return on serial BAL.";
+      generalFindings = "Flexible bronchoscopy showed diffuse mucosal erythema with active bleeding in RLL and progressive bloodier return on serial BAL.";
       diagnosisText = "Diffuse Alveolar Hemorrhage (suspected), Mucosal Erythema.";
       recommendationsText = "Admit/continue HDU monitoring. Await BAL cultures, cytology, and autoimmune panel. Hold anticoagulation. Methylprednisolone therapy as clinically indicated.";
       icd = "R04.8, J94.8";
       cpt = "31624";
       instrumentsText = "Olympus BF-1TH190";
     } else if (type === 'mass_bronchoscopy') {
-      name = 'Bronchoscopy - Obstructing Mass & Biopsy';
+      name = 'Flexible Bronchoscopy - Obstructing Mass & Biopsy';
       procedureName = "Flexible Bronchoscopy";
       indicationsText = "Persistent right upper lobe atelectasis on chest X-ray, weight loss, chronic cough in a heavy smoker.";
       esophagusText = "Normal larynx. Vocal cords are normal with symmetric respiratory movement.";
@@ -974,7 +1013,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
           name: formName,
           regNo: formRegNo,
           doctor: formDoctor,
-          procedure: formProcedure,
+          procedure: formatProcedureDisplay(formProcedure),
           date: formDate,
           time: formTime,
           age: formAge,
@@ -1064,7 +1103,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
   }, [formDate]);
 
   const isFormValid = useMemo(() => {
-    return formName.trim() && formRegNo.trim() && formDoctor && formProcedure && formDate && !isDateInFuture;
+    return Boolean(formName.trim() && formRegNo.trim() && formDoctor && formProcedure && formDate && !isDateInFuture);
   }, [formName, formRegNo, formDoctor, formProcedure, formDate, isDateInFuture]);
 
   const handleSort = (key: SortKey) => {
@@ -1203,7 +1242,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
       regNo: formRegNo,
       name: formName,
       doctor: formDoctor,
-      procedure: formProcedure,
+      procedure: formatProcedureDisplay(formProcedure),
       date: formDate,
       time: formTime,
       age: formAge,
@@ -1540,7 +1579,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
         regNo: formRegNo.trim().toUpperCase(),
         name: formName.trim().toUpperCase(),
         doctor: formDoctor,
-        procedure: formProcedure,
+        procedure: formatProcedureDisplay(formProcedure),
         date: formDate,
         time: formTime,
         age: formAge,
@@ -1572,6 +1611,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
         recommendations: formRecommendations,
         icdCodes: formIcdCodes,
         cptCodes: formCptCodes,
+        whatsappNumber: formWhatsappNumber,
         images: formImages
       };
 
@@ -1802,8 +1842,8 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                   </optgroup>
                   <optgroup label="Pulmonary Bronchoscopy" className="font-bold text-slate-900 bg-slate-100">
                     <option value="normal_bronchoscopy" className="bg-white text-slate-800 font-medium">Normal Flexible Bronchoscopy</option>
-                    <option value="hemorrhage_bronchoscopy" className="bg-white text-slate-800 font-medium">Bronchoscopy - Hemorrhage & BAL</option>
-                    <option value="mass_bronchoscopy" className="bg-white text-slate-800 font-medium">Bronchoscopy - Obstructing Mass & Biopsy</option>
+                    <option value="hemorrhage_bronchoscopy" className="bg-white text-slate-800 font-medium">Flexible Bronchoscopy - Hemorrhage & BAL</option>
+                    <option value="mass_bronchoscopy" className="bg-white text-slate-800 font-medium">Flexible Bronchoscopy - Obstructing Mass & Biopsy</option>
                   </optgroup>
                 </select>
               </div>
@@ -1895,13 +1935,13 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                     handleSubmit(e, false);
                   }
                 }}
-                disabled={isSaving}
-                className={`px-3.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center space-x-1.5 transition-all cursor-pointer active:scale-95 ${
+                disabled={isSaving || !isFormValid}
+                className={`px-3.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center space-x-1.5 transition-all ${
                   isFormValid && !isSaving
-                    ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 hover:text-emerald-800 border border-emerald-300 hover:border-emerald-400 shadow-sm animate-green-gentle-pulse' 
+                    ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 hover:text-emerald-800 border border-emerald-300 hover:border-emerald-400 shadow-sm animate-green-gentle-pulse cursor-pointer active:scale-95' 
                     : 'bg-slate-50 text-slate-400 border border-slate-300 cursor-not-allowed opacity-60'
                 }`}
-                title="Save Records (Click to validate)"
+                title={!formDate ? "Please select a Procedure Date" : isDateInFuture ? "Procedure Date cannot be in the future" : !isFormValid ? "Please fill all required fields" : "Save Records"}
               >
                 <svg className={`w-3.5 h-3.5 ${isFormValid ? 'text-emerald-600' : 'text-slate-400'}`} fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
@@ -1918,18 +1958,49 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                     handleSubmit(e, true);
                   }
                 }}
-                disabled={isSaving}
-                className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center space-x-1.5 transition-all cursor-pointer active:scale-95 ${
+                disabled={isSaving || !isFormValid}
+                className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center space-x-1.5 transition-all ${
                   isFormValid && !isSaving 
-                    ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white shadow-md shadow-indigo-600/15 hover:shadow-lg hover:shadow-indigo-600/20 border border-indigo-700/50 animate-gentle-pulse' 
+                    ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white shadow-md shadow-indigo-600/15 hover:shadow-lg hover:shadow-indigo-600/20 border border-indigo-700/50 animate-gentle-pulse cursor-pointer active:scale-95' 
                     : 'bg-slate-100 text-slate-400 border border-slate-300 cursor-not-allowed opacity-60'
                 }`}
-                title="Save and Download (Click to validate)"
+                title={!formDate ? "Please select a Procedure Date" : isDateInFuture ? "Procedure Date cannot be in the future" : !isFormValid ? "Please fill all required fields" : "Save and Download"}
               >
                 <svg className={`w-3.5 h-3.5 ${isFormValid ? 'text-white' : 'text-slate-400'}`} fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                 </svg>
                 <span>{isSaving ? 'Saving...' : 'Save and Download'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const currentRec: EndoscopyRecord = {
+                    id: editingRecord?.id || `temp_${Date.now()}`,
+                    referringUnit: activeUnit,
+                    regNo: formRegNo || 'NEW-REG',
+                    name: formName || 'Patient',
+                    doctor: formDoctor || 'Doctor',
+                    procedure: formProcedure || 'Endoscopy Procedure',
+                    date: formDate,
+                    time: formTime,
+                    diagnosis: formDiagnosis,
+                    recommendations: formRecommendations,
+                    whatsappNumber: formWhatsappNumber
+                  };
+                  setSelectedDispatchRecord(currentRec);
+                  setIsDispatchModalOpen(true);
+                  showToast("Opening WhatsApp Dispatch Center...", "info", "Dispatch Gateway");
+                }}
+                className="px-3.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center space-x-1.5 transition-all bg-emerald-600 hover:bg-emerald-700 text-white shadow-md border border-emerald-700/50 cursor-pointer active:scale-95"
+                title="Dispatch report directly via WhatsApp or Email Cloud Function"
+              >
+                <svg className="w-3.5 h-3.5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
+                </svg>
+                <span>Dispatch WhatsApp</span>
               </button>
             </div>
           </div>
@@ -2113,6 +2184,82 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                     </div>
                   </div>
 
+                  {/* Patient Digital Contact (Optional WhatsApp Integration) */}
+                  <div className="col-span-1 md:col-span-2 pt-4 border-t border-slate-200 mt-2">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-[10px] font-black uppercase text-emerald-600 dark:text-emerald-400 tracking-wider flex items-center gap-1.5">
+                        Patient WhatsApp Contact (Optional)
+                      </h4>
+                      <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">Serverless Cloud Function Ready</span>
+                    </div>
+                  </div>
+
+                  <div className="col-span-1 md:col-span-2 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">Patient WhatsApp Mobile Number</label>
+                      <span className="text-[9px] font-bold text-slate-400 uppercase">Country Code + Mobile No. (Without leading 0)</span>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-stretch gap-2">
+                      {/* Country Code Dropdown */}
+                      <select
+                        value={formWhatsappCountryCode}
+                        onChange={(e) => setFormWhatsappCountryCode(e.target.value)}
+                        className="sm:w-48 px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 hover:border-slate-300 transition-all cursor-pointer shadow-2xs"
+                      >
+                        {COUNTRY_CODES.map((c) => (
+                          <option key={c.code} value={c.code}>
+                            {c.code !== 'custom' ? `${c.code} (${c.country})` : c.country}
+                          </option>
+                        ))}
+                      </select>
+
+                      {/* Custom Code Input if custom selected */}
+                      {formWhatsappCountryCode === 'custom' && (
+                        <input
+                          type="text"
+                          placeholder="+91"
+                          value={formWhatsappCustomCode}
+                          onChange={(e) => setFormWhatsappCustomCode(e.target.value)}
+                          className="w-24 px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 shadow-2xs"
+                        />
+                      )}
+
+                      {/* Numeric Only Phone Input */}
+                      <div className="relative flex-1">
+                        <input
+                          type="tel"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={formWhatsappLocalNumber}
+                          onChange={(e) => {
+                            // Strip any non-digit character and leading zero
+                            const onlyDigits = e.target.value.replace(/\D/g, '');
+                            const cleanNum = onlyDigits.replace(/^0+/, '');
+                            setFormWhatsappLocalNumber(cleanNum);
+                          }}
+                          placeholder="e.g. 3001234567 or 9876543210 (exclude initial 0)"
+                          className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 hover:border-slate-300 transition-all font-mono tracking-wide"
+                        />
+                        {formWhatsappLocalNumber && (
+                          <button
+                            type="button"
+                            onClick={() => setFormWhatsappLocalNumber('')}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 text-xs font-bold p-1 cursor-pointer"
+                            title="Clear"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between text-[10px] text-slate-400 font-medium pt-0.5">
+                      <span>Formatted Number: <strong className="text-emerald-600 font-mono font-bold">{formWhatsappNumber || 'None'}</strong></span>
+                      <span>Numeric digits only • Auto-strips leading 0</span>
+                    </div>
+                  </div>
+
                   {/* Procedure Details Divider & Section */}
                   <div className="col-span-1 md:col-span-2 pt-4 border-t border-slate-200 mt-2">
                     <h4 className="text-[10px] font-bold uppercase text-red-600 tracking-wider mb-2">
@@ -2205,7 +2352,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Clinical Indications for Examination</label>
-                      <VoiceDictationButton onTranscript={(text) => setFormIndications(prev => prev ? `${prev} ${text}` : text)} />
+                      <VoiceDictationButton context="dictation" onTranscript={(text) => setFormIndications(prev => prev ? `${prev} ${text}` : text)} />
                     </div>
                     <textarea
                       rows={2}
@@ -2263,7 +2410,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                               >
                                 × Clear
                               </button>
-                              <VoiceDictationButton onTranscript={(text) => field.setter(prev => prev ? `${prev} ${text}` : text)} />
+                              <VoiceDictationButton context="dictation" onTranscript={(text) => field.setter(prev => prev ? `${prev} ${text}` : text)} />
                             </div>
                           </div>
                           <textarea
@@ -2336,7 +2483,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                             >
                               × Clear
                             </button>
-                            <VoiceDictationButton onTranscript={(text) => setFormEsophagusFindings(prev => prev ? `${prev} ${text}` : text)} />
+                            <VoiceDictationButton context="dictation" onTranscript={(text) => setFormEsophagusFindings(prev => prev ? `${prev} ${text}` : text)} />
                           </div>
                         </div>
                         <textarea
@@ -2397,7 +2544,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                             >
                               × Clear
                             </button>
-                            <VoiceDictationButton onTranscript={(text) => setFormStomachFindings(prev => prev ? `${prev} ${text}` : text)} />
+                            <VoiceDictationButton context="dictation" onTranscript={(text) => setFormStomachFindings(prev => prev ? `${prev} ${text}` : text)} />
                           </div>
                         </div>
                         <textarea
@@ -2445,7 +2592,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                               >
                                 × Clear
                               </button>
-                              <VoiceDictationButton onTranscript={(text) => setFormAntrumFindings(prev => prev ? `${prev} ${text}` : text)} />
+                              <VoiceDictationButton context="dictation" onTranscript={(text) => setFormAntrumFindings(prev => prev ? `${prev} ${text}` : text)} />
                             </div>
                           </div>
                           <textarea
@@ -2507,7 +2654,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                             >
                               × Clear
                             </button>
-                            <VoiceDictationButton onTranscript={(text) => setFormDuodenumFindings(prev => prev ? `${prev} ${text}` : text)} />
+                            <VoiceDictationButton context="dictation" onTranscript={(text) => setFormDuodenumFindings(prev => prev ? `${prev} ${text}` : text)} />
                           </div>
                         </div>
                         <textarea
@@ -2548,7 +2695,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                               >
                                 × Clear
                               </button>
-                              <VoiceDictationButton onTranscript={(text) => setFormDuodenum2ndPartFindings(prev => prev ? `${prev} ${text}` : text)} />
+                              <VoiceDictationButton context="dictation" onTranscript={(text) => setFormDuodenum2ndPartFindings(prev => prev ? `${prev} ${text}` : text)} />
                             </div>
                           </div>
                           <textarea
@@ -2590,7 +2737,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                               >
                                 × Clear
                               </button>
-                              <VoiceDictationButton onTranscript={(text) => setFormColonFindings(prev => prev ? `${prev} ${text}` : text)} />
+                              <VoiceDictationButton context="dictation" onTranscript={(text) => setFormColonFindings(prev => prev ? `${prev} ${text}` : text)} />
                             </div>
                           </div>
                           <textarea
@@ -2620,7 +2767,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                           >
                             × Clear
                           </button>
-                          <VoiceDictationButton onTranscript={(text) => setFormDiagnosis(prev => prev ? `${prev} ${text}` : text)} />
+                          <VoiceDictationButton context="dictation" onTranscript={(text) => setFormDiagnosis(prev => prev ? `${prev} ${text}` : text)} />
                         </div>
                       </div>
                       <textarea
@@ -2643,7 +2790,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                           >
                             × Clear
                           </button>
-                          <VoiceDictationButton onTranscript={(text) => setFormRecommendations(prev => prev ? `${prev} ${text}` : text)} />
+                          <VoiceDictationButton context="dictation" onTranscript={(text) => setFormRecommendations(prev => prev ? `${prev} ${text}` : text)} />
                         </div>
                       </div>
                       <textarea
@@ -2791,10 +2938,6 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
         <div className="mt-8 border-t border-slate-200 pt-8 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h3 className="text-sm font-black uppercase tracking-widest text-red-600 font-mono flex items-center space-x-2">
-                <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                <span>Saved Endoscopy Reports Logs ({activeUnit})</span>
-              </h3>
               <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
                 Click any row to load into the editor, or use actions to download PDF or print.
               </p>
@@ -2888,7 +3031,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                         <td className="px-4 py-3 text-slate-600">{record.doctor}</td>
                         <td className="px-4 py-3">
                           <span className="bg-slate-100 border border-slate-200 text-slate-700 px-2 py-0.5 rounded text-[8px] font-black">
-                            {record.procedure}
+                            {formatProcedureDisplay(record.procedure)}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-slate-500 font-mono">{record.date}</td>
@@ -2896,11 +3039,26 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                           <div className="flex items-center justify-end space-x-1">
                             <button 
                               onClick={() => handlePrintReport(record)} 
-                              className="p-1 rounded bg-white hover:bg-slate-100 text-slate-500 hover:text-emerald-600 border border-slate-200 hover:border-slate-300 transition-all cursor-pointer"
+                              className="p-1 rounded bg-blue-50 hover:bg-blue-100 text-blue-600 hover:text-blue-800 border border-blue-200 hover:border-blue-300 transition-all cursor-pointer shadow-2xs"
                               title="Print / Download PDF"
                             >
                               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                              </svg>
+                            </button>
+                            <button 
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setSelectedDispatchRecord(record);
+                                setIsDispatchModalOpen(true);
+                                showToast(`Opening WhatsApp Dispatch Center for ${record.name}...`, "info", "Dispatch Gateway");
+                              }}
+                              className="p-1 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-600 hover:text-emerald-800 border border-emerald-300 hover:border-emerald-400 transition-all cursor-pointer flex items-center justify-center shadow-2xs"
+                              title="Dispatch via WhatsApp"
+                            >
+                              <svg className="w-3.5 h-3.5 text-emerald-600" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
                               </svg>
                             </button>
                             <button 
@@ -2917,6 +3075,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                                 setFormGender(record.gender || 'Male');
                                 setFormDob(record.dob || '');
                                 setFormReferringPhysician(record.referringPhysician || '');
+                                setWhatsappFromFullString(record.whatsappNumber || '');
                                 setFormIndications(record.indications || '');
                                 setFormInstruments(record.instruments || '');
                                 setFormMedications(record.medications || '');
@@ -2939,7 +3098,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                                 window.scrollTo({ top: 0, behavior: 'smooth' });
                                 showToast(`Loaded ${record.name}'s report for editing.`, "info");
                               }} 
-                              className="p-1 rounded bg-white hover:bg-slate-100 text-slate-500 hover:text-indigo-600 border border-slate-200 hover:border-slate-300 transition-all cursor-pointer"
+                              className="p-1 rounded bg-amber-50 hover:bg-amber-100 text-amber-600 hover:text-amber-800 border border-amber-200 hover:border-amber-300 transition-all cursor-pointer shadow-2xs"
                               title="Edit Report"
                             >
                               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
@@ -2949,7 +3108,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                             {isAdmin && (
                               <button 
                                 onClick={() => { setIdToDelete(record.id); setIsConfirmOpen(true); }} 
-                                className="p-1 rounded bg-white hover:bg-slate-100 text-slate-500 hover:text-red-600 border border-slate-200 hover:border-slate-300 transition-all cursor-pointer"
+                                className="p-1 rounded bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-800 border border-rose-200 hover:border-rose-300 transition-all cursor-pointer shadow-2xs"
                                 title="Delete Report"
                               >
                                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
@@ -3329,8 +3488,13 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                   await handleSubmit(e, false);
                   setIsPreviewOpen(false);
                 }}
-                disabled={isSaving}
-                className={`px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[10px] font-black uppercase tracking-widest border border-slate-700 transition-all cursor-pointer active:scale-95 flex items-center space-x-1.5 ${!isSaving ? 'animate-pulse' : ''}`}
+                disabled={isSaving || !isFormValid}
+                className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-all flex items-center space-x-1.5 ${
+                  isFormValid && !isSaving
+                    ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700 cursor-pointer active:scale-95 animate-pulse'
+                    : 'bg-slate-800/50 text-slate-500 border-slate-800 cursor-not-allowed opacity-50'
+                }`}
+                title={!formDate ? "Please select a Procedure Date" : isDateInFuture ? "Procedure Date cannot be in the future" : !isFormValid ? "Please fill all required fields" : "Save Report"}
               >
                 <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
@@ -3343,8 +3507,13 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                   await handleSubmit(e, true);
                   setIsPreviewOpen(false);
                 }}
-                disabled={isSaving}
-                className={`px-5 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg text-[10px] font-black uppercase tracking-widest shadow-lg shadow-red-950/40 transition-all cursor-pointer active:scale-95 flex items-center space-x-1.5 border border-red-500/50 ${!isSaving ? 'animate-pulse' : ''}`}
+                disabled={isSaving || !isFormValid}
+                className={`px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center space-x-1.5 border ${
+                  isFormValid && !isSaving
+                    ? 'bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-950/40 border-red-500/50 cursor-pointer active:scale-95 animate-pulse'
+                    : 'bg-slate-800/50 text-slate-500 border-slate-800 cursor-not-allowed opacity-50'
+                }`}
+                title={!formDate ? "Please select a Procedure Date" : isDateInFuture ? "Procedure Date cannot be in the future" : !isFormValid ? "Please fill all required fields" : "Save & Print PDF"}
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
@@ -3639,7 +3808,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                       <td className="px-6 py-4">{record.doctor}</td>
                       <td className="px-6 py-4">
                         <span className="bg-slate-100 px-2 py-0.5 rounded text-[8px] border border-slate-200 font-black">
-                          {record.procedure}
+                          {formatProcedureDisplay(record.procedure)}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-slate-500 font-mono">{record.date}</td>
@@ -3888,7 +4057,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                 >
                   × Clear
                 </button>
-                <VoiceDictationButton onTranscript={(text) => setFormDiagnosis(prev => prev ? `${prev} ${text}` : text)} lightTheme />
+                <VoiceDictationButton context="dictation" onTranscript={(text) => setFormDiagnosis(prev => prev ? `${prev} ${text}` : text)} lightTheme />
               </div>
             </div>
             <textarea 
@@ -3913,13 +4082,21 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
             </button>
             <button
               type="submit"
-              disabled={isSaving}
-              className={`px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all shadow-md active:scale-95 flex items-center space-x-1 cursor-pointer ${
+              disabled={isSaving || !isFormValid}
+              className={`px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all shadow-md flex items-center space-x-1 ${
                 isFormValid && !isSaving 
-                  ? 'bg-red-600 hover:bg-red-700 text-white' 
-                  : 'bg-red-950/20 text-red-500 border border-red-900/10 hover:bg-red-950/30'
+                  ? 'bg-red-600 hover:bg-red-700 text-white cursor-pointer active:scale-95' 
+                  : 'bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed opacity-60'
               }`}
-              title="Save Log Entry (Click to validate)"
+              title={
+                !formDate 
+                  ? "Please select a Procedure Date" 
+                  : isDateInFuture 
+                  ? "Procedure Date cannot be in the future" 
+                  : !isFormValid 
+                  ? "Please complete all required fields" 
+                  : "Save Log Entry"
+              }
             >
               {isSaving ? 'Saving...' : 'Save Log Entry'}
             </button>
@@ -4229,7 +4406,23 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
         confirmLabel="Yes, Exit"
         variant="warning"
       />
-      <ExportModal isOpen={isExportModalOpen} onClose={() => setIsExportModalOpen(false)} onExport={(opts) => exportEndoscopyPDF(sortedAndFiltered, { generatedBy: opts.generatedBy, filters: 'Unit: Endoscopy Unit' })} title="Endoscopy Audit Export" />
+      <ExportModal 
+        isOpen={isExportModalOpen} 
+        onClose={() => setIsExportModalOpen(false)} 
+        onExport={(opts) => {
+          const filterDetails = [
+            appliedStartDate && appliedEndDate ? `Date Range: ${appliedStartDate} to ${appliedEndDate}` : 'All Dates',
+            searchTerm ? `Search: "${searchTerm}"` : null,
+            'Unit: Endoscopy Unit'
+          ].filter(Boolean).join(' | ');
+
+          exportEndoscopyPDF(sortedAndFiltered, { 
+            generatedBy: opts.generatedBy, 
+            filters: filterDetails 
+          });
+        }} 
+        title="Endoscopy Audit Export" 
+      />
 
       {/* Live Report Print Preview Modal Dashboard */}
       {isPreviewOpen && (
@@ -4283,8 +4476,13 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                   await handleSubmit(e, false);
                   setIsPreviewOpen(false);
                 }}
-                disabled={isSaving}
-                className={`px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[10px] font-black uppercase tracking-widest border border-slate-700 transition-all cursor-pointer active:scale-95 flex items-center space-x-1.5 ${!isSaving ? 'animate-pulse' : ''}`}
+                disabled={isSaving || !isFormValid}
+                className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-all flex items-center space-x-1.5 ${
+                  isFormValid && !isSaving
+                    ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700 cursor-pointer active:scale-95 animate-pulse'
+                    : 'bg-slate-800/50 text-slate-500 border-slate-800 cursor-not-allowed opacity-50'
+                }`}
+                title={!formDate ? "Please select a Procedure Date" : isDateInFuture ? "Procedure Date cannot be in the future" : !isFormValid ? "Please fill all required fields" : "Save Report"}
               >
                 <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
@@ -4297,8 +4495,13 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                   await handleSubmit(e, true);
                   setIsPreviewOpen(false);
                 }}
-                disabled={isSaving}
-                className={`px-5 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg text-[10px] font-black uppercase tracking-widest shadow-lg shadow-red-950/40 transition-all cursor-pointer active:scale-95 flex items-center space-x-1.5 border border-red-500/50 ${!isSaving ? 'animate-pulse' : ''}`}
+                disabled={isSaving || !isFormValid}
+                className={`px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center space-x-1.5 border ${
+                  isFormValid && !isSaving
+                    ? 'bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-950/40 border-red-500/50 cursor-pointer active:scale-95 animate-pulse'
+                    : 'bg-slate-800/50 text-slate-500 border-slate-800 cursor-not-allowed opacity-50'
+                }`}
+                title={!formDate ? "Please select a Procedure Date" : isDateInFuture ? "Procedure Date cannot be in the future" : !isFormValid ? "Please fill all required fields" : "Save & Print PDF"}
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
@@ -4435,6 +4638,32 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
           imageTitle={imageToCrop.title}
           onClose={() => setImageToCrop(null)}
           onCropSave={(croppedBase64) => handleSaveCroppedImage(croppedBase64, imageToCrop.title, imageToCrop.id)}
+        />
+      )}
+
+      {/* WhatsApp & Email Cloud Function Dispatch Modal */}
+      {selectedDispatchRecord && (
+        <WhatsAppDispatchModal
+          isOpen={isDispatchModalOpen}
+          onClose={() => {
+            setIsDispatchModalOpen(false);
+            setSelectedDispatchRecord(null);
+          }}
+          record={selectedDispatchRecord}
+          onDispatchSuccess={(log) => {
+            showToast(
+              `Report successfully dispatched via ${log.channel.toUpperCase()} (${log.recipient})`,
+              'success',
+              'Dispatch Successful'
+            );
+          }}
+          onDispatchError={(errorMsg) => {
+            showToast(
+              errorMsg || 'Failed to dispatch report. Please check details and retry.',
+              'error',
+              'Dispatch Failed'
+            );
+          }}
         />
       )}
     </div>

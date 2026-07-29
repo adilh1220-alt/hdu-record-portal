@@ -4,7 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { collection, onSnapshot, getDocs, query, where, orderBy } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
 import { Patient, EndoscopyRecord, InventoryItem } from '../types';
-import { COLORS, MONTHS, UNIT_DETAILS } from '../constants';
+import { COLORS, MONTHS, UNIT_DETAILS, formatProcedureDisplay } from '../constants';
 import { useUnit } from '../contexts/UnitContext';
 
 const Dashboard: React.FC = () => {
@@ -114,7 +114,8 @@ const Dashboard: React.FC = () => {
       
       const counts: Record<string, number> = {};
       unitDocs.forEach(r => {
-        counts[r.procedure] = (counts[r.procedure] || 0) + 1;
+        const procName = formatProcedureDisplay(r.procedure);
+        counts[procName] = (counts[procName] || 0) + 1;
       });
       
       const sorted = Object.entries(counts)

@@ -30,29 +30,43 @@ export const ShortcutsOverlay: React.FC = () => {
     localStorage.setItem('hdu_shortcuts_minimized', String(isMinimized));
   }, [isMinimized]);
 
-  // Support toggling overlay via Alt + H
+  // Support toggling overlay via Alt + H or '?' key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.altKey && e.key.toLowerCase() === 'h') {
+      const target = e.target as HTMLElement | null;
+      const isInput = target && (
+        target.tagName === 'INPUT' || 
+        target.tagName === 'TEXTAREA' || 
+        target.isContentEditable
+      );
+
+      if ((e.altKey && e.key.toLowerCase() === 'h') || (!isInput && (e.key === '?' || (e.key === '/' && e.shiftKey)))) {
         e.preventDefault();
         setIsVisible(prev => !prev);
+        setIsMinimized(false);
+      } else if (e.key === 'Escape' && isVisible) {
+        setIsVisible(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [isVisible]);
 
   if (!isVisible) {
-    // Return a very small, unobtrusive trigger button at bottom-right when completely hidden
+    // Return a trigger button at bottom-right when hidden with '?' badge
     return (
       <button
-        onClick={() => setIsVisible(true)}
-        className="fixed bottom-4 right-4 z-50 no-print flex items-center space-x-2 px-3 py-2 bg-slate-950 text-white rounded-full shadow-lg border border-slate-800 hover:bg-slate-900 transition-all hover:scale-105 active:scale-95 group font-medium text-xs"
-        title="Show Keyboard Shortcuts (Alt+H)"
+        onClick={() => {
+          setIsVisible(true);
+          setIsMinimized(false);
+        }}
+        className="fixed bottom-4 right-4 z-50 no-print flex items-center space-x-2 px-3.5 py-2 bg-slate-950 text-white rounded-full shadow-xl border border-slate-800 hover:bg-slate-900 transition-all hover:scale-105 active:scale-95 group font-medium text-xs cursor-pointer"
+        title="Show Keyboard Shortcuts (Press ? or Alt+H)"
         id="shortcuts-restore-btn"
       >
         <Keyboard className="w-4 h-4 text-red-500 animate-pulse group-hover:scale-110 transition-transform" />
-        <span>Shortcuts (Alt+H)</span>
+        <span className="font-bold">Shortcuts</span>
+        <kbd className="px-1.5 py-0.5 bg-slate-800 text-red-400 rounded text-[9px] font-mono font-black border border-slate-700">?</kbd>
       </button>
     );
   }
@@ -73,7 +87,8 @@ export const ShortcutsOverlay: React.FC = () => {
     { key: 'Alt + S', label: 'Focus Search Bar' },
     { key: 'Alt + E', label: 'Open Export Modal' },
     { key: 'Alt + P', label: 'Print Active View' },
-    { key: 'Alt + H', label: 'Toggle Help Widget' },
+    { key: '? or Alt+H', label: 'Toggle Shortcuts Guide' },
+    { key: 'Esc', label: 'Close Helper Modal' },
   ];
 
   if (isAdmin) {

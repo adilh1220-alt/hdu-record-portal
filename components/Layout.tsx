@@ -220,7 +220,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
             <div className="w-8 h-8 bg-red-600 rounded-md flex items-center justify-center">
               <span className="text-white font-bold text-xl">+</span>
             </div>
-            <span className="text-slate-900 dark:text-slate-100 font-bold text-xl tracking-tight">The Kidney Centre</span>
+            <span className="text-slate-900 dark:text-slate-100 font-bold text-xl tracking-tight">MediLog</span>
           </div>
           <button 
             onClick={() => setSidebarOpen(!isSidebarOpen)} 
@@ -439,7 +439,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
               <div className="w-6 h-6 bg-red-600 rounded flex items-center justify-center text-white font-bold text-sm">
                 +
               </div>
-              <span className="text-slate-900 font-bold text-base tracking-tight">The Kidney Centre</span>
+              <span className="text-slate-900 font-bold text-base tracking-tight">MediLog</span>
             </div>
           </div>
           <div className="flex items-center space-x-2">
@@ -456,8 +456,8 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
           <div className="hidden print:block border-b-2 border-red-600 pb-4 mb-6">
             <div className="flex justify-between items-end">
               <div>
-                <h1 className="text-xl font-black text-red-600 uppercase tracking-tight">The Kidney Centre</h1>
-                <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">High Dependency Unit (HDU) Clinical Portal</p>
+                <h1 className="text-xl font-black text-red-600 uppercase tracking-tight">MediLog</h1>
+                <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Clinical Recording & Reporting Portal</p>
               </div>
               <div className="text-right text-[10px] text-slate-400 font-mono font-bold uppercase">
                 <div>Date: {new Date().toLocaleDateString()}</div>

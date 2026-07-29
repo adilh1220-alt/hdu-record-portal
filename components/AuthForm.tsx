@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { ClipboardList } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { userService } from '../services/userService';
 import { authService } from '../services/authService';
@@ -130,10 +131,10 @@ const AuthForm: React.FC = () => {
       <div className={`w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden transition-all duration-300 ${shake ? 'animate-shake' : 'animate-in fade-in zoom-in'}`}>
         <div className="bg-slate-100 p-10 text-center border-b border-slate-200">
           <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-sm border border-slate-200">
-            <span className="text-3xl font-black text-red-600 tracking-tighter">HDU</span>
+            <ClipboardList className="w-8 h-8 text-red-600" />
           </div>
-          <h2 className="text-2xl font-black tracking-tight text-slate-900 uppercase">HDU CLINICAL PORTAL</h2>
-          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.2em] mt-3">Authorized Personnel Only</p>
+          <h2 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 uppercase">RECORD MANAGEMENT PORTAL</h2>
+          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.2em] mt-3">Authorized Clinical Personnel Only</p>
         </div>
 
         <div className="p-8">
@@ -228,7 +229,7 @@ const AuthForm: React.FC = () => {
                   : 'bg-red-500 hover:bg-red-600 active:scale-[0.98] shadow-red-200'
               }`}
             >
-              {loading ? 'Authenticating...' : 'Grant Access'}
+              {loading ? 'Authenticating...' : 'LOGIN'}
             </button>
           </form>
 

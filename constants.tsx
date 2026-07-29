@@ -31,7 +31,7 @@ export const ENDOSCOPY_DOCTORS = [
 ];
 
 export const ENDOSCOPY_PROCEDURES = [
-  'EGD', 'Colonoscopy', 'ERCP', 'Sigmoidoscopy', 'Band Ligation', 'Endoscopy+Band ligation', 'Endoscopy+Biopsy', 'Bronchoscopy'
+  'Esophagogastroduodenoscopy (EGD)', 'Colonoscopy', 'ERCP', 'Sigmoidoscopy', 'Band Ligation', 'Endoscopy+Band ligation', 'Endoscopy+Biopsy', 'Flexible Bronchoscopy'
 ];
 
 export const CATEGORIES: string[] = ['Medicine', 'Surgery', 'Urology', 'Nephrology', 'Cardiology', 'Others'];
@@ -68,3 +68,16 @@ export const COLORS = {
 };
 
 export const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+export const formatProcedureDisplay = (proc: string | undefined | null): string => {
+  if (!proc) return 'Unspecified';
+  const trimmed = proc.trim();
+  const upper = trimmed.toUpperCase();
+  if (upper === 'EGD' || upper === 'ESOPHAGOGASTRODUODENOSCOPY (EGD)' || upper === 'ESOPHAGOGASTRODUODENOSCOPY') {
+    return 'Esophagogastroduodenoscopy (EGD)';
+  }
+  if (upper === 'BRONCHOSCOPY' || upper === 'FLEXIBLE BRONCHOSCOPY') {
+    return 'Flexible Bronchoscopy';
+  }
+  return trimmed;
+};

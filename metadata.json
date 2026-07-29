@@ -1,6 +1,6 @@
 {
-  "name": "High Dependency Unit Inventory & Analytics",
-  "description": "A high-performance medical dashboard for managing HDU patient admissions, mortality records, and critical inventory with advanced analytics and PDF reporting.",
+  "name": "Record Management Portal",
+  "description": "A concise, high-performance clinical recording and reporting application for HDU admissions, endoscopy procedure logs, mortality records, and medical analytics.",
   "requestFramePermissions": ["microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
