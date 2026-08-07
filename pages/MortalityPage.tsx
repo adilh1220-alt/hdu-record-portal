@@ -7,11 +7,13 @@ import { exportPatientsPDF } from '../services/pdfService';
 import { downloadCSV } from '../services/exportService';
 import { useAuth } from '../contexts/AuthContext';
 import { useUnit } from '../contexts/UnitContext';
+import { useSearch } from '../contexts/SearchContext';
 import { activityService } from '../services/activityService';
 import { CONSULTANTS, CATEGORIES, LOCATIONS, CODE_STATUSES, UNIT_DETAILS } from '../constants';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
 import ExportModal from '../components/ExportModal';
+import { ActiveFiltersBar } from '../components/ActiveFiltersBar';
 
 const InputWrapper = ({ label, field, children }: { label: string, field: string, children?: React.ReactNode }) => (
   <div className="space-y-1">
@@ -347,6 +349,14 @@ type SortDirection = 'asc' | 'desc';
 
 const MortalityPage: React.FC = () => {
   const { activeUnit } = useUnit();
+  const {
+    searchQuery: advSearchQuery,
+    startDate: advStartDate,
+    endDate: advEndDate,
+    severity: advSeverity,
+    openAdvancedSearch
+  } = useSearch();
+
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -465,32 +475,49 @@ const MortalityPage: React.FC = () => {
   };
 
   const sortedAndFiltered = useMemo(() => {
+    const combinedQuery = [searchTerm, advSearchQuery].filter(Boolean).join(' ').toLowerCase().trim();
+    const effectiveStart = appliedStartDate || advStartDate;
+    const effectiveEnd = appliedEndDate || advEndDate;
+
     const filtered = patients.filter(p => {
-      const matchesSearch = 
-        p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        p.regNo.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = !combinedQuery ||
+        p.name.toLowerCase().includes(combinedQuery) || 
+        p.regNo.toLowerCase().includes(combinedQuery) ||
+        (p.consultant && p.consultant.toLowerCase().includes(combinedQuery)) ||
+        (p.category && p.category.toLowerCase().includes(combinedQuery));
       
       const expiryDateStr = p.dischargeDate || '';
-      if (!expiryDateStr && (appliedStartDate || appliedEndDate)) return false;
+      if (!expiryDateStr && (effectiveStart || effectiveEnd)) return false;
       
       const expiryDate = new Date(expiryDateStr);
       expiryDate.setHours(0, 0, 0, 0);
       
       let matchesStartDate = true;
-      if (appliedStartDate) {
-        const start = new Date(appliedStartDate);
+      if (effectiveStart) {
+        const start = new Date(effectiveStart);
         start.setHours(0, 0, 0, 0);
         matchesStartDate = expiryDate >= start;
       }
       
       let matchesEndDate = true;
-      if (appliedEndDate) {
-        const end = new Date(appliedEndDate);
+      if (effectiveEnd) {
+        const end = new Date(effectiveEnd);
         end.setHours(0, 0, 0, 0);
         matchesEndDate = expiryDate <= end;
       }
 
-      return matchesSearch && matchesStartDate && matchesEndDate;
+      let matchesSeverity = true;
+      if (advSeverity !== 'ALL') {
+        if (advSeverity === 'CRITICAL') {
+          matchesSeverity = p.triagePriority === 'Critical' || p.codeStatus === 'DNR';
+        } else if (advSeverity === 'URGENT') {
+          matchesSeverity = p.triagePriority === 'Urgent';
+        } else if (advSeverity === 'STABLE') {
+          matchesSeverity = p.triagePriority === 'Stable' || p.codeStatus === 'Full Code';
+        }
+      }
+
+      return matchesSearch && matchesStartDate && matchesEndDate && matchesSeverity;
     });
 
     return [...filtered].sort((a, b) => {
@@ -518,7 +545,9 @@ const MortalityPage: React.FC = () => {
       }
       return 0;
     });
-  }, [patients, searchTerm, appliedStartDate, appliedEndDate, sortConfig]);
+  }, [patients, searchTerm, advSearchQuery, appliedStartDate, advStartDate, appliedEndDate, advEndDate, advSeverity, sortConfig]);
+
+  const isFilterActive = !!(appliedStartDate || appliedEndDate || searchTerm);
 
   const handleExportAction = (opts: any) => {
     const reportTitle = `${activeUnit} Mortality Archive`;
@@ -611,13 +640,19 @@ const MortalityPage: React.FC = () => {
                 ref={searchInputRef}
                 type="text" 
                 placeholder={`Search ${activeUnit} Archive...`}
-                className="bg-transparent text-[10px] font-bold outline-none flex-1 uppercase pr-14 dark:text-slate-100"
+                className="bg-transparent text-[10px] font-bold outline-none flex-1 uppercase pr-20 dark:text-slate-100"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
-              <kbd className="pointer-events-none absolute right-3 hidden sm:flex items-center gap-0.5 rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[8px] font-black text-slate-400 shadow-sm dark:bg-slate-850 dark:border-slate-750 dark:text-slate-500">
-                Alt+S
-              </kbd>
+              <button
+                type="button"
+                onClick={openAdvancedSearch}
+                className="absolute right-2 flex items-center gap-1 rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[8px] font-black text-slate-700 shadow-sm hover:bg-slate-100 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200"
+                title="Open Advanced Filter (Alt+S)"
+              >
+                <span>Filter</span>
+                <kbd className="opacity-70 bg-slate-200 dark:bg-slate-700 px-0.5 rounded">Alt+S</kbd>
+              </button>
             </div>
             {canManageRecords && (
               <button 
@@ -636,6 +671,8 @@ const MortalityPage: React.FC = () => {
             Export Records
           </button>
         </div>
+
+        <ActiveFiltersBar />
 
         <div className="flex flex-wrap items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
           <div className="flex items-center gap-2">
@@ -663,6 +700,18 @@ const MortalityPage: React.FC = () => {
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
             Fetch Data
           </button>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-800 rounded-lg border border-emerald-200 text-[9px] font-black uppercase tracking-wider shadow-sm">
+            <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Records Fetched: <span className="text-emerald-950 font-black text-[11px] px-1.5 py-0.5 bg-emerald-200/60 rounded ml-0.5">{sortedAndFiltered.length}</span>
+          </div>
+          {isFilterActive && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full border border-blue-200">
+               <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse" />
+               <span className="text-[8px] font-black uppercase tracking-widest">Active Filters ({sortedAndFiltered.length} of {patients.length})</span>
+            </div>
+          )}
           <button 
             onClick={resetFilters}
             className="ml-auto text-[9px] font-black text-red-600 uppercase tracking-widest hover:text-red-700 transition-colors flex items-center gap-1"

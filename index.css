@@ -1,14 +1,19 @@
 /* Custom styles for ReactQuill to match the app's aesthetic */
 .ql-container.ql-snow {
-  border: none !important;
+  border: 1.5px solid #94a3b8 !important;
+  border-top: none !important;
   font-family: 'Inter', sans-serif !important;
   font-size: 11px !important;
+  border-bottom-left-radius: 0.75rem;
+  border-bottom-right-radius: 0.75rem;
 }
 
 .ql-toolbar.ql-snow {
-  border: none !important;
-  border-bottom: 1px solid #e2e8f0 !important;
+  border: 1.5px solid #94a3b8 !important;
+  border-bottom: 1.5px solid #94a3b8 !important;
   background: #f8fafc !important;
+  border-top-left-radius: 0.75rem;
+  border-top-right-radius: 0.75rem;
 }
 
 .ql-editor {
@@ -19,6 +24,79 @@
   font-style: normal !important;
   color: #94a3b8 !important;
   font-weight: 500 !important;
+}
+
+/* Doctor Reporting - Bold Modern Border Styling for textareas, inputs, & selects */
+textarea,
+input[type="text"],
+input[type="number"],
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"],
+input[type="email"],
+input[type="tel"],
+input[type="password"],
+input[type="search"],
+select {
+  border-color: #94a3b8 !important; /* Slate 400 - Bold dark crisp border */
+  border-width: 1.5px !important;
+}
+
+textarea:hover,
+input[type="text"]:hover,
+input[type="number"]:hover,
+input[type="date"]:hover,
+input[type="time"]:hover,
+input[type="datetime-local"]:hover,
+input[type="email"]:hover,
+input[type="tel"]:hover,
+input[type="password"]:hover,
+input[type="search"]:hover,
+select:hover {
+  border-color: #64748b !important; /* Slate 500 on hover */
+}
+
+textarea:focus,
+input[type="text"]:focus,
+input[type="number"]:focus,
+input[type="date"]:focus,
+input[type="time"]:focus,
+input[type="datetime-local"]:focus,
+input[type="email"]:focus,
+input[type="tel"]:focus,
+input[type="password"]:focus,
+input[type="search"]:focus,
+select:focus {
+  border-color: #4f46e5 !important; /* Indigo 600 sharp modern focus */
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2) !important;
+}
+
+/* Dark mode border adjustments */
+.dark textarea,
+.dark input[type="text"],
+.dark input[type="number"],
+.dark input[type="date"],
+.dark input[type="time"],
+.dark input[type="datetime-local"],
+.dark input[type="email"],
+.dark input[type="tel"],
+.dark input[type="password"],
+.dark input[type="search"],
+.dark select {
+  border-color: #475569 !important; /* Slate 600 in dark mode */
+}
+
+.dark textarea:hover,
+.dark input:hover,
+.dark select:hover {
+  border-color: #64748b !important;
+}
+
+.dark textarea:focus,
+.dark input:focus,
+.dark select:focus {
+  border-color: #6366f1 !important;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25) !important;
 }
 
 /* Smooth global transitions for UI elements during theme switching */

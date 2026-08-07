@@ -5,16 +5,19 @@ import { motion, AnimatePresence } from 'motion/react';
 import { collection, onSnapshot, setDoc, doc, deleteDoc, query, orderBy, updateDoc, where } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
 import { Patient, PatientStatus, PatientCategory, CodeStatus, TriagePriority, ClinicalUnit } from '../types';
-import { exportPatientsPDF, exportPatientSummaryPDF } from '../services/pdfService';
+import { exportPatientsPDF, exportPatientSummaryPDF, generateKidneyCentreLogoBase64 } from '../services/pdfService';
 import { downloadCSV } from '../services/exportService';
 import { useAuth } from '../contexts/AuthContext';
 import { useUnit } from '../contexts/UnitContext';
+import { useSearch } from '../contexts/SearchContext';
+import { useConfirm } from '../contexts/ConfirmContext';
 import { activityService } from '../services/activityService';
 import { CONSULTANTS, CATEGORIES, LOCATIONS, CODE_STATUSES, TRIAGE_PRIORITIES, TRIAGE_COLORS, CLINICAL_UNITS, UNIT_DETAILS } from '../constants';
 import Modal from './Modal';
 import ConfirmModal from './ConfirmModal';
 import ExportModal from './ExportModal';
 import { VoiceDictationButton } from './VoiceDictationButton';
+import { ActiveFiltersBar } from './ActiveFiltersBar';
 
 interface FormErrors {
   name?: string;
@@ -49,6 +52,7 @@ interface AdmissionFormProps {
 
 const AdmissionForm = React.memo(({ editingPatient, autoSerialNo, onSave, onArchive, isSaving }: AdmissionFormProps) => {
   const { activeUnit } = useUnit();
+  const confirm = useConfirm();
 
   const STORAGE_KEY = editingPatient 
     ? `hdu_draft_admission_${activeUnit}_edit_${editingPatient.id}`
@@ -327,7 +331,15 @@ const AdmissionForm = React.memo(({ editingPatient, autoSerialNo, onSave, onArch
           </div>
           <button
             type="button"
-            onClick={() => {
+            onClick={async () => {
+              const isConfirmed = await confirm({
+                title: "Discard Auto-Restored Draft",
+                message: "Are you sure you want to discard this unsaved draft and reset the form?",
+                confirmLabel: "Discard Draft",
+                cancelLabel: "Keep Draft",
+                variant: "warning"
+              });
+              if (!isConfirmed) return;
               try {
                 localStorage.removeItem(STORAGE_KEY);
                 setHasRestoredDraft(false);
@@ -943,9 +955,14 @@ const PrintSummaryModal: React.FC<PrintSummaryModalProps> = ({ isOpen, onClose, 
           className="bg-white p-6 border border-slate-200 rounded-2xl shadow-sm text-slate-800 space-y-6 overflow-y-auto max-h-[60vh] print:max-h-none print:border-none print:shadow-none font-sans"
         >
           {/* Header Banner */}
-          <div className="border-b-4 border-slate-900 pb-4 text-center space-y-1.5">
+          <div className="border-b-4 border-slate-900 pb-4 flex flex-col items-center justify-center space-y-2">
+            <img 
+              src={generateKidneyCentreLogoBase64()} 
+              alt="The Kidney Centre Logo" 
+              className="h-16 w-auto object-contain mb-1"
+            />
             <h1 className="text-lg md:text-xl font-black text-slate-900 tracking-tight uppercase">
-              MEDILOG CLINICAL RECORD REGISTRY
+              CLINICAL INPATIENT &amp; PROCEDURE SUMMARY
             </h1>
             <h2 className="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest">
               Patient Summary &amp; Movement Audit Record
@@ -1132,6 +1149,15 @@ type SortDirection = 'asc' | 'desc';
 const PatientTable: React.FC = () => {
   const { activeUnit } = useUnit();
   const { isAdmin, canManageRecords, currentUser } = useAuth();
+  const { 
+    searchQuery: advSearchQuery, 
+    startDate: advStartDate, 
+    endDate: advEndDate, 
+    severity: advSeverity, 
+    scope: advScope, 
+    openAdvancedSearch 
+  } = useSearch();
+
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -1419,15 +1445,21 @@ const PatientTable: React.FC = () => {
     setNameFilter('');
   };
 
+  const isFilterActive = !!(appliedStartDate || appliedEndDate || consultantFilter || mrnFilter || nameFilter || searchTerm);
+
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, appliedStartDate, appliedEndDate, consultantFilter, activeUnit, mrnFilter, nameFilter]);
+  }, [searchTerm, advSearchQuery, appliedStartDate, advStartDate, appliedEndDate, advEndDate, advSeverity, consultantFilter, activeUnit, mrnFilter, nameFilter]);
 
   const sortedAndFiltered = useMemo(() => {
-    const tokens = searchTerm.toLowerCase().trim().split(/\s+/).filter(t => t.length > 0);
+    const combinedQuery = [searchTerm, advSearchQuery].filter(Boolean).join(' ').toLowerCase().trim();
+    const tokens = combinedQuery.split(/\s+/).filter(t => t.length > 0);
     
+    const effectiveStart = appliedStartDate || advStartDate;
+    const effectiveEnd = appliedEndDate || advEndDate;
+
     const filtered = patients.filter(p => {
-      const matchesSearch = tokens.every(token => {
+      const matchesSearch = tokens.length === 0 || tokens.every(token => {
         return (
           p.name.toLowerCase().includes(token) || 
           p.regNo.toLowerCase().includes(token) ||
@@ -1445,17 +1477,28 @@ const PatientTable: React.FC = () => {
       admissionDate.setHours(0, 0, 0, 0);
       
       let matchesStartDate = true;
-      if (appliedStartDate) {
-        const start = new Date(appliedStartDate);
+      if (effectiveStart) {
+        const start = new Date(effectiveStart);
         start.setHours(0, 0, 0, 0);
         matchesStartDate = admissionDate >= start;
       }
       
       let matchesEndDate = true;
-      if (appliedEndDate) {
-        const end = new Date(appliedEndDate);
+      if (effectiveEnd) {
+        const end = new Date(effectiveEnd);
         end.setHours(0, 0, 0, 0);
         matchesEndDate = admissionDate <= end;
+      }
+
+      let matchesSeverity = true;
+      if (advSeverity !== 'ALL') {
+        if (advSeverity === 'CRITICAL') {
+          matchesSeverity = p.triagePriority === 'Critical' || p.codeStatus === 'DNR';
+        } else if (advSeverity === 'URGENT') {
+          matchesSeverity = p.triagePriority === 'Urgent';
+        } else if (advSeverity === 'STABLE') {
+          matchesSeverity = p.triagePriority === 'Stable' || p.codeStatus === 'Full Code';
+        }
       }
 
       const matchesConsultant = !consultantFilter || p.consultant === consultantFilter;
@@ -1470,7 +1513,7 @@ const PatientTable: React.FC = () => {
         matchesName = p.name.toLowerCase().includes(nameFilter.toLowerCase().trim());
       }
 
-      return matchesSearch && matchesStartDate && matchesEndDate && matchesConsultant && matchesMrn && matchesName;
+      return matchesSearch && matchesStartDate && matchesEndDate && matchesSeverity && matchesConsultant && matchesMrn && matchesName;
     });
 
     return [...filtered].sort((a, b) => {
@@ -1496,7 +1539,7 @@ const PatientTable: React.FC = () => {
       }
       return 0;
     });
-  }, [patients, searchTerm, appliedStartDate, appliedEndDate, sortConfig, consultantFilter, mrnFilter, nameFilter]);
+  }, [patients, searchTerm, advSearchQuery, appliedStartDate, advStartDate, appliedEndDate, advEndDate, advSeverity, sortConfig, consultantFilter, mrnFilter, nameFilter]);
 
   const totalPages = Math.ceil(sortedAndFiltered.length / itemsPerPage);
   const paginatedPatients = useMemo(() => {
@@ -1590,9 +1633,15 @@ const PatientTable: React.FC = () => {
                   lightTheme={true}
                   context="search"
                 />
-                <kbd className="pointer-events-none hidden sm:flex items-center gap-0.5 rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[9px] font-black text-slate-400 shadow-sm dark:bg-slate-800 dark:border-slate-700 dark:text-slate-500">
-                  Alt+S
-                </kbd>
+                <button
+                  type="button"
+                  onClick={openAdvancedSearch}
+                  className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 font-mono text-[9px] font-black text-slate-700 shadow-sm hover:bg-slate-100 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200"
+                  title="Open Advanced Filter (Alt+S)"
+                >
+                  <span className="font-sans font-bold text-[10px]">Filter</span>
+                  <kbd className="text-[8px] opacity-70 bg-slate-200 dark:bg-slate-700 px-1 rounded">Alt+S</kbd>
+                </button>
               </div>
             </div>
             {canManageRecords && (
@@ -1612,6 +1661,8 @@ const PatientTable: React.FC = () => {
             Export Records
           </button>
         </div>
+
+        <ActiveFiltersBar />
 
         <div className="flex flex-wrap items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
           <div className="flex items-center gap-2">
@@ -1652,6 +1703,18 @@ const PatientTable: React.FC = () => {
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
             Fetch Data
           </button>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-800 rounded-lg border border-emerald-200 text-[9px] font-black uppercase tracking-wider shadow-sm">
+            <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Records Fetched: <span className="text-emerald-950 font-black text-[11px] px-1.5 py-0.5 bg-emerald-200/60 rounded ml-0.5">{sortedAndFiltered.length}</span>
+          </div>
+          {isFilterActive && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full border border-blue-200">
+               <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse" />
+               <span className="text-[8px] font-black uppercase tracking-widest">Active Filters ({sortedAndFiltered.length} of {patients.length})</span>
+            </div>
+          )}
           <button 
             onClick={resetFilters}
             className="ml-auto text-[9px] font-black text-red-600 uppercase tracking-widest hover:text-red-700 transition-colors flex items-center gap-1"
@@ -1808,47 +1871,87 @@ const PatientTable: React.FC = () => {
                         delay: Math.min(idx * 0.02, 0.12),
                         ease: "easeOut" 
                       }}
-                      className={`transition-all group cursor-pointer ${
+                      className={`transition-all duration-150 group cursor-pointer border-l-4 border-b border-b-slate-100/80 ${
                         newlyAddedId === p.id 
-                          ? 'bg-blue-50/70 border-l-4 border-l-blue-500' 
-                          : 'hover:bg-slate-50'
+                          ? 'bg-blue-50/80 border-l-blue-500 shadow-sm' 
+                          : 'even:bg-slate-50/40 hover:bg-slate-100/90 hover:border-l-red-500 hover:shadow-sm'
                       }`}
                       onClick={() => { setEditingPatient(p); setIsModalOpen(true); }}
                     >
-                      <td className="px-4 py-3 text-center text-slate-400">{p.serialNo}</td>
-                      <td className="px-4 py-3 font-mono text-slate-900">{p.regNo}</td>
+                      <td className="px-4 py-3 text-center text-slate-400 font-mono text-[9px]">{p.serialNo}</td>
+                      <td className="px-4 py-3 font-mono text-slate-900 font-bold">{p.regNo}</td>
                       <td className="px-4 py-3">
                           <div>
                               <div className="flex items-center gap-1.5">
-                                  <p className="text-slate-900 uppercase">{p.name}</p>
+                                  <p className="text-slate-900 font-extrabold uppercase group-hover:text-red-700 transition-colors">{p.name}</p>
                               </div>
-                              <p className="text-[8px] text-slate-400">{p.gender}</p>
+                              <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">{p.gender}</p>
                           </div>
                       </td>
                       <td className="px-4 py-3 text-center">
-                         <span className={`px-2 py-0.5 rounded text-[8px] border ${TRIAGE_COLORS[p.triagePriority || 'Stable'] || 'bg-slate-100 text-slate-800 border-slate-200'}`}>
-                           {p.triagePriority || 'Stable'}
+                         {(() => {
+                           const triage = p.triagePriority || 'Stable';
+                           let badgeStyle = 'bg-slate-100 text-slate-700 border-slate-200';
+                           let dotStyle = 'bg-slate-400';
+                           
+                           if (triage.toLowerCase().includes('critical') || triage.toLowerCase().includes('red') || triage.toLowerCase().includes('p1')) {
+                             badgeStyle = 'bg-red-50 text-red-700 border-red-200 shadow-xs';
+                             dotStyle = 'bg-red-500 animate-pulse';
+                           } else if (triage.toLowerCase().includes('urgent') || triage.toLowerCase().includes('yellow') || triage.toLowerCase().includes('p2')) {
+                             badgeStyle = 'bg-amber-50 text-amber-700 border-amber-200';
+                             dotStyle = 'bg-amber-500';
+                           } else if (triage.toLowerCase().includes('stable') || triage.toLowerCase().includes('green') || triage.toLowerCase().includes('p3')) {
+                             badgeStyle = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                             dotStyle = 'bg-emerald-500';
+                           } else if (triage.toLowerCase().includes('elective') || triage.toLowerCase().includes('blue')) {
+                             badgeStyle = 'bg-blue-50 text-blue-700 border-blue-200';
+                             dotStyle = 'bg-blue-500';
+                           }
+
+                           return (
+                             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-extrabold border transition-all ${badgeStyle}`}>
+                               <span className={`w-1.5 h-1.5 rounded-full ${dotStyle}`}></span>
+                               {triage}
+                             </span>
+                           );
+                         })()}
+                      </td>
+                      <td className="px-4 py-3">
+                         <span className="bg-slate-100/90 text-slate-700 px-2.5 py-1 rounded-full text-[9px] font-bold border border-slate-200/80 shadow-2xs">
+                           {p.category}
                          </span>
                       </td>
                       <td className="px-4 py-3">
-                         <span className="bg-slate-100 px-2 py-0.5 rounded text-[8px] border border-slate-200">{p.category}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                         <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-[8px] border border-blue-100">{p.location || 'N/A'}</span>
+                         <span className="inline-flex items-center gap-1 bg-indigo-50/80 text-indigo-700 px-2.5 py-1 rounded-full text-[9px] font-extrabold border border-indigo-100 shadow-2xs">
+                           <span className="w-1 h-1 rounded-full bg-indigo-500"></span>
+                           {p.location || 'N/A'}
+                         </span>
                       </td>
                       <td className="px-4 py-3 text-center">
-                         <span className={`px-1.5 py-0.5 rounded text-[8px] ${p.codeStatus === 'Full Code' ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-red-100 text-red-700 border border-red-200'}`}>
-                          {p.codeStatus}
-                        </span>
+                         <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black border ${
+                           p.codeStatus === 'Full Code' 
+                             ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                             : 'bg-rose-50 text-rose-700 border-rose-200'
+                         }`}>
+                           <span className={`w-1.5 h-1.5 rounded-full ${p.codeStatus === 'Full Code' ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+                           {p.codeStatus}
+                         </span>
                       </td>
-                      <td className="px-4 py-3 truncate">{p.consultant}</td>
-                      <td className="px-4 py-3 text-center text-slate-500 font-mono">{formatDate(p.admissionDate)}</td>
-                      <td className="px-4 py-3 text-center text-slate-500 font-mono">
-                        <span className={!p.dischargeDate ? "text-green-600 font-black tracking-tighter" : ""}>
-                          {formatDate(p.dischargeDate)}
-                        </span>
+                      <td className="px-4 py-3 truncate font-medium text-slate-800">{p.consultant}</td>
+                      <td className="px-4 py-3 text-center text-slate-600 font-mono text-[9px] font-bold">{formatDate(p.admissionDate)}</td>
+                      <td className="px-4 py-3 text-center">
+                        {!p.dischargeDate ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8px] font-black uppercase bg-emerald-100/80 text-emerald-800 border border-emerald-300/80">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
+                            Active
+                          </span>
+                        ) : (
+                          <span className="font-mono text-slate-500 text-[9px] font-bold">
+                            {formatDate(p.dischargeDate)}
+                          </span>
+                        )}
                       </td>
-                      <td className="px-4 py-3 text-center text-red-600 bg-red-50/20">{calculateDynamicLOS(p.admissionDate, p.dischargeDate)}d</td>
+                      <td className="px-4 py-3 text-center font-mono font-extrabold text-red-600 bg-red-50/30 rounded-md">{calculateDynamicLOS(p.admissionDate, p.dischargeDate)}d</td>
                       <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end space-x-1 opacity-0 group-hover:opacity-100 transition-all">
                               {canManageRecords && (

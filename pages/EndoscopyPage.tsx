@@ -8,6 +8,8 @@ import { EndoscopyRecord, Patient, PatientStatus } from '../types';
 import { exportEndoscopyPDF, exportSingleEndoscopyReportPDF, generateKidneyCentreLogoBase64 } from '../services/pdfService';
 import { useAuth } from '../contexts/AuthContext';
 import { useUnit } from '../contexts/UnitContext';
+import { useSearch } from '../contexts/SearchContext';
+import { useConfirm } from '../contexts/ConfirmContext';
 import { activityService } from '../services/activityService';
 import { ENDOSCOPY_DOCTORS, ENDOSCOPY_PROCEDURES, UNIT_DETAILS, CONSULTANTS, CATEGORIES, CODE_STATUSES, TRIAGE_PRIORITIES, formatProcedureDisplay } from '../constants';
 import Modal from '../components/Modal';
@@ -17,7 +19,8 @@ import ImageCropperModal from '../components/ImageCropperModal';
 import { motion, AnimatePresence } from 'motion/react';
 import { VoiceDictationButton } from '../components/VoiceDictationButton';
 import { EndoscopyReportPreviewSheet } from '../components/EndoscopyReportPreviewSheet';
-import WhatsAppDispatchModal, { COUNTRY_CODES } from '../components/WhatsAppDispatchModal';
+import WhatsAppDispatchModal, { COUNTRY_CODES, sanitizeLocalNumber } from '../components/WhatsAppDispatchModal';
+import { ActiveFiltersBar } from '../components/ActiveFiltersBar';
 
 type SortKey = keyof EndoscopyRecord;
 type SortDirection = 'asc' | 'desc';
@@ -66,6 +69,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
 }) => {
   const { activeUnit } = useUnit();
   const { currentUser, isAdmin, canManageRecords } = useAuth();
+  const confirm = useConfirm();
   const [records, setRecords] = useState<EndoscopyRecord[]>([]);
 
   // New states for patient selection/admission modal before creating report
@@ -181,6 +185,14 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
     }
   };
 
+  const {
+    searchQuery: advSearchQuery,
+    startDate: advStartDate,
+    endDate: advEndDate,
+    severity: advSeverity,
+    openAdvancedSearch
+  } = useSearch();
+
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -289,26 +301,27 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
     const matched = COUNTRY_CODES.find(c => c.code !== 'custom' && fullNum.startsWith(c.code));
     if (matched) {
       setFormWhatsappCountryCode(matched.code);
-      const local = fullNum.replace(matched.code, '').replace(/\D/g, '').replace(/^0+/, '');
-      setFormWhatsappLocalNumber(local);
+      const local = fullNum.substring(matched.code.length);
+      setFormWhatsappLocalNumber(sanitizeLocalNumber(local, matched.code));
     } else if (fullNum.startsWith('+')) {
       setFormWhatsappCountryCode('custom');
       const match = fullNum.match(/^(\+\d{1,4})(.*)$/);
       if (match) {
         setFormWhatsappCustomCode(match[1]);
-        setFormWhatsappLocalNumber(match[2].replace(/\D/g, '').replace(/^0+/, ''));
+        setFormWhatsappLocalNumber(sanitizeLocalNumber(match[2], match[1]));
       } else {
         setFormWhatsappCustomCode('+');
-        setFormWhatsappLocalNumber(fullNum.replace(/\D/g, '').replace(/^0+/, ''));
+        setFormWhatsappLocalNumber(sanitizeLocalNumber(fullNum, '+92'));
       }
     } else {
       setFormWhatsappCountryCode('+92');
-      setFormWhatsappLocalNumber(fullNum.replace(/\D/g, '').replace(/^0+/, ''));
+      setFormWhatsappLocalNumber(sanitizeLocalNumber(fullNum, '+92'));
     }
   };
 
   const activeWhatsappPrefix = formWhatsappCountryCode === 'custom' ? formWhatsappCustomCode : formWhatsappCountryCode;
-  const formWhatsappNumber = formWhatsappLocalNumber ? `${activeWhatsappPrefix}${formWhatsappLocalNumber.replace(/\D/g, '').replace(/^0+/, '')}` : '';
+  const sanitizedFormLocalNumber = sanitizeLocalNumber(formWhatsappLocalNumber, activeWhatsappPrefix);
+  const formWhatsappNumber = sanitizedFormLocalNumber ? `${activeWhatsappPrefix}${sanitizedFormLocalNumber}` : '';
   const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false);
   const [selectedDispatchRecord, setSelectedDispatchRecord] = useState<EndoscopyRecord | null>(null);
   const [formImages, setFormImages] = useState<{ id: string; url: string; title: string }[]>([]);
@@ -343,12 +356,23 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
     message: string;
     type: 'success' | 'error' | 'info' | 'warning';
     title?: string;
+    action?: {
+      label: string;
+      onClick: () => void;
+    };
+    duration?: number;
   }
 
   const [toasts, setToasts] = useState<Toast[]>([]);
   const activeToastsRef = useRef<Set<string>>(new Set());
 
-  const showToast = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'success', title?: string) => {
+  const showToast = (
+    message: string, 
+    type: 'success' | 'error' | 'info' | 'warning' = 'success', 
+    title?: string,
+    action?: { label: string; onClick: () => void },
+    duration: number = 4000
+  ) => {
     if (activeToastsRef.current.has(message)) {
       return;
     }
@@ -359,14 +383,125 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
       if (prev.some((t) => t.message === message)) {
         return prev;
       }
-      return [...prev, { id, message, type, title }];
+      return [...prev, { id, message, type, title, action, duration }];
     });
 
     setTimeout(() => {
       activeToastsRef.current.delete(message);
       setToasts((curr) => curr.filter((t) => t.id !== id));
-    }, 4000);
+    }, duration);
   };
+
+  const removeToast = (id: string, message: string) => {
+    activeToastsRef.current.delete(message);
+    setToasts((curr) => curr.filter((t) => t.id !== id));
+  };
+
+  const renderToastContainer = () => (
+    <div className="fixed top-6 right-6 z-[9999] flex flex-col space-y-3 max-w-sm pointer-events-none">
+      <AnimatePresence>
+        {toasts.map((toast) => (
+          <motion.div
+            key={toast.id}
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9, y: -10 }}
+            transition={{ duration: 0.25, ease: "easeOut" }}
+            className="pointer-events-auto bg-slate-900/95 backdrop-blur-md border border-slate-800/80 rounded-xl px-4 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.5)] flex items-center space-x-3 text-slate-200 select-none relative overflow-hidden group min-w-[300px]"
+          >
+            {/* Glow accent */}
+            <div className={`absolute left-0 top-0 bottom-0 w-1 ${
+              toast.type === 'success' ? 'bg-emerald-500' :
+              toast.type === 'error' ? 'bg-red-500' :
+              toast.type === 'warning' ? 'bg-orange-500' : 'bg-blue-500'
+            }`} />
+            
+            {/* Icon */}
+            <div className={`p-1.5 rounded-lg shrink-0 ${
+              toast.type === 'success' ? 'bg-emerald-950/50 text-emerald-400' :
+              toast.type === 'error' ? 'bg-red-950/50 text-red-400' :
+              toast.type === 'warning' ? 'bg-orange-950/50 text-orange-400' : 'bg-blue-950/50 text-blue-400'
+            }`}>
+              {toast.type === 'success' && (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+              {toast.type === 'error' && (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              )}
+              {toast.type === 'warning' && (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              )}
+              {toast.type === 'info' && (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              )}
+            </div>
+            
+            {/* Message */}
+            <div className="flex-1 min-w-[150px]">
+              <p className="text-xs font-black uppercase tracking-wider text-slate-100">
+                {toast.title || (
+                  toast.type === 'success' ? 'Successfully Saved' : 
+                  toast.type === 'error' ? 'Record Deleted' :
+                  toast.type === 'warning' ? 'Warning' : 'Information'
+                )}
+              </p>
+              <p className="text-[9.5px] font-bold text-slate-300 mt-0.5 uppercase tracking-wide leading-relaxed">
+                {toast.message}
+              </p>
+            </div>
+
+            {/* Action / Undo Button */}
+            {toast.action && (
+              <button
+                onClick={() => {
+                  toast.action?.onClick();
+                  removeToast(toast.id, toast.message);
+                }}
+                className="px-2.5 py-1 bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-950 font-black text-[10px] uppercase tracking-wider rounded-lg shadow-md transition-all flex items-center space-x-1 cursor-pointer shrink-0 border border-amber-300"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
+                </svg>
+                <span>{toast.action.label}</span>
+              </button>
+            )}
+            
+            {/* Dismiss Button */}
+            <button
+              onClick={() => removeToast(toast.id, toast.message)}
+              className="p-1 rounded hover:bg-slate-800 text-slate-500 hover:text-slate-300 transition-colors cursor-pointer shrink-0"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            {/* 5-second countdown progress bar for timed actions */}
+            {toast.duration && (
+              <motion.div
+                initial={{ width: "100%" }}
+                animate={{ width: "0%" }}
+                transition={{ duration: toast.duration / 1000, ease: "linear" }}
+                className={`absolute bottom-0 left-0 h-1 ${
+                  toast.type === 'error' ? 'bg-red-500' :
+                  toast.type === 'success' ? 'bg-emerald-500' :
+                  toast.type === 'warning' ? 'bg-orange-500' : 'bg-blue-500'
+                }`}
+              />
+            )}
+          </motion.div>
+        ))}
+      </AnimatePresence>
+    </div>
+  );
 
   // Global error listener to help debug crashes instantly
   useEffect(() => {
@@ -376,9 +511,12 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
       showToast(`Interface Error: ${msg}`, "error");
     };
     const handleRejection = (event: PromiseRejectionEvent) => {
-      console.error("Unhandled Rejection Captured:", event.reason);
-      const msg = event.reason?.message || String(event.reason) || "Unknown asynchronous rejection";
-      showToast(`Asynchronous Error: ${msg}`, "error");
+      // Ignore benign or expected background rejections (e.g., Vite HMR websocket, user cancellation)
+      const msg = event.reason?.message || String(event.reason) || "";
+      if (!msg || msg.includes('vite') || msg.includes('websocket') || msg.includes('aborted') || msg.includes('canceled')) {
+        return;
+      }
+      console.warn("Unhandled Rejection Captured:", event.reason);
     };
     window.addEventListener('error', handleError);
     window.addEventListener('unhandledrejection', handleRejection);
@@ -1138,18 +1276,36 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
   };
 
   const sortedAndFiltered = useMemo(() => {
+    const combinedQuery = [searchTerm, advSearchQuery].filter(Boolean).join(' ').toLowerCase().trim();
+    const effectiveStart = appliedStartDate || advStartDate;
+    const effectiveEnd = appliedEndDate || advEndDate;
+
     const filtered = records.filter(r => {
-      const matchesSearch = 
-        r.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        r.regNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        r.doctor.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        r.procedure.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = !combinedQuery || 
+        r.name.toLowerCase().includes(combinedQuery) || 
+        r.regNo.toLowerCase().includes(combinedQuery) ||
+        r.doctor.toLowerCase().includes(combinedQuery) ||
+        r.procedure.toLowerCase().includes(combinedQuery) ||
+        (r.findings && r.findings.toLowerCase().includes(combinedQuery)) ||
+        (r.diagnosis && r.diagnosis.toLowerCase().includes(combinedQuery));
       
       const recordDate = r.date; 
-      const isAfterStart = !appliedStartDate || recordDate >= appliedStartDate;
-      const isBeforeEnd = !appliedEndDate || recordDate <= appliedEndDate;
+      const isAfterStart = !effectiveStart || recordDate >= effectiveStart;
+      const isBeforeEnd = !effectiveEnd || recordDate <= effectiveEnd;
 
-      return matchesSearch && isAfterStart && isBeforeEnd;
+      let matchesSeverity = true;
+      if (advSeverity !== 'ALL') {
+        const text = `${r.findings || ''} ${r.diagnosis || ''} ${r.complications || ''} ${r.indications || ''}`.toLowerCase();
+        if (advSeverity === 'CRITICAL') {
+          matchesSeverity = text.includes('bleed') || text.includes('severe') || text.includes('complication') || text.includes('emergency') || text.includes('perforation');
+        } else if (advSeverity === 'URGENT') {
+          matchesSeverity = text.includes('urgent') || text.includes('biopsy') || text.includes('polyp') || text.includes('ulcer');
+        } else if (advSeverity === 'STABLE') {
+          matchesSeverity = !text.includes('bleed') && !text.includes('severe') && !text.includes('emergency');
+        }
+      }
+
+      return matchesSearch && isAfterStart && isBeforeEnd && matchesSeverity;
     });
 
     return [...filtered].sort((a, b) => {
@@ -1174,7 +1330,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
       if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [records, activeUnit, searchTerm, appliedStartDate, appliedEndDate, sortConfig]);
+  }, [records, activeUnit, searchTerm, advSearchQuery, appliedStartDate, advStartDate, appliedEndDate, advEndDate, advSeverity, sortConfig]);
 
   const procedureSuggestions = useMemo(() => {
     return ENDOSCOPY_PROCEDURES.filter(p => 
@@ -1366,6 +1522,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
 
       try {
         // Upload compressed image to Firebase Storage with a 2.5 second timeout to prevent hanging
+        let timeoutTimer: ReturnType<typeof setTimeout> | null = null;
         const uploadPromise = (async () => {
           const fileName = `endoscopy_images/${Date.now()}_${imageId}.jpg`;
           // @ts-ignore
@@ -1376,11 +1533,16 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
           return await getDownloadURL(storageRef);
         })();
 
-        const timeoutPromise = new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error("Firebase Storage upload timed out")), 2500)
-        );
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          timeoutTimer = setTimeout(() => reject(new Error("Firebase Storage upload timed out")), 2500);
+        });
+        timeoutPromise.catch(() => {});
 
-        finalUrl = await Promise.race([uploadPromise, timeoutPromise]);
+        try {
+          finalUrl = await Promise.race([uploadPromise, timeoutPromise]);
+        } finally {
+          if (timeoutTimer) clearTimeout(timeoutTimer);
+        }
       } catch (storageErr) {
         console.warn("Firebase Storage upload failed or timed out, using local compressed base64 instead:", storageErr);
       }
@@ -1415,8 +1577,17 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
     setFormImages(prev => prev.map(img => img.id === id ? { ...img, title: newTitle } : img));
   };
 
-  const handleDeleteImage = (id: string) => {
-    setFormImages(prev => prev.filter(img => img.id !== id));
+  const handleDeleteImage = async (id: string) => {
+    const isConfirmed = await confirm({
+      title: "Remove Captured Image",
+      message: "Are you sure you want to remove this image from the endoscopy report?",
+      confirmLabel: "Yes, Remove",
+      cancelLabel: "Cancel",
+      variant: "danger"
+    });
+    if (isConfirmed) {
+      setFormImages(prev => prev.filter(img => img.id !== id));
+    }
   };
 
   const handleFormValidationFailure = () => {
@@ -1690,54 +1861,103 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
   };
 
   const handleDelete = async () => {
-    if (idToDelete) {
-      try {
-        const rec = records.find(r => r.id === idToDelete);
-        const patientName = rec ? rec.name : 'Unknown';
-        const regNo = rec ? rec.regNo : 'Unknown';
+    if (!idToDelete) return;
 
-        // Immediate state update for live removal with layout animations
-        setRecords(prev => prev.filter(r => r.id !== idToDelete));
-
-        // 1. Delete from local backup
-        const localDataKey = `hdu_local_endoscopy_records_${activeUnit}`;
-        const localData = localStorage.getItem(localDataKey);
-        if (localData) {
-          try {
-            let localRecords = JSON.parse(localData) as EndoscopyRecord[];
-            localRecords = localRecords.filter(r => r.id !== idToDelete);
-            localStorage.setItem(localDataKey, JSON.stringify(localRecords));
-          } catch (e) {
-            console.error("Failed to update local backup on delete", e);
-          }
-        }
-
-        // 2. Attempt Firestore delete
-        try {
-          await deleteDoc(doc(db, 'endoscopy_records', idToDelete));
-        } catch (firestoreError) {
-          console.warn("Firestore delete failed, but deleted from local backup:", firestoreError);
-        }
-
-        // 3. Log activity
-        try {
-          await activityService.logActivity(
-            'DELETE',
-            'Endoscopy Record',
-            `Deleted endoscopy report for patient ${patientName} (Reg No: ${regNo})`,
-            currentUser?.displayName || currentUser?.email || 'Anonymous User',
-            activeUnit
-          );
-        } catch (actErr) {
-          console.warn("Failed to log deletion activity", actErr);
-        }
-        
-        setIdToDelete(null);
-        showToast(`Report for patient ${patientName} has been deleted.`, 'error', 'Record Deleted');
-      } catch (err) {
-        console.error("Failed to delete record:", err);
-      }
+    const targetId = idToDelete;
+    const rec = records.find(r => r.id === targetId);
+    if (!rec) {
+      setIdToDelete(null);
+      return;
     }
+
+    const patientName = rec.name || 'Unknown';
+    const regNo = rec.regNo || 'Unknown';
+    const recordBackup = { ...rec };
+    const originalIndex = records.findIndex(r => r.id === targetId);
+
+    // Close confirmation modal immediately & remove from UI list for instant visual feedback
+    setIdToDelete(null);
+    setRecords(prev => prev.filter(r => r.id !== targetId));
+
+    let isUndone = false;
+
+    // Deferred commit function runs after 5-second countdown if not undone
+    const commitPermanentDelete = async () => {
+      if (isUndone) return;
+
+      // 1. Delete from local backup
+      const localDataKey = `hdu_local_endoscopy_records_${activeUnit}`;
+      const localData = localStorage.getItem(localDataKey);
+      if (localData) {
+        try {
+          let localRecords = JSON.parse(localData) as EndoscopyRecord[];
+          localRecords = localRecords.filter(r => r.id !== targetId);
+          localStorage.setItem(localDataKey, JSON.stringify(localRecords));
+        } catch (e) {
+          console.error("Failed to update local backup on delete", e);
+        }
+      }
+
+      // 2. Attempt Firestore delete
+      try {
+        await deleteDoc(doc(db, 'endoscopy_records', targetId));
+      } catch (firestoreError) {
+        console.warn("Firestore delete failed, but deleted from local backup:", firestoreError);
+      }
+
+      // 3. Log activity
+      try {
+        await activityService.logActivity(
+          'DELETE',
+          'Endoscopy Record',
+          `Deleted endoscopy report for patient ${patientName} (Reg No: ${regNo})`,
+          currentUser?.displayName || currentUser?.email || 'Anonymous User',
+          activeUnit
+        );
+      } catch (actErr) {
+        console.warn("Failed to log deletion activity", actErr);
+      }
+    };
+
+    const deleteTimer = setTimeout(() => {
+      commitPermanentDelete();
+    }, 5000);
+
+    // Callback when user clicks 'Undo' in the toast notification
+    const handleUndo = () => {
+      isUndone = true;
+      clearTimeout(deleteTimer);
+
+      // Re-insert record into state list at original index or top
+      setRecords(prev => {
+        if (prev.some(r => r.id === targetId)) return prev;
+        const newArr = [...prev];
+        if (originalIndex >= 0 && originalIndex <= newArr.length) {
+          newArr.splice(originalIndex, 0, recordBackup);
+        } else {
+          newArr.unshift(recordBackup);
+        }
+        return newArr;
+      });
+
+      showToast(
+        `Report for patient "${patientName}" restored successfully.`,
+        'success',
+        'Record Restored'
+      );
+    };
+
+    // Show Toast with Undo button for 5 seconds (5000ms)
+    showToast(
+      `Report for patient "${patientName}" deleted.`,
+      'error',
+      'Record Deleted',
+      {
+        label: 'Undo',
+        onClick: handleUndo
+      },
+      5000
+    );
   };
 
   const SortIndicator = ({ column }: { column: SortKey }) => {
@@ -1760,7 +1980,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
     );
   };
 
-  const isFilterActive = !!(appliedStartDate || appliedEndDate);
+  const isFilterActive = !!(appliedStartDate || appliedEndDate || searchTerm);
 
   if (isWorkspaceOpen && initialWorkspaceOpen) {
     const isFormValid = !!(formRegNo.trim() && formName.trim() && formDoctor && formProcedure);
@@ -1890,9 +2110,18 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
 
               <button
                 type="button"
-                onClick={() => {
-                  resetForm();
-                  showToast("Form cleared successfully.", "info");
+                onClick={async () => {
+                  const isConfirmed = await confirm({
+                    title: "Reset Report Form",
+                    message: "Are you sure you want to reset all form fields? Any unsaved findings and procedure data entered will be lost.",
+                    confirmLabel: "Yes, Reset Form",
+                    cancelLabel: "Keep Data",
+                    variant: "warning"
+                  });
+                  if (isConfirmed) {
+                    resetForm();
+                    showToast("Form cleared successfully.", "info");
+                  }
                 }}
                 disabled={isSaving}
                 className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center space-x-1.5 transition-all bg-amber-50 hover:bg-amber-100 text-amber-700 hover:text-amber-800 border border-amber-300 hover:border-amber-400 cursor-pointer active:scale-95 shadow-sm"
@@ -2233,9 +2462,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                           pattern="[0-9]*"
                           value={formWhatsappLocalNumber}
                           onChange={(e) => {
-                            // Strip any non-digit character and leading zero
-                            const onlyDigits = e.target.value.replace(/\D/g, '');
-                            const cleanNum = onlyDigits.replace(/^0+/, '');
+                            const cleanNum = sanitizeLocalNumber(e.target.value, activeWhatsappPrefix);
                             setFormWhatsappLocalNumber(cleanNum);
                           }}
                           placeholder="e.g. 3001234567 or 9876543210 (exclude initial 0)"
@@ -3569,79 +3796,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
       )}
 
       {/* Floating Toast Notification Container */}
-      <div className="fixed top-6 right-6 z-[9999] flex flex-col space-y-3 max-w-sm pointer-events-none">
-        <AnimatePresence>
-          {toasts.map((toast) => (
-            <motion.div
-              key={toast.id}
-              initial={{ opacity: 0, y: -20, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9, y: -10 }}
-              transition={{ duration: 0.25, ease: "easeOut" }}
-              className="pointer-events-auto bg-slate-900/95 backdrop-blur-md border border-slate-800/80 rounded-xl px-4 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.5)] flex items-center space-x-3 text-slate-200 select-none relative overflow-hidden group min-w-[280px]"
-            >
-              {/* Glow accent */}
-              <div className={`absolute left-0 top-0 bottom-0 w-1 ${
-                toast.type === 'success' ? 'bg-emerald-500' :
-                toast.type === 'error' ? 'bg-red-500' :
-                toast.type === 'warning' ? 'bg-orange-500' : 'bg-blue-500'
-              }`} />
-              
-              {/* Icon */}
-              <div className={`p-1.5 rounded-lg ${
-                toast.type === 'success' ? 'bg-emerald-950/50 text-emerald-400' :
-                toast.type === 'error' ? 'bg-red-950/50 text-red-400' :
-                toast.type === 'warning' ? 'bg-orange-950/50 text-orange-400' : 'bg-blue-950/50 text-blue-400'
-              }`}>
-                {toast.type === 'success' && (
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
-                )}
-                {toast.type === 'error' && (
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                )}
-                {toast.type === 'warning' && (
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                )}
-                {toast.type === 'info' && (
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                )}
-              </div>
-              
-              {/* Message */}
-              <div className="flex-1 min-w-[180px]">
-                <p className="text-xs font-black uppercase tracking-wider text-slate-100">
-                  {toast.title || (
-                    toast.type === 'success' ? 'Successfully Saved' : 
-                    toast.type === 'error' ? 'Record Deleted' :
-                    toast.type === 'warning' ? 'Warning' : 'Information'
-                  )}
-                </p>
-                <p className="text-[9px] font-bold text-slate-400 mt-0.5 uppercase tracking-wide leading-relaxed">
-                  {toast.message}
-                </p>
-              </div>
-              
-              {/* Dismiss Button */}
-              <button
-                onClick={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))}
-                className="p-1 rounded hover:bg-slate-800 text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </div>
+      {renderToastContainer()}
 
       {imageToCrop && (
         <ImageCropperModal
@@ -3675,13 +3830,19 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                 ref={searchInputRef}
                 type="text" 
                 placeholder={`Search ${activeUnit} logs...`}
-                className="pl-4 pr-16 py-2 border border-slate-200 rounded-lg w-full text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 shadow-sm dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:focus:ring-red-950"
+                className="pl-4 pr-24 py-2 border border-slate-200 rounded-lg w-full text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 shadow-sm dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:focus:ring-red-950"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
-              <kbd className="pointer-events-none absolute right-3 top-2 hidden sm:flex items-center gap-0.5 rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[8px] font-black text-slate-400 shadow-sm dark:bg-slate-800 dark:border-slate-700 dark:text-slate-500">
-                Alt+S
-              </kbd>
+              <button
+                type="button"
+                onClick={openAdvancedSearch}
+                className="absolute right-2 top-1.5 flex items-center gap-1 rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[8px] font-black text-slate-700 shadow-sm hover:bg-slate-100 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200"
+                title="Open Advanced Filter (Alt+S)"
+              >
+                <span>Filter</span>
+                <kbd className="opacity-70 bg-slate-200 dark:bg-slate-700 px-0.5 rounded">Alt+S</kbd>
+              </button>
             </div>
             {canManageRecords && (
               <button 
@@ -3702,6 +3863,8 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
             Export Logs
           </button>
         </div>
+
+        <ActiveFiltersBar />
 
         <div className="flex flex-wrap items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
           <div className="flex items-center gap-2">
@@ -3729,10 +3892,16 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
             Fetch Data
           </button>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-800 rounded-lg border border-emerald-200 text-[9px] font-black uppercase tracking-wider shadow-sm">
+            <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Records Fetched: <span className="text-emerald-950 font-black text-[11px] px-1.5 py-0.5 bg-emerald-200/60 rounded ml-0.5">{sortedAndFiltered.length}</span>
+          </div>
           {isFilterActive && (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-full border border-blue-100 animate-pulse">
-               <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />
-               <span className="text-[8px] font-black uppercase tracking-widest">Active Filters</span>
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full border border-blue-200">
+               <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse" />
+               <span className="text-[8px] font-black uppercase tracking-widest">Active Filters ({sortedAndFiltered.length} of {records.length})</span>
             </div>
           )}
           <button 
@@ -4557,79 +4726,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
       )}
 
       {/* Floating Toast Notification Container */}
-      <div className="fixed top-6 right-6 z-[9999] flex flex-col space-y-3 max-w-sm pointer-events-none">
-        <AnimatePresence>
-          {toasts.map((toast) => (
-            <motion.div
-              key={toast.id}
-              initial={{ opacity: 0, y: -20, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9, y: -10 }}
-              transition={{ duration: 0.25, ease: "easeOut" }}
-              className="pointer-events-auto bg-slate-900/95 backdrop-blur-md border border-slate-800/80 rounded-xl px-4 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.5)] flex items-center space-x-3 text-slate-200 select-none relative overflow-hidden group min-w-[280px]"
-            >
-              {/* Glow accent */}
-              <div className={`absolute left-0 top-0 bottom-0 w-1 ${
-                toast.type === 'success' ? 'bg-emerald-500' :
-                toast.type === 'error' ? 'bg-red-500' :
-                toast.type === 'warning' ? 'bg-orange-500' : 'bg-blue-500'
-              }`} />
-              
-              {/* Icon */}
-              <div className={`p-1.5 rounded-lg ${
-                toast.type === 'success' ? 'bg-emerald-950/50 text-emerald-400' :
-                toast.type === 'error' ? 'bg-red-950/50 text-red-400' :
-                toast.type === 'warning' ? 'bg-orange-950/50 text-orange-400' : 'bg-blue-950/50 text-blue-400'
-              }`}>
-                {toast.type === 'success' && (
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
-                )}
-                {toast.type === 'error' && (
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                )}
-                {toast.type === 'warning' && (
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                )}
-                {toast.type === 'info' && (
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                )}
-              </div>
-              
-              {/* Message */}
-              <div className="flex-1 min-w-[180px]">
-                <p className="text-xs font-black uppercase tracking-wider text-slate-100">
-                  {toast.title || (
-                    toast.type === 'success' ? 'Successfully Saved' : 
-                    toast.type === 'error' ? 'Record Deleted' :
-                    toast.type === 'warning' ? 'Warning' : 'Information'
-                  )}
-                </p>
-                <p className="text-[9px] font-bold text-slate-400 mt-0.5 uppercase tracking-wide leading-relaxed">
-                  {toast.message}
-                </p>
-              </div>
-              
-              {/* Dismiss Button */}
-              <button
-                onClick={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))}
-                className="p-1 rounded hover:bg-slate-800 text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </div>
+      {renderToastContainer()}
 
       {imageToCrop && (
         <ImageCropperModal
@@ -4656,6 +4753,12 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
               'success',
               'Dispatch Successful'
             );
+            if (selectedDispatchRecord) {
+              const updatedHistory = [log, ...(selectedDispatchRecord.dispatchHistory || [])];
+              const updatedRecord = { ...selectedDispatchRecord, dispatchHistory: updatedHistory };
+              setSelectedDispatchRecord(updatedRecord);
+              setRecords(prev => prev.map(r => r.id === updatedRecord.id ? updatedRecord : r));
+            }
           }}
           onDispatchError={(errorMsg) => {
             showToast(

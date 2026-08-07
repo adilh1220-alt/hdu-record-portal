@@ -3,6 +3,7 @@ import { Patient, InventoryItem, EndoscopyRecord, IncidentRecord } from '../type
 import { formatProcedureDisplay } from '../constants';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import kidneyCentreLogoImg from '../src/assets/images/kidney_centre_logo_1785918380698.jpg';
 
 export interface SummaryItem {
   label: string;
@@ -33,95 +34,145 @@ const calculateLOSValue = (admissionDate: string) => {
 
 export const generateKidneyCentreLogoBase64 = (): string => {
   if (typeof document === 'undefined') return '';
+
   const canvas = document.createElement('canvas');
-  // High-DPI 2x resolution: 500x210 nominal layout scaled to 1000x420 physical pixels
-  canvas.width = 1000;
-  canvas.height = 420;
+  // High-DPI canvas layout matching official header ratio: 880px width x 290px height
+  canvas.width = 880;
+  canvas.height = 290;
   const ctx = canvas.getContext('2d');
   if (!ctx) return '';
 
-  // Background white
+  // Clean White Background
   ctx.fillStyle = '#FFFFFF';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Outer black border (2x stroke weight)
-  ctx.strokeStyle = '#000000';
-  ctx.lineWidth = 8;
+  // Red Logo Badge Container (Taller height, smaller width: x:20, y:12, w:115, h:148)
+  const redColor = '#C81E2B';
+  ctx.fillStyle = redColor;
   if (typeof ctx.roundRect === 'function') {
     ctx.beginPath();
-    ctx.roundRect(20, 20, 960, 380, 16);
-    ctx.stroke();
+    ctx.roundRect(20, 12, 115, 148, 10);
+    ctx.fill();
   } else {
-    ctx.strokeRect(20, 20, 960, 380);
+    ctx.fillRect(20, 12, 115, 148);
   }
 
-  // Red square
-  ctx.fillStyle = '#E02424'; // Red
-  ctx.fillRect(50, 40, 110, 110);
-
-  // Draw white outer kidney shape (scaled 2x)
+  // --- 1. White Vertical Kidney Silhouette inside Red Badge (Outer Curve LEFT, Hilum RIGHT) ---
   ctx.fillStyle = '#FFFFFF';
   ctx.beginPath();
-  ctx.moveTo(104, 52);
-  ctx.bezierCurveTo(72, 52, 64, 80, 64, 104);
-  ctx.bezierCurveTo(64, 128, 88, 140, 112, 136);
-  ctx.bezierCurveTo(136, 132, 144, 108, 132, 88);
-  ctx.bezierCurveTo(124, 76, 108, 92, 100, 88);
-  ctx.bezierCurveTo(92, 84, 120, 52, 104, 52);
+  ctx.moveTo(76, 24); // Top pole
+  // Outer convex curve on the LEFT side
+  ctx.bezierCurveTo(48, 24, 38, 52, 38, 86);  // Upper left outer convex lobe
+  ctx.bezierCurveTo(38, 120, 48, 148, 76, 148); // Lower left outer convex lobe to bottom pole
+  // Hilum notch on the RIGHT side
+  ctx.bezierCurveTo(102, 148, 118, 122, 112, 92); // Lower right hilum notch
+  ctx.bezierCurveTo(104, 86, 104, 72, 112, 66);  // Center hilum indentation
+  ctx.bezierCurveTo(118, 48, 102, 24, 76, 24);   // Upper right hilum notch back to top pole
   ctx.fill();
 
-  // Draw inner red kidney (scaled 2x)
-  ctx.fillStyle = '#E02424';
+  // --- 2. Internal Red Renal Pelvis, Calyces & Ureter Tree (Entering from Hilum on RIGHT, Branching LEFT) ---
+  ctx.strokeStyle = redColor;
+  ctx.lineWidth = 3.5;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  // Main renal pelvis trunk entering from hilum notch on the right
   ctx.beginPath();
-  ctx.moveTo(104, 64);
-  ctx.bezierCurveTo(80, 64, 76, 84, 76, 100);
-  ctx.bezierCurveTo(76, 116, 92, 126, 108, 122);
-  ctx.bezierCurveTo(124, 118, 128, 102, 120, 88);
-  ctx.bezierCurveTo(114, 80, 104, 90, 100, 86);
-  ctx.bezierCurveTo(96, 82, 112, 64, 104, 64);
-  ctx.fill();
-
-  // Draw innermost white kidney (scaled 2x)
-  ctx.fillStyle = '#FFFFFF';
-  ctx.beginPath();
-  ctx.moveTo(104, 76);
-  ctx.bezierCurveTo(88, 76, 84, 88, 84, 98);
-  ctx.bezierCurveTo(84, 108, 96, 114, 104, 112);
-  ctx.bezierCurveTo(112, 110, 116, 100, 112, 92);
-  ctx.bezierCurveTo(108, 86, 102, 90, 100, 88);
-  ctx.bezierCurveTo(98, 86, 108, 76, 104, 76);
-  ctx.fill();
-
-  // Draw "THE KIDNEY CENTRE" stacked/bold English text
-  ctx.fillStyle = '#000000';
-  ctx.font = '900 52px "Arial Black", "Helvetica Neue", Arial, sans-serif';
-  ctx.textBaseline = 'middle';
-  ctx.textAlign = 'left';
-  ctx.fillText('THE KIDNEY CENTRE', 180, 85);
-
-  ctx.font = 'bold 28px Arial, Helvetica, sans-serif';
-  ctx.fillText('Post Graduate Training Institute', 180, 130);
-
-  // Horizontal line separator
-  ctx.strokeStyle = '#000000';
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.moveTo(20, 176);
-  ctx.lineTo(980, 176);
+  ctx.moveTo(106, 86);
+  ctx.lineTo(88, 86);
   ctx.stroke();
 
-  // Urdu Calligraphy text
-  ctx.font = 'bold 36px "Jameel Noori Nastaleeq", "Noto Nastaliq Urdu", "Urdu Typesetting", Arial, sans-serif';
+  // Ureter curve dropping downwards along the right side of the kidney
+  ctx.beginPath();
+  ctx.moveTo(98, 86);
+  ctx.bezierCurveTo(102, 104, 106, 122, 108, 134);
+  ctx.stroke();
+
+  // Upper Major Calyx (branching up and left toward upper pole)
+  ctx.beginPath();
+  ctx.moveTo(88, 86);
+  ctx.bezierCurveTo(78, 72, 68, 56, 58, 44);
+  ctx.stroke();
+
+  // Upper Minor Calyces
+  ctx.beginPath();
+  ctx.moveTo(72, 65);
+  ctx.bezierCurveTo(62, 58, 52, 58, 46, 60);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(62, 50);
+  ctx.bezierCurveTo(52, 44, 48, 42, 44, 44);
+  ctx.stroke();
+
+  // Middle Major Calyx (branching straight left)
+  ctx.beginPath();
+  ctx.moveTo(88, 86);
+  ctx.bezierCurveTo(72, 88, 58, 90, 48, 90);
+  ctx.stroke();
+
+  // Middle Minor Calyces
+  ctx.beginPath();
+  ctx.moveTo(70, 88);
+  ctx.bezierCurveTo(60, 78, 52, 76, 46, 78);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(68, 89);
+  ctx.bezierCurveTo(58, 100, 50, 102, 45, 100);
+  ctx.stroke();
+
+  // Lower Major Calyx (branching down and left toward lower pole)
+  ctx.beginPath();
+  ctx.moveTo(88, 86);
+  ctx.bezierCurveTo(78, 102, 68, 118, 60, 132);
+  ctx.stroke();
+
+  // Lower Minor Calyces
+  ctx.beginPath();
+  ctx.moveTo(74, 110);
+  ctx.bezierCurveTo(62, 118, 52, 120, 46, 118);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(64, 125);
+  ctx.bezierCurveTo(54, 132, 48, 134, 44, 132);
+  ctx.stroke();
+
+  // --- 3. English Stacked Header Text (3-step stacked layout) ---
+  ctx.fillStyle = '#000000';
+  ctx.font = '900 36px "Arial Black", "Helvetica Neue", Arial, sans-serif';
+  ctx.textBaseline = 'alphabetic';
+  ctx.textAlign = 'left';
+  ctx.fillText('THE', 152, 45);
+  ctx.fillText('KIDNEY', 152, 82);
+  ctx.fillText('CENTRE', 152, 119);
+
+  ctx.font = 'bold 16px Arial, Helvetica, sans-serif';
+  ctx.fillStyle = '#1E293B';
+  ctx.fillText('POST GRADUATE TRAINING INSTITUTE', 152, 146);
+
+  // --- 4. Horizontal Separator Line ---
+  ctx.strokeStyle = '#000000';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(15, 170);
+  ctx.lineTo(865, 170);
+  ctx.stroke();
+
+  // --- 5. Single-Line Urdu Calligraphy ---
+  ctx.font = 'bold 28px "Jameel Noori Nastaleeq", "Noto Nastaliq Urdu", "Urdu Typesetting", Arial, sans-serif';
   ctx.textAlign = 'center';
   ctx.fillStyle = '#000000';
-  ctx.fillText('دی کڈنی سینٹر پوسٹ گریجویٹ ٹریننگ انسٹیٹیوٹ', 500, 222);
+  ctx.fillText('دی کڈنی سینٹر پوسٹ گریجویٹ ٹریننگ انسٹیٹیوٹ', 440, 206);
 
-  // Address and Fax Information
-  ctx.font = 'bold 22px Arial, Helvetica, sans-serif';
-  ctx.fillText('172/N, R.A. Lines, Rafiqi Shaheed Road, Karachi-75530, Pakistan', 500, 280);
+  // --- 6. Address and Contact Details ---
+  ctx.font = 'bold 19px Arial, Helvetica, sans-serif';
+  ctx.fillStyle = '#000000';
+  ctx.fillText('172/N, R.A. Lines, Rafiqi Shaheed Road, Karachi-75530, Pakistan', 440, 242);
 
-  ctx.font = 'bold 22px Arial, Helvetica, sans-serif';
-  ctx.fillText('Tel: (92-21) 35661000-10 | Fax: (92-21) 35661050', 500, 325);
+  ctx.font = 'bold 19px Arial, Helvetica, sans-serif';
+  ctx.fillText('Tel: (92-21) 35661000-10', 440, 274);
 
   return canvas.toDataURL('image/png');
 };
@@ -129,24 +180,30 @@ export const generateKidneyCentreLogoBase64 = (): string => {
 export const exportToPDF = (title: string, headers: string[], rows: any[][], metadata: ReportMetadata) => {
   const doc = new jsPDF('landscape'); 
   
-  // Report Title & Metadata
-  doc.setFontSize(13);
-  doc.setTextColor(30, 41, 59); // Slate-800
-  doc.setFont('helvetica', 'bold');
-  const fullTitle = metadata.period ? `${title} — ${metadata.period}` : title;
-  doc.text(fullTitle, 14, 15);
-
-  doc.setFontSize(8.5);
-  doc.setTextColor(71, 85, 105); 
-  doc.setFont('helvetica', 'normal');
-  doc.text(`Generated By: ${metadata.generatedBy}`, 14, 22);
-  doc.text(`Timestamp: ${new Date().toLocaleString()}`, 14, 27);
-  doc.text(`Active Filters: ${metadata.filters}`, 14, 32);
-  if (metadata.period) {
-    doc.text(`Report Period / Month: ${metadata.period}`, 14, 37);
+  // Official Kidney Centre Header Logo
+  const logoBase64 = generateKidneyCentreLogoBase64();
+  if (logoBase64) {
+    doc.addImage(logoBase64, 'PNG', 14, 6, 52, 26);
   }
 
-  const tableStartY = metadata.period ? 44 : 39;
+  // Report Title & Metadata
+  const startX = logoBase64 ? 70 : 14;
+  doc.setFontSize(13);
+  doc.setTextColor(15, 23, 42); // Slate-900
+  doc.setFont('helvetica', 'bold');
+  const fullTitle = metadata.period ? `${title} — ${metadata.period}` : title;
+  doc.text(fullTitle, startX, 13);
+
+  doc.setFontSize(8);
+  doc.setTextColor(71, 85, 105); 
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Generated By: ${metadata.generatedBy}   |   Timestamp: ${new Date().toLocaleString()}`, startX, 19);
+  doc.text(`Active Filters: ${metadata.filters}`, startX, 24);
+  if (metadata.period) {
+    doc.text(`Report Period / Range: ${metadata.period}`, startX, 29);
+  }
+
+  const tableStartY = 35;
 
   autoTable(doc, {
     head: [headers],
@@ -308,27 +365,11 @@ export const exportPatientsPDF = (patients: Patient[], metadata: ReportMetadata)
     p.lengthOfStay
   ]);
 
-  const activeCount = patients.filter(p => !p.dischargeDate).length;
-  const dischargedCount = patients.filter(p => !!p.dischargeDate).length;
-  const criticalCount = patients.filter(p => p.triagePriority === 'Critical').length;
-  const urgentCount = patients.filter(p => p.triagePriority === 'Urgent').length;
-  const stableCount = patients.filter(p => !p.triagePriority || p.triagePriority === 'Stable').length;
-
   const summarySections: SummarySection[] = [
     {
-      title: 'PATIENT VOLUME & STATUS',
+      title: 'PATIENT SUMMARY',
       items: [
-        { label: 'Total Records', value: patients.length },
-        { label: 'Active Admissions', value: activeCount },
-        { label: 'Discharged Records', value: dischargedCount }
-      ]
-    },
-    {
-      title: 'TRIAGE PRIORITY BREAKDOWN',
-      items: [
-        { label: 'Critical Priority', value: criticalCount },
-        { label: 'Urgent Priority', value: urgentCount },
-        { label: 'Stable / Standard', value: stableCount }
+        { label: 'Total Patients', value: patients.length }
       ]
     }
   ];
@@ -502,19 +543,24 @@ export const exportIncidentsPDF = (incidents: IncidentRecord[], metadata: Report
 export const exportPatientSummaryPDF = (patient: Patient, generatedBy: string) => {
   const doc = new jsPDF();
   
-  // Header Block
+  // Header Block with Logo
+  const logoBase64 = generateKidneyCentreLogoBase64();
+  if (logoBase64) {
+    doc.addImage(logoBase64, 'PNG', 14, 7, 52, 25);
+  }
+
   doc.setFillColor(15, 23, 42); // Slate-900
-  doc.rect(0, 0, 210, 32, 'F');
+  doc.roundedRect(72, 8, 124, 22.7, 2, 2, 'F');
   
-  doc.setFontSize(14);
+  doc.setFontSize(11);
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.text("CLINICAL INPATIENT & PROCEDURE RECORD SUMMARY", 105, 15, { align: 'center' });
+  doc.text("CLINICAL INPATIENT & PROCEDURE SUMMARY", 134, 16, { align: 'center' });
 
   // Timestamp
-  doc.setFontSize(7.5);
+  doc.setFontSize(7);
   doc.setTextColor(186, 200, 218); // Soft slate color
-  doc.text(`Generated On: ${new Date().toLocaleString()}  |  By: ${generatedBy.toUpperCase()}`, 105, 24, { align: 'center' });
+  doc.text(`Generated On: ${new Date().toLocaleString()}  |  By: ${generatedBy.toUpperCase()}`, 134, 23, { align: 'center' });
 
   // 1. Patient Demographics & Profile Panel
   doc.setDrawColor(226, 232, 240); // Slate-200
@@ -761,44 +807,43 @@ export const exportSingleEndoscopyReportPDF = async (record: EndoscopyRecord, ge
     }
   }
 
-  // Place the Kidney Centre bordered logo on the left
+  // Place the Kidney Centre logo on the left
   const logoBase64 = generateKidneyCentreLogoBase64();
   if (logoBase64) {
-    // x = 14, y = 11. width = 66.6, height = 28 to preserve new 1000x420 aspect ratio (2.38:1)
-    doc.addImage(logoBase64, 'PNG', 14, 11, 66.6, 28);
+    doc.addImage(logoBase64, 'PNG', 14, 6, 80, 28);
   }
 
-  // Patient / Procedure Metadata on Right (Aligned around x=110)
+  // Patient / Procedure Metadata on Right (Aligned from x=102 to 196)
   doc.setLineWidth(0.5);
-  doc.setDrawColor(0, 0, 0);
-  doc.roundedRect(105, 11, pageWidth - 105 - 14, 28, 3, 3, 'S');
+  doc.setDrawColor(15, 23, 42);
+  doc.roundedRect(102, 6, pageWidth - 102 - 14, 28, 2, 2, 'S');
   doc.setLineWidth(0.2);
 
-  doc.setFontSize(8);
+  doc.setFontSize(7.5);
   doc.setTextColor(71, 85, 105);
   
   const drawMetaRow = (label: string, value: string, y: number) => {
     doc.setFont('helvetica', 'bold');
-    doc.text(`${label}:`, 108, y);
+    doc.text(`${label}:`, 105, y);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(15, 23, 42);
     // Wrap text if needed
-    const wrappedText = doc.splitTextToSize(value || 'N/A', pageWidth - 108 - 14 - 30);
-    doc.text(wrappedText[0], 138, y);
+    const wrappedText = doc.splitTextToSize(value || 'N/A', pageWidth - 105 - 14 - 32);
+    doc.text(wrappedText[0], 135, y);
     doc.setTextColor(71, 85, 105);
   };
 
-  drawMetaRow("Patient Name", record.name || 'N/A', 15);
-  drawMetaRow("MR Number", record.regNo || 'N/A', 19);
-  drawMetaRow("Age / Gender", `${record.age || 'N/A'} / ${record.gender || 'N/A'}`, 23);
-  drawMetaRow("Procedure Date", `${record.date || 'N/A'}${record.time ? ' @ ' + record.time : ''}`, 27);
-  drawMetaRow("Endoscopist", record.doctor || 'N/A', 31);
-  drawMetaRow("Ref. Physician", record.referringPhysician || 'N/A', 35);
+  drawMetaRow("Patient Name", record.name || 'N/A', 10);
+  drawMetaRow("MR Number", record.regNo || 'N/A', 14);
+  drawMetaRow("Age / Gender", `${record.age || 'N/A'} / ${record.gender || 'N/A'}`, 18);
+  drawMetaRow("Procedure Date", `${record.date || 'N/A'}${record.time ? ' @ ' + record.time : ''}`, 22);
+  drawMetaRow("Endoscopist", record.doctor || 'N/A', 26);
+  drawMetaRow("Ref. Physician", record.referringPhysician || 'N/A', 30);
 
-  // Divide
+  // Divide line with 3mm whitespace below header boxes
   doc.setDrawColor(30, 41, 59);
   doc.setLineWidth(0.5);
-  doc.line(14, 41, pageWidth - 14, 41);
+  doc.line(14, 37, pageWidth - 14, 37);
   doc.setLineWidth(0.2);
 
   // Dynamic Procedure Title Banner Bar in PDF
@@ -806,17 +851,12 @@ export const exportSingleEndoscopyReportPDF = async (record: EndoscopyRecord, ge
   const dynamicTitle = procUpper.includes('REPORT') ? procUpper : `${procUpper} REPORT`;
 
   doc.setFillColor(15, 23, 42); // Dark slate bg
-  doc.roundedRect(14, 43, pageWidth - 28, 7.5, 1.5, 1.5, 'F');
+  doc.roundedRect(14, 40, pageWidth - 28, 7.5, 1.5, 1.5, 'F');
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
   doc.setTextColor(255, 255, 255);
-  doc.text(dynamicTitle, 18, 48);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(203, 213, 225);
-  doc.text("DIAGNOSTIC & INTERVENTIONAL SUITE", pageWidth - 18, 48, { align: 'right' });
+  doc.text(dynamicTitle, 18, 45);
 
   // Procedure Details Metrics Box
   const boxWidth = hasImages ? 136 : (pageWidth - 28);
@@ -835,7 +875,7 @@ export const exportSingleEndoscopyReportPDF = async (record: EndoscopyRecord, ge
 
   const boxHeaderHeight = 10;
   const totalBoxHeight = boxHeaderHeight + indHeight + medHeight + 4;
-  const metricsY = 53;
+  const metricsY = 50;
 
   doc.setFillColor(248, 250, 252);
   doc.roundedRect(14, metricsY, boxWidth, totalBoxHeight, 3, 3, 'FD');
@@ -1075,10 +1115,6 @@ export const exportSingleEndoscopyReportPDF = async (record: EndoscopyRecord, ge
   doc.setTextColor(100);
   doc.setFont('helvetica', 'normal');
   doc.text("Performing Physician Signature", 44, signY + 4, { align: 'center' });
-
-  doc.setFontSize(6.5);
-  doc.setTextColor(148, 163, 184);
-  doc.text(`REPORT COMPILED BY MEDILOG CLINICAL SYSTEMS. GENERATED BY: ${generatedBy.toUpperCase()} ON ${new Date().toLocaleString()}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
 
   doc.save(`endoscopy_procedure_report_${record.regNo}_${record.serialNo}.pdf`);
 };

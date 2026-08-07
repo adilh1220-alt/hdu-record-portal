@@ -17,6 +17,7 @@ import {
   EndoscopyRecord,
   ClinicalUnit
 } from '../types';
+import { generateKidneyCentreLogoBase64 } from '../services/pdfService';
 import { 
   Printer, 
   FileText, 
@@ -776,20 +777,13 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
         >
           {/* Header Area */}
           {includeLogo && (
-            <div className="border-b-2 border-red-600 pb-4 mb-6 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-              <div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-6 h-6 bg-red-600 rounded flex items-center justify-center text-white font-black text-sm">
-                    +
-                  </div>
-                  <h1 className="text-xl font-black text-red-600 uppercase tracking-tight leading-none">MediLog</h1>
-                </div>
-                <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest mt-1">
-                  Clinical Recording & Inpatient Intake Portal
-                </p>
-                <p className="text-[8px] text-slate-400 font-medium">
-                  24-Hour Clinical Recording, Reporting & Analytics
-                </p>
+            <div className="border-b-2 border-slate-900 pb-4 mb-6 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+              <div className="flex items-center gap-3">
+                <img 
+                  src={generateKidneyCentreLogoBase64()} 
+                  alt="The Kidney Centre Logo" 
+                  className="h-16 w-auto object-contain"
+                />
               </div>
 
               <div className="text-left md:text-right text-[9px] text-slate-500 font-mono space-y-0.5">

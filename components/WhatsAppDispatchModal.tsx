@@ -42,6 +42,25 @@ export const COUNTRY_CODES = [
   { code: 'custom', country: '➕ Custom Code...' }
 ];
 
+// Helper to clean and sanitize input local numbers to prevent duplicate country codes
+export const sanitizeLocalNumber = (rawNum: string, countryPrefix: string): string => {
+  if (!rawNum) return '';
+  let cleaned = rawNum.replace(/[^\d+]/g, '');
+  const prefixDigits = countryPrefix.replace(/\D/g, ''); // e.g. "92" for +92
+
+  if (cleaned.startsWith('+')) {
+    cleaned = cleaned.substring(1);
+  }
+
+  // If user pasted full international number with country code digits (e.g. "923001234567" when prefix is "+92")
+  if (prefixDigits && cleaned.startsWith(prefixDigits) && cleaned.length > prefixDigits.length + 5) {
+    cleaned = cleaned.substring(prefixDigits.length);
+  }
+
+  // Remove leading zeros (e.g. "03001234567" -> "3001234567")
+  return cleaned.replace(/^0+/, '');
+};
+
 export const WhatsAppDispatchModal: React.FC<WhatsAppDispatchModalProps> = ({
   isOpen,
   onClose,
@@ -71,6 +90,15 @@ export const WhatsAppDispatchModal: React.FC<WhatsAppDispatchModalProps> = ({
     recentLogs?: any[];
   } | null>(null);
 
+  const [handshakeResult, setHandshakeResult] = useState<{
+    loading?: boolean;
+    success?: boolean;
+    status?: string;
+    provider?: string;
+    errorMessage?: string;
+    details?: string;
+  } | null>(null);
+
   useEffect(() => {
     if (record) {
       if (record.whatsappNumber) {
@@ -78,20 +106,20 @@ export const WhatsAppDispatchModal: React.FC<WhatsAppDispatchModalProps> = ({
         const matchedCode = COUNTRY_CODES.find(c => c.code !== 'custom' && record.whatsappNumber?.startsWith(c.code));
         if (matchedCode) {
           setSelectedCountryCode(matchedCode.code);
-          const rawNum = record.whatsappNumber.replace(matchedCode.code, '').replace(/\D/g, '').replace(/^0+/, '');
-          setPhoneNumber(rawNum);
+          const rawNum = record.whatsappNumber.substring(matchedCode.code.length);
+          setPhoneNumber(sanitizeLocalNumber(rawNum, matchedCode.code));
         } else if (record.whatsappNumber.startsWith('+')) {
           setSelectedCountryCode('custom');
           const match = record.whatsappNumber.match(/^(\+\d{1,4})(.*)$/);
           if (match) {
             setCustomCountryCode(match[1]);
-            setPhoneNumber(match[2].replace(/\D/g, '').replace(/^0+/, ''));
+            setPhoneNumber(sanitizeLocalNumber(match[2], match[1]));
           } else {
-            setPhoneNumber(record.whatsappNumber.replace(/\D/g, '').replace(/^0+/, ''));
+            setPhoneNumber(sanitizeLocalNumber(record.whatsappNumber, '+92'));
           }
         } else {
           setSelectedCountryCode('+92');
-          setPhoneNumber(record.whatsappNumber.replace(/\D/g, '').replace(/^0+/, ''));
+          setPhoneNumber(sanitizeLocalNumber(record.whatsappNumber, '+92'));
         }
       } else {
         setSelectedCountryCode('+92');
@@ -124,8 +152,26 @@ export const WhatsAppDispatchModal: React.FC<WhatsAppDispatchModalProps> = ({
     }
   };
 
+  const handleTestHandshake = async () => {
+    setHandshakeResult({ loading: true });
+    try {
+      const res = await fetch('/api/cloud-functions/verify-whatsapp-handshake');
+      const data = await res.json();
+      setHandshakeResult(data);
+    } catch (e: any) {
+      setHandshakeResult({
+        success: false,
+        status: 'error',
+        errorMessage: e.message || 'Network error verifying handshake',
+        details: 'Failed to communicate with backend handshake route.'
+      });
+    }
+  };
+
   const activePrefix = selectedCountryCode === 'custom' ? customCountryCode : selectedCountryCode;
-  const fullWhatsAppNumber = `${activePrefix}${phoneNumber.replace(/[^\d]/g, '')}`;
+  const sanitizedLocalNumber = sanitizeLocalNumber(phoneNumber, activePrefix);
+  const fullWhatsAppNumber = `${activePrefix}${sanitizedLocalNumber}`;
+  const digitsOnly = fullWhatsAppNumber.replace(/[^\d]/g, '');
 
   const generatedTemplateMessage = `🏥 *MEDILOG CLINICAL ENDOSCOPY REPORT*
 
@@ -142,8 +188,16 @@ Your endoscopy procedure report is compiled and ready.
 
 _This automated message was sent via MediLog Serverless Cloud Gateway._`;
 
+  const directWhatsAppApiUrl = digitsOnly
+    ? `https://api.whatsapp.com/send?phone=${digitsOnly}&text=${encodeURIComponent(generatedTemplateMessage)}`
+    : '';
+
+  const directWaMeUrl = digitsOnly
+    ? `https://wa.me/${digitsOnly}?text=${encodeURIComponent(generatedTemplateMessage)}`
+    : '';
+
   const handleSendWhatsApp = async () => {
-    if (!phoneNumber) {
+    if (!phoneNumber || !digitsOnly) {
       alert("Please enter a valid patient phone number.");
       return;
     }
@@ -181,14 +235,10 @@ _This automated message was sent via MediLog Serverless Cloud Gateway._`;
 
         setDispatchResult({
           success: true,
-          message: data.info || "WhatsApp dispatch triggered successfully via Cloud Function!",
+          message: data.info || "WhatsApp dispatch ready! Click below to launch WhatsApp.",
           messageId: data.messageId,
-          whatsappWebUrl: data.whatsappWebUrl
+          whatsappWebUrl: data.whatsappWebUrl || directWhatsAppApiUrl
         });
-
-        if (data.whatsappWebUrl) {
-          window.open(data.whatsappWebUrl, '_blank');
-        }
 
         if (onDispatchSuccess) {
           onDispatchSuccess(newLog);
@@ -198,7 +248,8 @@ _This automated message was sent via MediLog Serverless Cloud Gateway._`;
         setDispatchResult({
           success: false,
           message: errorMsg,
-          details: JSON.stringify(data)
+          details: JSON.stringify(data),
+          whatsappWebUrl: directWhatsAppApiUrl
         });
         if (onDispatchError) {
           onDispatchError(errorMsg);
@@ -209,7 +260,8 @@ _This automated message was sent via MediLog Serverless Cloud Gateway._`;
       setDispatchResult({
         success: false,
         message: errorMsg,
-        details: err.message
+        details: err.message,
+        whatsappWebUrl: directWhatsAppApiUrl
       });
       if (onDispatchError) {
         onDispatchError(errorMsg);
@@ -291,9 +343,22 @@ _This automated message was sent via MediLog Serverless Cloud Gateway._`;
     }
   };
 
-  const openDirectWhatsAppWeb = () => {
-    const waUrl = `https://wa.me/${fullWhatsAppNumber.replace(/[^\d]/g, '')}?text=${encodeURIComponent(generatedTemplateMessage)}`;
-    window.open(waUrl, '_blank');
+  const handleOpenWhatsAppDirect = (e?: React.MouseEvent) => {
+    if (!phoneNumber || !digitsOnly) {
+      if (e) e.preventDefault();
+      alert("Please enter a valid patient phone number.");
+      return;
+    }
+
+    const targetUrl = directWhatsAppApiUrl || directWaMeUrl;
+    try {
+      const win = window.open(targetUrl, '_blank', 'noopener,noreferrer');
+      if (!win || win.closed || typeof win.closed === 'undefined') {
+        window.location.href = targetUrl;
+      }
+    } catch (err) {
+      window.location.href = targetUrl;
+    }
   };
 
   return (
@@ -399,18 +464,31 @@ _This automated message was sent via MediLog Serverless Cloud Gateway._`;
                   type="tel"
                   inputMode="numeric"
                   pattern="[0-9]*"
-                  placeholder="3001234567 (without leading 0)"
+                  placeholder="3001234567 or paste full +923001234567"
                   value={phoneNumber}
                   onChange={(e) => {
-                    const onlyDigits = e.target.value.replace(/\D/g, '');
-                    const cleanNum = onlyDigits.replace(/^0+/, '');
+                    const cleanNum = sanitizeLocalNumber(e.target.value, activePrefix);
                     setPhoneNumber(cleanNum);
                   }}
                   className="flex-1 px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono"
                 />
               </div>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                Format: International format (e.g. {fullWhatsAppNumber}). Message is dispatched directly to the patient's mobile app.
+                Selected International Format: <strong className="text-emerald-600 font-mono font-bold">{fullWhatsAppNumber || 'None'}</strong>
+              </p>
+            </div>
+
+            {/* Practical Guidance Note */}
+            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/80 rounded-xl text-[11px] text-slate-700 dark:text-slate-300 space-y-1">
+              <div className="font-extrabold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                Individual Patient WhatsApp Dispatch:
+              </div>
+              <p className="leading-snug">
+                <strong>1-Click Direct Launch:</strong> Opens WhatsApp Web/App directly with the pre-written medical endoscopy findings, MR number, doctor name, and recommendations pre-filled.
+              </p>
+              <p className="leading-snug text-slate-500 dark:text-slate-400">
+                <strong>Server API (Background):</strong> Connect Meta Cloud API credentials (<code className="bg-slate-200 dark:bg-slate-800 px-1 rounded">WHATSAPP_ACCESS_TOKEN</code>) in settings for automatic backend background SMS/WhatsApp delivery without opening WhatsApp Web.
               </p>
             </div>
 
@@ -438,34 +516,55 @@ _This automated message was sent via MediLog Serverless Cloud Gateway._`;
                 {isSending ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin text-white" />
-                    Executing Cloud Gateway...
+                    Executing Cloud Function...
                   </>
                 ) : (
                   <>
                     <Send className="w-4 h-4" />
-                    Send via Cloud Function
+                    Send via Cloud API
                   </>
                 )}
               </button>
 
               <a
-                href={phoneNumber ? `https://wa.me/${fullWhatsAppNumber.replace(/[^\d]/g, '')}?text=${encodeURIComponent(generatedTemplateMessage)}` : '#'}
+                href={phoneNumber && digitsOnly ? directWhatsAppApiUrl : '#'}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(e) => {
-                  if (!phoneNumber) {
+                  if (!phoneNumber || !digitsOnly) {
                     e.preventDefault();
                     alert("Please enter a valid patient phone number.");
                   }
                 }}
-                className={`py-3 px-4 text-xs font-black uppercase tracking-wider rounded-xl border flex items-center justify-center gap-2 transition-all shadow-2xs ${
-                  phoneNumber
-                    ? 'bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 cursor-pointer'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700 cursor-not-allowed'
+                className={`flex-1 py-3 px-4 text-xs font-black uppercase tracking-wider rounded-xl border flex items-center justify-center gap-2 transition-all shadow-md ${
+                  phoneNumber && digitsOnly
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-700 cursor-pointer active:scale-95'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700 cursor-not-allowed pointer-events-none'
                 }`}
               >
-                <ExternalLink className="w-4 h-4 text-emerald-600" />
-                Open Direct WhatsApp App
+                <ExternalLink className="w-4 h-4 text-white" />
+                Open Direct WhatsApp
+              </a>
+
+              <a
+                href={phoneNumber && digitsOnly ? directWaMeUrl : '#'}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => {
+                  if (!phoneNumber || !digitsOnly) {
+                    e.preventDefault();
+                    alert("Please enter a valid patient phone number.");
+                  }
+                }}
+                className={`py-3 px-3 text-xs font-bold uppercase tracking-wider rounded-xl border flex items-center justify-center gap-1.5 transition-all shadow-sm ${
+                  phoneNumber && digitsOnly
+                    ? 'bg-slate-800 hover:bg-slate-900 text-emerald-400 border-slate-700 cursor-pointer active:scale-95'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700 cursor-not-allowed pointer-events-none'
+                }`}
+                title="Alternative wa.me direct link"
+              >
+                <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
+                wa.me
               </a>
             </div>
           </div>
@@ -590,6 +689,44 @@ _This automated message was sent via MediLog Serverless Cloud Gateway._`;
               </div>
             </div>
 
+            {/* Provider Handshake Verification Tester */}
+            <div className="p-3 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl space-y-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h5 className="text-[11px] font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> API Provider Handshake Tester
+                  </h5>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                    Verify live connection health & credential validity with WhatsApp API Provider.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleTestHandshake}
+                  disabled={handshakeResult?.loading}
+                  className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-emerald-400 font-black text-[10px] uppercase rounded-lg border border-slate-700 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+                >
+                  {handshakeResult?.loading ? 'Testing...' : 'Verify Handshake'}
+                </button>
+              </div>
+
+              {handshakeResult && !handshakeResult.loading && (
+                <div className={`p-2.5 rounded-lg text-[11px] font-mono border ${
+                  handshakeResult.status === 'connected' || handshakeResult.status === 'simulation_mode'
+                    ? 'bg-emerald-950/40 text-emerald-300 border-emerald-800'
+                    : 'bg-rose-950/40 text-rose-300 border-rose-800'
+                }`}>
+                  <div className="font-bold uppercase text-[10px]">
+                    Provider: {handshakeResult.provider} | Status: {handshakeResult.status}
+                  </div>
+                  <div className="mt-1 leading-normal text-[10px]">
+                    {handshakeResult.errorMessage && <div className="text-rose-400 font-semibold mb-0.5">{handshakeResult.errorMessage}</div>}
+                    <div>{handshakeResult.details}</div>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Server Logs Stream */}
             <div>
               <h5 className="text-[11px] font-black uppercase text-slate-600 dark:text-slate-400 tracking-wider mb-1">
@@ -638,16 +775,26 @@ _This automated message was sent via MediLog Serverless Cloud Gateway._`;
                     {dispatchResult.details}
                   </p>
                 )}
-                {dispatchResult.whatsappWebUrl && (
-                  <div className="mt-2">
+                {(dispatchResult.whatsappWebUrl || directWhatsAppApiUrl) && (
+                  <div className="mt-2.5 flex flex-wrap items-center gap-2">
                     <a
-                      href={dispatchResult.whatsappWebUrl}
+                      href={dispatchResult.whatsappWebUrl || directWhatsAppApiUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-600 text-white font-bold text-[10px] uppercase rounded-lg hover:bg-emerald-700"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] uppercase rounded-lg shadow-sm transition-all active:scale-95 cursor-pointer"
                     >
-                      <ExternalLink className="w-3 h-3" /> Launch WhatsApp Web Direct Link
+                      <ExternalLink className="w-3.5 h-3.5 text-white" /> Open WhatsApp Web / App
                     </a>
+                    {directWaMeUrl && (
+                      <a
+                        href={directWaMeUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-emerald-400 font-bold text-[11px] uppercase rounded-lg border border-slate-700 shadow-2xs transition-all active:scale-95 cursor-pointer"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5 text-emerald-400" /> wa.me Direct Link
+                      </a>
+                    )}
                   </div>
                 )}
               </div>

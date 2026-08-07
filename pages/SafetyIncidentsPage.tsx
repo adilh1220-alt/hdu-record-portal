@@ -7,6 +7,7 @@ import { db } from '../services/firebaseConfig';
 import { IncidentRecord, ClinicalUnit } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useUnit } from '../contexts/UnitContext';
+import { useSearch } from '../contexts/SearchContext';
 import { activityService } from '../services/activityService';
 import { UNIT_DETAILS, INCIDENT_CATEGORIES, CLINICAL_UNITS } from '../constants';
 import { exportIncidentsPDF } from '../services/pdfService';
@@ -14,6 +15,7 @@ import { downloadCSV } from '../services/exportService';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
 import ExportModal from '../components/ExportModal';
+import { ActiveFiltersBar } from '../components/ActiveFiltersBar';
 
 const InputWrapper = ({ label, field, children, error }: { label: string, field: string, children?: React.ReactNode, error?: string }) => (
   <div className="space-y-1">
@@ -330,6 +332,14 @@ IncidentForm.displayName = 'IncidentForm';
 const SafetyIncidentsPage: React.FC = () => {
   const { activeUnit } = useUnit();
   const { currentUser, isAdmin, canManageRecords } = useAuth();
+  const {
+    searchQuery: advSearchQuery,
+    startDate: advStartDate,
+    endDate: advEndDate,
+    severity: advSeverity,
+    openAdvancedSearch
+  } = useSearch();
+
   const [incidents, setIncidents] = useState<IncidentRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -446,30 +456,47 @@ const SafetyIncidentsPage: React.FC = () => {
   };
 
   const sortedAndFiltered = useMemo(() => {
+    const combinedQuery = [searchTerm, advSearchQuery].filter(Boolean).join(' ').toLowerCase().trim();
+    const effectiveStart = appliedStartDate || advStartDate;
+    const effectiveEnd = appliedEndDate || advEndDate;
+
     const filtered = incidents.filter(i => {
-      const matchesSearch = 
-        i.patientName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        i.regNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        i.category.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = !combinedQuery ||
+        i.patientName.toLowerCase().includes(combinedQuery) || 
+        i.regNo.toLowerCase().includes(combinedQuery) ||
+        i.category.toLowerCase().includes(combinedQuery) ||
+        (i.description && i.description.toLowerCase().includes(combinedQuery));
       
       const incidentDate = new Date(i.incidentDate);
       incidentDate.setHours(0, 0, 0, 0);
       
       let matchesStartDate = true;
-      if (appliedStartDate) {
-        const start = new Date(appliedStartDate);
+      if (effectiveStart) {
+        const start = new Date(effectiveStart);
         start.setHours(0, 0, 0, 0);
         matchesStartDate = incidentDate >= start;
       }
       
       let matchesEndDate = true;
-      if (appliedEndDate) {
-        const end = new Date(appliedEndDate);
+      if (effectiveEnd) {
+        const end = new Date(effectiveEnd);
         end.setHours(0, 0, 0, 0);
         matchesEndDate = incidentDate <= end;
       }
 
-      return matchesSearch && matchesStartDate && matchesEndDate;
+      let matchesSeverity = true;
+      if (advSeverity !== 'ALL') {
+        const text = `${i.category} ${i.description || ''} ${i.reportedBy || ''}`.toLowerCase();
+        if (advSeverity === 'CRITICAL') {
+          matchesSeverity = text.includes('sentinel') || text.includes('severe') || text.includes('fall') || text.includes('death') || text.includes('code');
+        } else if (advSeverity === 'URGENT') {
+          matchesSeverity = text.includes('medication') || text.includes('equipment') || text.includes('injury');
+        } else if (advSeverity === 'STABLE') {
+          matchesSeverity = !text.includes('sentinel') && !text.includes('severe') && !text.includes('death');
+        }
+      }
+
+      return matchesSearch && matchesStartDate && matchesEndDate && matchesSeverity;
     });
 
     return [...filtered].sort((a, b) => {
@@ -491,7 +518,9 @@ const SafetyIncidentsPage: React.FC = () => {
       if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [incidents, searchTerm, appliedStartDate, appliedEndDate, sortConfig]);
+  }, [incidents, searchTerm, advSearchQuery, appliedStartDate, advStartDate, appliedEndDate, advEndDate, advSeverity, sortConfig]);
+
+  const isFilterActive = !!(appliedStartDate || appliedEndDate || searchTerm);
 
   const handleSave = async (incidentData: IncidentRecord) => {
     setIsSaving(true);
@@ -604,16 +633,22 @@ const SafetyIncidentsPage: React.FC = () => {
                 ref={searchInputRef}
                 type="text" 
                 placeholder={`Search Patient Name, MR#, Category...`}
-                className="pl-10 pr-16 py-2.5 border border-slate-200 rounded-xl w-full text-[11px] font-bold outline-none focus:ring-2 focus:ring-red-100 shadow-sm transition-all dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:focus:ring-red-950"
+                className="pl-10 pr-24 py-2.5 border border-slate-200 rounded-xl w-full text-[11px] font-bold outline-none focus:ring-2 focus:ring-red-100 shadow-sm transition-all dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:focus:ring-red-950"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
               <svg className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
-              <kbd className="pointer-events-none absolute right-3 top-3 hidden sm:flex items-center gap-0.5 rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[9px] font-black text-slate-400 shadow-sm dark:bg-slate-800 dark:border-slate-700 dark:text-slate-500">
-                Alt+S
-              </kbd>
+              <button
+                type="button"
+                onClick={openAdvancedSearch}
+                className="absolute right-2 top-2 flex items-center gap-1 rounded border border-slate-200 bg-slate-50 px-2 py-1 font-mono text-[9px] font-black text-slate-700 shadow-sm hover:bg-slate-100 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200"
+                title="Open Advanced Filter (Alt+S)"
+              >
+                <span>Filter</span>
+                <kbd className="opacity-70 bg-slate-200 dark:bg-slate-700 px-1 rounded">Alt+S</kbd>
+              </button>
             </div>
             {canManageRecords && (
               <button 
@@ -632,6 +667,8 @@ const SafetyIncidentsPage: React.FC = () => {
             EXPORT RECORDS
           </button>
         </div>
+
+        <ActiveFiltersBar />
 
         <div className="flex flex-wrap items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
           <div className="flex items-center gap-2">
@@ -659,6 +696,18 @@ const SafetyIncidentsPage: React.FC = () => {
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
             FETCH DATA
           </button>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-800 rounded-lg border border-emerald-200 text-[9px] font-black uppercase tracking-wider shadow-sm">
+            <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Records Fetched: <span className="text-emerald-950 font-black text-[11px] px-1.5 py-0.5 bg-emerald-200/60 rounded ml-0.5">{sortedAndFiltered.length}</span>
+          </div>
+          {isFilterActive && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full border border-blue-200">
+               <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse" />
+               <span className="text-[8px] font-black uppercase tracking-widest">Active Filters ({sortedAndFiltered.length} of {incidents.length})</span>
+            </div>
+          )}
           <button 
             onClick={resetFilters}
             className="ml-auto text-[9px] font-black text-red-600 uppercase tracking-widest hover:text-red-700 transition-colors flex items-center gap-1"

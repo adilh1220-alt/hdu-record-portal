@@ -8,18 +8,28 @@ import { exportInventoryPDF, ReportMetadata } from '../services/pdfService';
 import { downloadCSV } from '../services/exportService';
 import { useAuth } from '../contexts/AuthContext';
 import { useUnit } from '../contexts/UnitContext';
+import { useSearch } from '../contexts/SearchContext';
 import { activityService } from '../services/activityService';
 import { INVENTORY_CATEGORIES, INVENTORY_UNITS } from '../constants';
 import Modal from './Modal';
 import ConfirmModal from './ConfirmModal';
 import ExportModal from './ExportModal';
 import { VoiceDictationButton } from './VoiceDictationButton';
+import { ActiveFiltersBar } from './ActiveFiltersBar';
 
 type SortKey = keyof InventoryItem;
 type SortDirection = 'asc' | 'desc';
 
 const InventoryTable: React.FC = () => {
   const { activeUnit } = useUnit();
+  const {
+    searchQuery: advSearchQuery,
+    startDate: advStartDate,
+    endDate: advEndDate,
+    severity: advSeverity,
+    openAdvancedSearch
+  } = useSearch();
+
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -163,29 +173,48 @@ const InventoryTable: React.FC = () => {
   };
 
   const sortedAndFiltered = useMemo(() => {
+    const combinedQuery = [searchTerm, advSearchQuery].filter(Boolean).join(' ').toLowerCase().trim();
+    const effectiveStart = appliedStartDate || advStartDate;
+    const effectiveEnd = appliedEndDate || advEndDate;
+
     const filtered = items.filter(i => {
-      const matchesSearch = i.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                            i.category.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = !combinedQuery || 
+        i.name.toLowerCase().includes(combinedQuery) || 
+        i.category.toLowerCase().includes(combinedQuery) ||
+        (i.notes && i.notes.toLowerCase().includes(combinedQuery));
+
       const matchesCategory = selectedCategory === 'ALL' || i.category === selectedCategory;
       
       const updateDate = new Date(i.lastUpdated);
       updateDate.setHours(0, 0, 0, 0);
       
       let matchesStartDate = true;
-      if (appliedStartDate) {
-        const start = new Date(appliedStartDate);
+      if (effectiveStart) {
+        const start = new Date(effectiveStart);
         start.setHours(0, 0, 0, 0);
         matchesStartDate = updateDate >= start;
       }
       
       let matchesEndDate = true;
-      if (appliedEndDate) {
-        const end = new Date(appliedEndDate);
+      if (effectiveEnd) {
+        const end = new Date(effectiveEnd);
         end.setHours(0, 0, 0, 0);
         matchesEndDate = updateDate <= end;
       }
 
-      return matchesSearch && matchesCategory && matchesStartDate && matchesEndDate;
+      let matchesSeverity = true;
+      if (advSeverity !== 'ALL') {
+        const isCriticalLow = i.quantity <= i.minThreshold;
+        if (advSeverity === 'CRITICAL') {
+          matchesSeverity = isCriticalLow || i.quantity === 0;
+        } else if (advSeverity === 'URGENT') {
+          matchesSeverity = i.quantity <= i.minThreshold * 1.5;
+        } else if (advSeverity === 'STABLE') {
+          matchesSeverity = i.quantity > i.minThreshold * 1.5;
+        }
+      }
+
+      return matchesSearch && matchesCategory && matchesStartDate && matchesEndDate && matchesSeverity;
     });
 
     return [...filtered].sort((a, b) => {
@@ -214,7 +243,7 @@ const InventoryTable: React.FC = () => {
       }
       return 0;
     });
-  }, [items, searchTerm, selectedCategory, appliedStartDate, appliedEndDate, sortConfig]);
+  }, [items, searchTerm, advSearchQuery, selectedCategory, appliedStartDate, advStartDate, appliedEndDate, advEndDate, advSeverity, sortConfig]);
 
   const handleDeleteClick = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
@@ -409,9 +438,15 @@ const InventoryTable: React.FC = () => {
                   lightTheme={true}
                   context="inventory"
                 />
-                <kbd className="pointer-events-none hidden sm:flex items-center gap-0.5 rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[8px] font-black text-slate-400 shadow-sm dark:bg-slate-800 dark:border-slate-700 dark:text-slate-500">
-                  Alt+S
-                </kbd>
+                <button
+                  type="button"
+                  onClick={openAdvancedSearch}
+                  className="flex items-center gap-1 rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[8px] font-black text-slate-700 shadow-sm hover:bg-slate-100 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200"
+                  title="Open Advanced Filter (Alt+S)"
+                >
+                  <span>Filter</span>
+                  <kbd className="opacity-70 bg-slate-200 dark:bg-slate-700 px-0.5 rounded">Alt+S</kbd>
+                </button>
               </div>
             </div>
             
@@ -446,6 +481,8 @@ const InventoryTable: React.FC = () => {
             <span>Export Records</span>
           </button>
         </div>
+
+        <ActiveFiltersBar />
 
         <div className="flex flex-wrap items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
           <div className="flex items-center gap-2">

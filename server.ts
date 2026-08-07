@@ -44,10 +44,12 @@ app.get("/api/health", (_req, res) => {
 
 // Gateway & Cloud Function Status
 app.get("/api/cloud-functions/status", (_req, res) => {
-  const isWhatsAppConfigured = Boolean(
-    (process.env.WHATSAPP_PHONE_NUMBER_ID && process.env.WHATSAPP_ACCESS_TOKEN) ||
-    (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN)
-  );
+  const metaPhoneId = process.env.WHATSAPP_PHONE_NUMBER_ID || process.env.WHATSAPP_PHONE_NUMBE || process.env.WHATSAPP_PHONE_NUMBER;
+  const metaToken = process.env.WHATSAPP_ACCESS_TOKEN || process.env.WHATSAPP_ACCESS_TOK;
+  const twilioSid = process.env.TWILIO_ACCOUNT_SID;
+  const twilioToken = process.env.TWILIO_AUTH_TOKEN;
+
+  const isWhatsAppConfigured = Boolean((metaPhoneId && metaToken) || (twilioSid && twilioToken));
   const isEmailConfigured = Boolean(process.env.SMTP_USER && process.env.SMTP_PASS);
 
   res.json({
@@ -55,7 +57,7 @@ app.get("/api/cloud-functions/status", (_req, res) => {
     environment: process.env.NODE_ENV || "development",
     whatsappGateway: {
       status: isWhatsAppConfigured ? "configured" : "simulation_mode",
-      provider: process.env.WHATSAPP_PROVIDER || (process.env.TWILIO_ACCOUNT_SID ? "Twilio WhatsApp API" : "Meta WhatsApp Cloud API"),
+      provider: process.env.WHATSAPP_PROVIDER || (twilioSid ? "Twilio WhatsApp API" : "Meta WhatsApp Cloud API"),
       senderNumber: process.env.TWILIO_WHATSAPP_NUMBER || "+1 415 523 8886 (Sandbox / Official Business)",
     },
     emailGateway: {
@@ -65,6 +67,89 @@ app.get("/api/cloud-functions/status", (_req, res) => {
     },
     recentLogs: cloudFunctionLogs.slice(-20).reverse()
   });
+});
+
+// Handshake & Credentials Verification Endpoint for WhatsApp Gateway
+app.get("/api/cloud-functions/verify-whatsapp-handshake", async (_req, res) => {
+  const metaPhoneId = process.env.WHATSAPP_PHONE_NUMBER_ID || process.env.WHATSAPP_PHONE_NUMBE || process.env.WHATSAPP_PHONE_NUMBER;
+  const metaToken = process.env.WHATSAPP_ACCESS_TOKEN || process.env.WHATSAPP_ACCESS_TOK;
+  const twilioSid = process.env.TWILIO_ACCOUNT_SID;
+  const twilioToken = process.env.TWILIO_AUTH_TOKEN;
+
+  if (metaPhoneId && metaToken) {
+    try {
+      const response = await fetch(`https://graph.facebook.com/v18.0/${metaPhoneId}?access_token=${metaToken}`);
+      const data = await response.json();
+      if (response.ok) {
+        return res.json({
+          success: true,
+          status: "connected",
+          provider: "Meta WhatsApp Cloud API",
+          phoneId: metaPhoneId,
+          displayPhoneNumber: data.display_phone_number || data.verified_name || metaPhoneId,
+          details: "Handshake verified successfully with Meta Graph API."
+        });
+      } else {
+        return res.json({
+          success: false,
+          status: "error",
+          provider: "Meta WhatsApp Cloud API",
+          errorCode: data?.error?.code,
+          errorMessage: data?.error?.message || "Meta API Auth handshake failed.",
+          details: "Failed to establish handshake with Meta API. Check WHATSAPP_PHONE_NUMBER_ID and WHATSAPP_ACCESS_TOKEN."
+        });
+      }
+    } catch (err: any) {
+      return res.status(500).json({
+        success: false,
+        status: "error",
+        provider: "Meta WhatsApp Cloud API",
+        errorMessage: err.message,
+        details: "Network exception during Meta handshake verification."
+      });
+    }
+  } else if (twilioSid && twilioToken) {
+    try {
+      const authHeader = `Basic ${Buffer.from(`${twilioSid}:${twilioToken}`).toString('base64')}`;
+      const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${twilioSid}.json`, {
+        headers: { "Authorization": authHeader }
+      });
+      const data = await response.json();
+      if (response.ok) {
+        return res.json({
+          success: true,
+          status: "connected",
+          provider: "Twilio WhatsApp API",
+          accountName: data.friendly_name || twilioSid,
+          details: "Handshake verified successfully with Twilio API."
+        });
+      } else {
+        return res.json({
+          success: false,
+          status: "error",
+          provider: "Twilio WhatsApp API",
+          errorCode: data?.code,
+          errorMessage: data?.message || "Twilio Auth handshake failed.",
+          details: "Failed to establish handshake with Twilio API. Check TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN."
+        });
+      }
+    } catch (err: any) {
+      return res.status(500).json({
+        success: false,
+        status: "error",
+        provider: "Twilio WhatsApp API",
+        errorMessage: err.message,
+        details: "Network exception during Twilio handshake verification."
+      });
+    }
+  } else {
+    return res.json({
+      success: true,
+      status: "simulation_mode",
+      provider: "Direct & Serverless Sandbox Gateway",
+      details: "No API credentials currently configured in environment variables. Operating in Direct App/Web Link & Sandbox Mode. Set WHATSAPP_PHONE_NUMBER_ID & WHATSAPP_ACCESS_TOKEN or TWILIO_ACCOUNT_SID & TWILIO_AUTH_TOKEN in .env for direct automated server API dispatch."
+    });
+  }
 });
 
 // Cloud Function: Dispatch WhatsApp Message
@@ -187,7 +272,7 @@ app.post("/api/cloud-functions/dispatch-whatsapp", async (req, res) => {
       recipient: formattedPhone,
       timestamp,
       info: responseMessage,
-      whatsappWebUrl: `https://wa.me/${formattedPhone.replace(/[^\d]/g, '')}?text=${encodeURIComponent(customMessage || `🏥 *MEDILOG CLINICAL REPORT*\n\nDear *${patientName || 'Patient'}*,\nYour endoscopy report for *${procedure || 'Procedure'}* is ready.`)}`
+      whatsappWebUrl: `https://api.whatsapp.com/send?phone=${formattedPhone.replace(/[^\d]/g, '')}&text=${encodeURIComponent(customMessage || `🏥 *MEDILOG CLINICAL REPORT*\n\nDear *${patientName || 'Patient'}*,\nYour endoscopy report for *${procedure || 'Procedure'}* is ready.`)}`
     });
   } catch (error: any) {
     console.error("Cloud Function WhatsApp error:", error);

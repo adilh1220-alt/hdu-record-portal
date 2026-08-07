@@ -13,6 +13,9 @@ import UserManagement from './pages/UserManagement';
 import ActivityLogsPage from './pages/ActivityLogsPage';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { UnitProvider, useUnit } from './contexts/UnitContext';
+import { SearchProvider } from './contexts/SearchContext';
+import { ConfirmProvider } from './contexts/ConfirmContext';
+import { AdvancedSearchModal } from './components/AdvancedSearchModal';
 import { UNIT_DETAILS } from './constants';
 import { PrintPreviewModal } from './components/PrintPreviewModal';
 import { IdleTimer } from './components/IdleTimer';
@@ -140,6 +143,10 @@ const MainAppContent: React.FC = () => {
         onClose={() => setPrintPreviewOpen(false)} 
         initialTab={activeTab} 
       />
+      <AdvancedSearchModal 
+        activeTab={activeTab} 
+        setActiveTab={setActiveTab} 
+      />
     </>
   );
 };
@@ -147,7 +154,11 @@ const MainAppContent: React.FC = () => {
 const App: React.FC = () => (
   <AuthProvider>
     <UnitProvider>
-      <MainAppContent />
+      <SearchProvider>
+        <ConfirmProvider>
+          <MainAppContent />
+        </ConfirmProvider>
+      </SearchProvider>
     </UnitProvider>
   </AuthProvider>
 );

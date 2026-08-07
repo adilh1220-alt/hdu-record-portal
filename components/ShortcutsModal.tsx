@@ -17,7 +17,7 @@ const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose }) => {
     { key: 'Alt + 6', action: 'Go to Clinical Incident' },
     { key: 'Alt + 7', action: 'Go to Endoscopy Logs (Admins Only)' },
     { key: 'Alt + N', action: 'New Admission / Add Stock / Log Procedure' },
-    { key: 'Alt + S', action: 'Focus Search Bar' },
+    { key: 'Alt + S', action: 'Open Advanced Search & Filters' },
     { key: 'Alt + E', action: 'Open Export Modal' },
     { key: 'Alt + P', action: 'Print Active View' },
     { key: 'Alt + H', action: 'Show Keyboard Shortcuts' },
