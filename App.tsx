@@ -63,15 +63,18 @@ const MainAppContent: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isAdmin]);
 
-  // Reset to dashboard on login/logout to prevent session persistence issues
+  // Reset to appropriate active tab on login based on assigned unit or default
   useEffect(() => {
     if (currentUser) {
-      // Role-based redirection: Admins could potentially go to 'users', 
-      // but 'dashboard' is generally preferred for overview.
-      // We'll default to 'dashboard' for all to satisfy the "instead of the dashboard" requirement.
-      setActiveTab('dashboard');
+      if (currentUser.assignedUnit === 'ENDOSCOPY') {
+        setActiveTab('endoscopy-report');
+      } else if (currentUser.assignedUnit) {
+        setActiveTab('active');
+      } else {
+        setActiveTab('dashboard');
+      }
     }
-  }, [currentUser?.uid]);
+  }, [currentUser?.uid, currentUser?.assignedUnit]);
 
   if (!currentUser) {
     return <AuthForm />;

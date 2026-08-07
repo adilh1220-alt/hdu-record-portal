@@ -46,6 +46,17 @@ export const userService = {
     }
   },
 
+  updateUserRoleAndUnit: async (uid: string, role: 'Admin' | 'Consultant' | 'Staff', assignedUnit?: string | null): Promise<void> => {
+    try {
+      const userRef = doc(db, 'users', uid);
+      await updateDoc(userRef, { role, assignedUnit: assignedUnit || null });
+      localStorage.setItem(`hdu_role_${uid}`, role);
+    } catch (error) {
+      console.error("Error updating user role and unit:", error);
+      throw error;
+    }
+  },
+
   deactivateUser: async (uid: string): Promise<void> => {
     try {
       const userRef = doc(db, 'users', uid);

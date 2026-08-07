@@ -1,5 +1,5 @@
 
-export type ClinicalUnit = 'HDU' | 'ICU' | 'TRANSPLANT' | '4th-WARD' | 'WARD5';
+export type ClinicalUnit = 'HDU' | 'ICU' | 'TRANSPLANT' | '4th-WARD' | 'WARD5' | 'ENDOSCOPY';
 
 export enum PatientStatus {
   ACTIVE = 'Active',

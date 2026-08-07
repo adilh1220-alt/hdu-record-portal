@@ -195,6 +195,8 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
 
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   
   // Input states (unapplied)
   const [startDateInput, setStartDateInput] = useState('');
@@ -1331,6 +1333,16 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
       return 0;
     });
   }, [records, activeUnit, searchTerm, advSearchQuery, appliedStartDate, advStartDate, appliedEndDate, advEndDate, advSeverity, sortConfig]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, advSearchQuery, appliedStartDate, advStartDate, appliedEndDate, advEndDate, advSeverity, activeUnit]);
+
+  const totalPages = Math.ceil(sortedAndFiltered.length / itemsPerPage);
+  const paginatedRecords = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return sortedAndFiltered.slice(startIndex, startIndex + itemsPerPage);
+  }, [sortedAndFiltered, currentPage, itemsPerPage]);
 
   const procedureSuggestions = useMemo(() => {
     return ENDOSCOPY_PROCEDURES.filter(p => 
@@ -3195,7 +3207,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-[10px] font-bold text-slate-700 uppercase">
                   <AnimatePresence initial={false}>
-                    {sortedAndFiltered.map((record) => (
+                    {paginatedRecords.map((record) => (
                       <motion.tr 
                         key={record.id} 
                         layout
@@ -3358,6 +3370,59 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination Controls & Records Summary */}
+            {!loading && sortedAndFiltered.length > 0 && (
+              <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                  Showing <span className="text-slate-900">{Math.min(sortedAndFiltered.length, (currentPage - 1) * itemsPerPage + 1)}</span> to <span className="text-slate-900">{Math.min(sortedAndFiltered.length, currentPage * itemsPerPage)}</span> of <span className="text-slate-900">{sortedAndFiltered.length}</span> Records
+                </div>
+                <div className="flex items-center gap-1">
+                  <button 
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    className={`p-1.5 rounded-lg border transition-all ${currentPage === 1 ? 'bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 active:scale-95 cursor-pointer'}`}
+                    title="Previous Page"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg>
+                  </button>
+                  
+                  <div className="flex items-center gap-1 px-2">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+                      
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => setCurrentPage(pageNum)}
+                          className={`w-7 h-7 rounded-lg text-[10px] font-black transition-all cursor-pointer ${currentPage === pageNum ? 'bg-red-600 text-white shadow-md' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <button 
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages || totalPages === 0}
+                    className={`p-1.5 rounded-lg border transition-all ${currentPage === totalPages || totalPages === 0 ? 'bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 active:scale-95 cursor-pointer'}`}
+                    title="Next Page"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

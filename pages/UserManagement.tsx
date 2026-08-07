@@ -121,6 +121,10 @@ const UserManagement: React.FC = () => {
     setUsers(prev => prev.map(u => u.uid === uid ? { ...u, role: newRole as any } : u));
   };
 
+  const handleUnitChange = (uid: string, newUnit: string) => {
+    setUsers(prev => prev.map(u => u.uid === uid ? { ...u, assignedUnit: (newUnit || undefined) as any } : u));
+  };
+
   const handleUserSort = (key: keyof AuthUser) => {
     let direction: SortDirection = 'asc';
     if (userSortConfig.key === key && userSortConfig.direction === 'asc') {
@@ -220,18 +224,18 @@ const UserManagement: React.FC = () => {
     const user = pendingUpdateUser;
     try {
       setUpdatingId(user.uid);
-      await userService.updateUserRole(user.uid, user.role);
+      await userService.updateUserRoleAndUnit(user.uid, user.role, user.assignedUnit);
       await userService.addAuditLog({
-        action: 'Role Updated',
+        action: 'User Access Updated',
         performedBy: currentUser?.displayName || 'System Admin',
         targetUser: user.displayName || 'Unknown User',
-        details: `Assigned new access level: ${user.role}`
+        details: `Updated role: ${user.role}, Assigned Unit: ${user.assignedUnit || 'Global Access'}`
       });
-      setMessage({ text: `Access level updated for ${user.displayName}`, type: 'success' });
+      setMessage({ text: `Access level and unit permissions updated for ${user.displayName}`, type: 'success' });
       await refreshLogs();
       setTimeout(() => setMessage(null), 3000);
     } catch (error) {
-      setMessage({ text: "Critical error during role update.", type: 'error' });
+      setMessage({ text: "Critical error during user permissions update.", type: 'error' });
     } finally {
       setUpdatingId(null);
       setPendingUpdateUser(null);
@@ -340,6 +344,7 @@ const UserManagement: React.FC = () => {
               <option value="TRANSPLANT">Transplant Bay</option>
               <option value="4th-WARD">Ward</option>
               <option value="WARD5">5th Floor Ward</option>
+              <option value="ENDOSCOPY">Endoscopy Reporting</option>
             </select>
           </div>
           <div className="space-y-1">
@@ -500,9 +505,24 @@ const UserManagement: React.FC = () => {
                         </select>
                       </td>
                       <td className="px-6 py-4">
-                        <span className="text-[9px] font-black text-slate-500 bg-slate-100 px-2 py-1 rounded border border-slate-200 uppercase">
-                          {user.assignedUnit || 'Global Access'}
-                        </span>
+                        <select
+                          value={user.assignedUnit || ''}
+                          disabled={user.status === 'Left' || (user.uid === currentUser?.uid && currentUser?.role === 'Admin')}
+                          onChange={(e) => handleUnitChange(user.uid, e.target.value)}
+                          className={`text-[10px] font-black uppercase border rounded-lg px-2.5 py-1.5 outline-none transition-all bg-white cursor-pointer ${
+                            (user.status === 'Left' || (user.uid === currentUser?.uid && currentUser?.role === 'Admin')) 
+                              ? 'border-slate-100 text-slate-400 bg-slate-50 cursor-not-allowed' 
+                              : 'border-slate-200 focus:ring-2 focus:ring-red-100 hover:border-slate-300'
+                          }`}
+                        >
+                          <option value="">No Specific Unit</option>
+                          <option value="HDU">HDU</option>
+                          <option value="ICU">ICU</option>
+                          <option value="TRANSPLANT">Transplant Bay</option>
+                          <option value="4th-WARD">Ward</option>
+                          <option value="WARD5">5th Floor Ward</option>
+                          <option value="ENDOSCOPY">Endoscopy Reporting</option>
+                        </select>
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end space-x-1 opacity-0 group-hover:opacity-100 transition-all">

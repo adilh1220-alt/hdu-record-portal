@@ -8,7 +8,8 @@ export const UNIT_DETAILS: Record<ClinicalUnit, { label: string, color: string, 
   ICU: { label: 'Intensive Care', color: 'bg-indigo-600', capacity: 8 },
   TRANSPLANT: { label: 'Transplant Bay', color: 'bg-emerald-600', capacity: 6 },
   '4th-WARD': { label: 'Ward', color: 'bg-pink-500', capacity: 20 },
-  WARD5: { label: '5th Floor Ward', color: 'bg-amber-500', capacity: 20 }
+  WARD5: { label: '5th Floor Ward', color: 'bg-amber-500', capacity: 20 },
+  ENDOSCOPY: { label: 'Endoscopy Unit', color: 'bg-teal-600', capacity: 10 }
 };
 
 export const TASK_PRIORITIES: TaskPriority[] = ['High', 'Medium', 'Low'];
