@@ -21,6 +21,7 @@ import { VoiceDictationButton } from '../components/VoiceDictationButton';
 import { EndoscopyReportPreviewSheet } from '../components/EndoscopyReportPreviewSheet';
 import WhatsAppDispatchModal, { COUNTRY_CODES, sanitizeLocalNumber } from '../components/WhatsAppDispatchModal';
 import { ActiveFiltersBar } from '../components/ActiveFiltersBar';
+import { EndoscopyAnalyticsDashboard } from '../components/EndoscopyAnalyticsDashboard';
 
 type SortKey = keyof EndoscopyRecord;
 type SortDirection = 'asc' | 'desc';
@@ -207,6 +208,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
   const [appliedEndDate, setAppliedEndDate] = useState('');
   
   const [isWorkspaceOpen, setIsWorkspaceOpen] = useState(initialWorkspaceOpen);
+  const [mainTab, setMainTab] = useState<'analytics' | 'logs'>('analytics');
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isExitConfirmOpen, setIsExitConfirmOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
@@ -2033,14 +2035,26 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                 <span>Exit Workspace</span>
               </button>
               <div className="h-6 w-px bg-slate-300 hidden sm:block" />
-              <div>
-                <h2 className="text-sm font-semibold tracking-tight text-slate-900 flex items-center space-x-2">
-                  <span>Endoscopy Report</span>
-                  <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse" />
-                </h2>
-                <p className="text-[10px] text-slate-500 font-normal">
-                  Fill clinical findings to preview, print, or archive.
-                </p>
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-gradient-to-br from-teal-500 via-teal-600 to-emerald-600 text-white rounded-xl shadow-md shadow-teal-500/20 ring-2 ring-teal-100 flex items-center justify-center shrink-0">
+                  {/* Gastro/Endoscopy Fiberoptic Scope Icon */}
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 3c-3.5 0-6.5 2.2-7.5 5.5C3.3 12 3 15.5 4.8 19c1.8 3.5 5.2 5 8.7 5 4.5 0 7.5-3 7.5-7.5 0-3.5-2.2-6.5-5.5-7.5" strokeWidth="2" opacity="0.85" />
+                    <circle cx="17.5" cy="6.5" r="3" strokeWidth="2" fill="currentColor" fillOpacity="0.2" />
+                    <circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" />
+                    <path d="M14 9l-4 4" strokeWidth="2.2" />
+                    <path d="M7 6c1.2 1.5 2.8 2.2 4.5 2.2" strokeWidth="1.8" strokeDasharray="2 2" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold tracking-tight text-slate-900 flex items-center space-x-2">
+                    <span>Endoscopy Report</span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse" />
+                  </h2>
+                  <p className="text-[10px] text-slate-500 font-normal">
+                    Fill clinical findings to preview, print, or archive.
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -3878,16 +3892,67 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
 
   return (
     <div className="space-y-6">
-      <header className="space-y-1">
-        <h1 className="text-lg font-black text-slate-900 tracking-wider uppercase border-l-4 border-red-600 pl-3">
-          {activeUnit} Endoscopy
-        </h1>
-        <p className="text-slate-500 text-xs font-semibold pl-4">
-          Clinical archives and reporting for <span className="text-slate-800 font-extrabold">{UNIT_DETAILS[activeUnit].label}</span>.
-        </p>
+      <header className="flex items-center space-x-3.5">
+        <div className="p-2.5 bg-gradient-to-br from-red-600 via-rose-600 to-pink-600 text-white rounded-2xl shadow-md shadow-red-500/20 ring-2 ring-red-100/80 flex items-center justify-center shrink-0">
+          {/* Gastro / Endoscopy Medical Camera Scope Icon */}
+          <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 3c-3.5 0-6.5 2.2-7.5 5.5C3.3 12 3 15.5 4.8 19c1.8 3.5 5.2 5 8.7 5 4.5 0 7.5-3 7.5-7.5 0-3.5-2.2-6.5-5.5-7.5" strokeWidth="2" opacity="0.9" />
+            <circle cx="17.5" cy="6.5" r="3" strokeWidth="2" fill="currentColor" fillOpacity="0.2" />
+            <circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" />
+            <path d="M14 9l-4 4" strokeWidth="2.2" />
+            <path d="M7 6c1.2 1.5 2.8 2.2 4.5 2.2" strokeWidth="1.8" strokeDasharray="2 2" />
+          </svg>
+        </div>
+        <div>
+          <h1 className="text-lg font-black text-slate-900 tracking-wider uppercase flex items-center gap-2">
+            <span>{activeUnit} Endoscopy & Gastro</span>
+            <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse" />
+          </h1>
+          <p className="text-slate-500 text-xs font-semibold">
+            Clinical archives and reporting for <span className="text-slate-800 font-extrabold">{UNIT_DETAILS[activeUnit].label}</span>.
+          </p>
+        </div>
       </header>
 
-      <div className="flex flex-col gap-4">
+      {/* Top View Selector Tabs */}
+      <div className="flex items-center justify-between gap-3 bg-white p-2.5 rounded-2xl border border-slate-200 shadow-sm">
+        <div className="flex items-center space-x-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200/80">
+          <button
+            onClick={() => setMainTab('analytics')}
+            className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+              mainTab === 'analytics'
+                ? 'bg-red-600 text-white shadow-md'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+            }`}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+            </svg>
+            <span>Analytics Dashboard</span>
+          </button>
+          <button
+            onClick={() => setMainTab('logs')}
+            className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+              mainTab === 'logs'
+                ? 'bg-red-600 text-white shadow-md'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+            }`}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm0 5.25h.007v.008H3.75V12zm0 5.25h.007v.008H3.75v-.008z" />
+            </svg>
+            <span>Procedure Logs ({records.length})</span>
+          </button>
+        </div>
+      </div>
+
+      {mainTab === 'analytics' ? (
+        <EndoscopyAnalyticsDashboard
+          records={records}
+          activeUnit={activeUnit}
+        />
+      ) : (
+        <div className="flex flex-col gap-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex flex-1 gap-2">
             <div className="relative flex-1 max-w-md" title={`Search ${activeUnit} Endoscopy logs (Alt+S)`}>
@@ -3977,9 +4042,8 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
             Reset
           </button>
         </div>
-      </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto whitespace-nowrap max-h-[600px] overflow-y-auto">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 space-y-4">
@@ -4089,6 +4153,8 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
           )}
         </div>
       </div>
+      </div>
+      )}
 
       <Modal 
         isOpen={isWorkspaceOpen} 

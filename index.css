@@ -160,3 +160,30 @@ label {
   animation: greenGentlePulse 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
+/* Recharts Tooltip Overrides - Opaque light background and dark text */
+.recharts-default-tooltip {
+  background-color: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.12) !important;
+  color: #0f172a !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  padding: 8px 12px !important;
+}
+
+.recharts-tooltip-label {
+  color: #0284c7 !important;
+  font-weight: 800 !important;
+  margin-bottom: 2px !important;
+  text-transform: uppercase !important;
+}
+
+.recharts-tooltip-item,
+.recharts-tooltip-item-name,
+.recharts-tooltip-item-value,
+.recharts-tooltip-item-separator {
+  color: #0f172a !important;
+  font-weight: 700 !important;
+}
+

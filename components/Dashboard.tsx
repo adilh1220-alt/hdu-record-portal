@@ -333,17 +333,6 @@ const Dashboard: React.FC = () => {
                   tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 700}}
                   allowDecimals={false}
                 />
-                <Tooltip 
-                  cursor={{fill: '#f8fafc'}}
-                  contentStyle={{ 
-                    borderRadius: '12px', 
-                    border: '1px solid #e2e8f0', 
-                    boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
-                    fontSize: '10px',
-                    fontWeight: 'bold',
-                    textTransform: 'uppercase'
-                  }}
-                />
                 <Bar dataKey="count" radius={[6, 6, 0, 0]} barSize={32}>
                   {monthlyAdmissions.map((entry, index) => (
                     <Cell 
@@ -352,33 +341,6 @@ const Dashboard: React.FC = () => {
                     />
                   ))}
                 </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-      </div>
-
-        <div className="bg-white dark:bg-slate-900 p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
-          <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-4">
-            <div>
-              <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-[0.2em]">Most Frequent Procedures</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">Top 5 procedures for {selectedYear}</p>
-            </div>
-          </div>
-          <div id="frequent-procedures-chart" className="w-full h-[350px]">
-            {isMounted && (
-              <ResponsiveContainer width="100%" height={350}>
-                <BarChart data={frequentProcedures} layout="vertical" margin={{ top: 0, right: 30, left: 100, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-                <XAxis type="number" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 700}} />
-                <YAxis 
-                  type="category" 
-                  dataKey="name" 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 700}}
-                  width={90}
-                />
                 <Tooltip 
                   cursor={{fill: '#f8fafc'}}
                   contentStyle={{ 
@@ -386,19 +348,21 @@ const Dashboard: React.FC = () => {
                     border: '1px solid #e2e8f0', 
                     boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
                     fontSize: '10px',
-                    fontWeight: 'bold'
+                    fontWeight: 'bold',
+                    textTransform: 'uppercase',
+                    color: '#0f172a',
+                    backgroundColor: '#ffffff'
                   }}
+                  itemStyle={{ color: '#0f172a', fontWeight: 'bold' }}
+                  labelStyle={{ color: '#64748b', fontWeight: 'bold' }}
                 />
-                <Bar dataKey="count" radius={[0, 6, 6, 0]} barSize={24}>
-                  {frequentProcedures.map((entry, index) => (
-                    <Cell key={`cell-proc-${index}`} fill={COLORS.primary} />
-                  ))}
-                </Bar>
               </BarChart>
             </ResponsiveContainer>
           )}
         </div>
       </div>
+
+
 
         <div className="bg-white dark:bg-slate-900 p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
           <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-4">
@@ -425,17 +389,6 @@ const Dashboard: React.FC = () => {
                   tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 700}}
                   allowDecimals={false}
                 />
-                <Tooltip 
-                  cursor={{fill: '#f8fafc'}}
-                  contentStyle={{ 
-                    borderRadius: '12px', 
-                    border: '1px solid #e2e8f0', 
-                    boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
-                    fontSize: '10px',
-                    fontWeight: 'bold',
-                    textTransform: 'uppercase'
-                  }}
-                />
                 <Bar dataKey="count" radius={[6, 6, 0, 0]} barSize={32}>
                   {monthlyMortality.map((entry, index) => (
                     <Cell 
@@ -444,6 +397,21 @@ const Dashboard: React.FC = () => {
                     />
                   ))}
                 </Bar>
+                <Tooltip 
+                  cursor={{fill: '#f8fafc'}}
+                  contentStyle={{ 
+                    borderRadius: '12px', 
+                    border: '1px solid #e2e8f0', 
+                    boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+                    fontSize: '10px',
+                    fontWeight: 'bold',
+                    textTransform: 'uppercase',
+                    color: '#0f172a',
+                    backgroundColor: '#ffffff'
+                  }}
+                  itemStyle={{ color: '#0f172a', fontWeight: 'bold' }}
+                  labelStyle={{ color: '#64748b', fontWeight: 'bold' }}
+                />
               </BarChart>
             </ResponsiveContainer>
           )}

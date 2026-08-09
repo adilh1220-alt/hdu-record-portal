@@ -18,6 +18,7 @@ import ConfirmModal from './ConfirmModal';
 import ExportModal from './ExportModal';
 import { VoiceDictationButton } from './VoiceDictationButton';
 import { ActiveFiltersBar } from './ActiveFiltersBar';
+import { PatientStatusTimeline } from './PatientStatusTimeline';
 
 interface FormErrors {
   name?: string;
@@ -750,114 +751,19 @@ interface HistoryModalProps {
   isOpen: boolean;
   onClose: () => void;
   patient: Patient | null;
+  onOpenTransferModal?: (patient: Patient) => void;
 }
 
-const HistoryModal: React.FC<HistoryModalProps> = ({ isOpen, onClose, patient }) => {
-  const { currentUser } = useAuth();
+const HistoryModal: React.FC<HistoryModalProps> = ({ isOpen, onClose, patient, onOpenTransferModal }) => {
   if (!patient) return null;
 
-  const currentDisplayName = currentUser?.displayName || currentUser?.email || 'Medical Practitioner';
-  const history = patient.transferHistory || [];
-
-  const handlePrintQuickSummary = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    exportPatientSummaryPDF(patient, currentDisplayName);
-  };
-
-  const formatDateTime = (isoString: string) => {
-    const d = new Date(isoString);
-    if (isNaN(d.getTime())) return isoString;
-    return d.toLocaleString('en-US', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    });
-  };
-
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={`Transfer Timeline: ${patient.name}`} maxWidth="max-w-lg">
-      <div className="space-y-6 text-[10px] uppercase font-bold text-slate-700">
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Patient Details</span>
-            <button
-              onClick={handlePrintQuickSummary}
-              className="text-[8px] bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded font-black uppercase tracking-wider transition-all duration-200 flex items-center gap-1 shadow-sm active:scale-95 animate-fade-in"
-              title="Print Clinical Quick Summary"
-            >
-              <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 1.523a1.125 1.125 0 01-1.12 1.227H7.231c-.615 0-1.114-.507-1.12-1.125L6.34 18m11.32 0h-11.32m11.32 0a3 3 0 003-3V9.75a3 3 0 00-3-3h-11.32a3 3 0 00-3 3V15a3 3 0 003 3m11.32-11.25V4.5a2.25 2.25 0 00-2.25-2.25h-6.75a2.25 2.25 0 00-2.25 2.25v2.25m6.75 0h-6.75M8.25 10.5h.008v.008H8.25V10.5zm.375 0a.375 0 11-.75 0 .375 0 01.75 0z" />
-              </svg>
-              Print Quick Summary
-            </button>
-          </div>
-          <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100 text-[10px] transition-all duration-300 hover:shadow-md hover:shadow-slate-100 hover:bg-white hover:-translate-y-0.5 cursor-pointer">
-            <div>
-              <p className="text-slate-400 font-bold">MR Number</p>
-              <p className="text-slate-900 mt-0.5">{patient.regNo}</p>
-            </div>
-            <div>
-              <p className="text-slate-400 font-bold">Admission Date</p>
-              <p className="text-slate-900 mt-0.5">{new Date(patient.admissionDate).toLocaleDateString()}</p>
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-4">Movement Trail</span>
-          {history.length === 0 ? (
-            <div className="text-center py-8 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
-              <svg className="w-8 h-8 text-slate-300 mx-auto mb-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L17.5 12M21 7.5H7.5" />
-              </svg>
-              <p className="text-[9px] text-slate-400 uppercase tracking-widest">No transfers recorded for this patient.</p>
-              <p className="text-[8px] text-slate-300 tracking-wide mt-1 normal-case">The patient has remained in {UNIT_DETAILS[patient.unit]?.label || patient.unit} since admission.</p>
-            </div>
-          ) : (
-            <div className="relative border-l border-slate-200 ml-3 pl-6 space-y-6">
-              {history.map((log, index) => (
-                <div key={index} className="relative">
-                  <span className="absolute -left-[31px] top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-100 border border-red-200 ring-4 ring-white text-red-600">
-                    <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                    </svg>
-                  </span>
-                  
-                  <div>
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                      <h4 className="text-[10px] font-black text-slate-900 flex items-center gap-1.5">
-                        <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 border border-slate-200">{log.fromUnit}</span>
-                        <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
-                        <span className="bg-red-50 text-red-700 px-1.5 py-0.5 rounded border border-red-100">{log.toUnit}</span>
-                      </h4>
-                      <span className="text-[8px] font-bold text-slate-400 font-mono tracking-wider">{formatDateTime(log.timestamp)}</span>
-                    </div>
-                    
-                    <div className="mt-2 text-[9px] text-slate-600 font-medium normal-case space-y-1 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-                      <p><strong className="uppercase font-bold text-[8px] text-slate-400 tracking-wider">Placement Transition:</strong> {log.fromLocation || 'N/A'} &rarr; {log.toLocation || 'N/A'}</p>
-                      <p><strong className="uppercase font-bold text-[8px] text-slate-400 tracking-wider">Transfer Reason:</strong> {log.reason}</p>
-                      <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wider mt-1">Authorized By: {log.performedBy}</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="pt-2">
-          <button 
-            type="button" 
-            onClick={onClose}
-            className="w-full py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors uppercase text-[10px] tracking-wider"
-          >
-            Close Timeline
-          </button>
-        </div>
-      </div>
+    <Modal isOpen={isOpen} onClose={onClose} title={`Status & Bed Assignment Timeline: ${patient.name}`} maxWidth="max-w-2xl">
+      <PatientStatusTimeline
+        patient={patient}
+        onClose={onClose}
+        onOpenTransferModal={onOpenTransferModal}
+      />
     </Modal>
   );
 };
@@ -1184,6 +1090,7 @@ const PatientTable: React.FC = () => {
   const [printPatient, setPrintPatient] = useState<Patient | null>(null);
 
   const [idToDelete, setIdToDelete] = useState<string | null>(null);
+  const [expandedTimelinePatientId, setExpandedTimelinePatientId] = useState<string | null>(null);
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
   const [patientToArchive, setPatientToArchive] = useState<Patient | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -1860,126 +1767,196 @@ const PatientTable: React.FC = () => {
               <tbody className="divide-y divide-slate-100 text-[10px] font-bold text-slate-700 uppercase relative">
                 <AnimatePresence mode="popLayout" initial={false}>
                   {paginatedPatients.map((p, idx) => (
-                    <motion.tr 
-                      key={p.id} 
-                      layout="position"
-                      initial={{ opacity: 0, y: 12 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -12 }}
-                      transition={{ 
-                        duration: 0.22,
-                        delay: Math.min(idx * 0.02, 0.12),
-                        ease: "easeOut" 
-                      }}
-                      className={`transition-all duration-150 group cursor-pointer border-l-4 border-b border-b-slate-100/80 ${
-                        newlyAddedId === p.id 
-                          ? 'bg-blue-50/80 border-l-blue-500 shadow-sm' 
-                          : 'even:bg-slate-50/40 hover:bg-slate-100/90 hover:border-l-red-500 hover:shadow-sm'
-                      }`}
-                      onClick={() => { setEditingPatient(p); setIsModalOpen(true); }}
-                    >
-                      <td className="px-4 py-3 text-center text-slate-400 font-mono text-[9px]">{p.serialNo}</td>
-                      <td className="px-4 py-3 font-mono text-slate-900 font-bold">{p.regNo}</td>
-                      <td className="px-4 py-3">
-                          <div>
-                              <div className="flex items-center gap-1.5">
-                                  <p className="text-slate-900 font-extrabold uppercase group-hover:text-red-700 transition-colors">{p.name}</p>
-                              </div>
-                              <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">{p.gender}</p>
-                          </div>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                         {(() => {
-                           const triage = p.triagePriority || 'Stable';
-                           let badgeStyle = 'bg-slate-100 text-slate-700 border-slate-200';
-                           let dotStyle = 'bg-slate-400';
-                           
-                           if (triage.toLowerCase().includes('critical') || triage.toLowerCase().includes('red') || triage.toLowerCase().includes('p1')) {
-                             badgeStyle = 'bg-red-50 text-red-700 border-red-200 shadow-xs';
-                             dotStyle = 'bg-red-500 animate-pulse';
-                           } else if (triage.toLowerCase().includes('urgent') || triage.toLowerCase().includes('yellow') || triage.toLowerCase().includes('p2')) {
-                             badgeStyle = 'bg-amber-50 text-amber-700 border-amber-200';
-                             dotStyle = 'bg-amber-500';
-                           } else if (triage.toLowerCase().includes('stable') || triage.toLowerCase().includes('green') || triage.toLowerCase().includes('p3')) {
-                             badgeStyle = 'bg-emerald-50 text-emerald-700 border-emerald-200';
-                             dotStyle = 'bg-emerald-500';
-                           } else if (triage.toLowerCase().includes('elective') || triage.toLowerCase().includes('blue')) {
-                             badgeStyle = 'bg-blue-50 text-blue-700 border-blue-200';
-                             dotStyle = 'bg-blue-500';
-                           }
+                    <React.Fragment key={p.id}>
+                      <motion.tr 
+                        layout="position"
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -12 }}
+                        transition={{ 
+                          duration: 0.22,
+                          delay: Math.min(idx * 0.02, 0.12),
+                          ease: "easeOut" 
+                        }}
+                        className={`transition-all duration-150 group cursor-pointer border-l-4 border-b border-b-slate-100/80 ${
+                          expandedTimelinePatientId === p.id
+                            ? 'bg-indigo-50/70 border-l-indigo-600 shadow-sm'
+                            : newlyAddedId === p.id 
+                            ? 'bg-blue-50/80 border-l-blue-500 shadow-sm' 
+                            : 'even:bg-slate-50/40 hover:bg-slate-100/90 hover:border-l-red-500 hover:shadow-sm'
+                        }`}
+                        onClick={() => { setEditingPatient(p); setIsModalOpen(true); }}
+                      >
+                        <td className="px-4 py-3 text-center text-slate-400 font-mono text-[9px]">{p.serialNo}</td>
+                        <td className="px-4 py-3 font-mono text-slate-900 font-bold">{p.regNo}</td>
+                        <td className="px-4 py-3">
+                            <div>
+                                <div className="flex items-center gap-1.5">
+                                    <p className="text-slate-900 font-extrabold uppercase group-hover:text-red-700 transition-colors">{p.name}</p>
+                                </div>
+                                <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">{p.gender}</p>
+                            </div>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                           {(() => {
+                             const triage = p.triagePriority || 'Stable';
+                             let badgeStyle = 'bg-slate-100 text-slate-700 border-slate-200';
+                             let dotStyle = 'bg-slate-400';
+                             
+                             if (triage.toLowerCase().includes('critical') || triage.toLowerCase().includes('red') || triage.toLowerCase().includes('p1')) {
+                               badgeStyle = 'bg-red-50 text-red-700 border-red-200 shadow-xs';
+                               dotStyle = 'bg-red-500 animate-pulse';
+                             } else if (triage.toLowerCase().includes('urgent') || triage.toLowerCase().includes('yellow') || triage.toLowerCase().includes('p2')) {
+                               badgeStyle = 'bg-amber-50 text-amber-700 border-amber-200';
+                               dotStyle = 'bg-amber-500';
+                             } else if (triage.toLowerCase().includes('stable') || triage.toLowerCase().includes('green') || triage.toLowerCase().includes('p3')) {
+                               badgeStyle = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                               dotStyle = 'bg-emerald-500';
+                             } else if (triage.toLowerCase().includes('elective') || triage.toLowerCase().includes('blue')) {
+                               badgeStyle = 'bg-blue-50 text-blue-700 border-blue-200';
+                               dotStyle = 'bg-blue-500';
+                             }
 
-                           return (
-                             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-extrabold border transition-all ${badgeStyle}`}>
-                               <span className={`w-1.5 h-1.5 rounded-full ${dotStyle}`}></span>
-                               {triage}
-                             </span>
-                           );
-                         })()}
-                      </td>
-                      <td className="px-4 py-3">
-                         <span className="bg-slate-100/90 text-slate-700 px-2.5 py-1 rounded-full text-[9px] font-bold border border-slate-200/80 shadow-2xs">
-                           {p.category}
-                         </span>
-                      </td>
-                      <td className="px-4 py-3">
-                         <span className="inline-flex items-center gap-1 bg-indigo-50/80 text-indigo-700 px-2.5 py-1 rounded-full text-[9px] font-extrabold border border-indigo-100 shadow-2xs">
-                           <span className="w-1 h-1 rounded-full bg-indigo-500"></span>
-                           {p.location || 'N/A'}
-                         </span>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                         <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black border ${
-                           p.codeStatus === 'Full Code' 
-                             ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-                             : 'bg-rose-50 text-rose-700 border-rose-200'
-                         }`}>
-                           <span className={`w-1.5 h-1.5 rounded-full ${p.codeStatus === 'Full Code' ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
-                           {p.codeStatus}
-                         </span>
-                      </td>
-                      <td className="px-4 py-3 truncate font-medium text-slate-800">{p.consultant}</td>
-                      <td className="px-4 py-3 text-center text-slate-600 font-mono text-[9px] font-bold">{formatDate(p.admissionDate)}</td>
-                      <td className="px-4 py-3 text-center">
-                        {!p.dischargeDate ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8px] font-black uppercase bg-emerald-100/80 text-emerald-800 border border-emerald-300/80">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
-                            Active
-                          </span>
-                        ) : (
-                          <span className="font-mono text-slate-500 text-[9px] font-bold">
-                            {formatDate(p.dischargeDate)}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-center font-mono font-extrabold text-red-600 bg-red-50/30 rounded-md">{calculateDynamicLOS(p.admissionDate, p.dischargeDate)}d</td>
-                      <td className="px-4 py-3 text-right">
-                          <div className="flex items-center justify-end space-x-1 opacity-0 group-hover:opacity-100 transition-all">
-                              {canManageRecords && (
-                                  <>
-                                      <button onClick={(e) => { e.stopPropagation(); setEditingPatient(p); setIsModalOpen(true); }} className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all active:scale-95" title="Edit Admission">
-                                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                                      </button>
-                                      <button onClick={(e) => { e.stopPropagation(); setTransferringPatient(p); setIsTransferModalOpen(true); }} className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all active:scale-95" title="Transfer Patient">
-                                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L17.5 12M21 7.5H7.5" /></svg>
-                                      </button>
-                                  </>
-                              )}
-                              <button onClick={(e) => { e.stopPropagation(); setHistoryPatient(p); setIsHistoryModalOpen(true); }} className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all active:scale-95" title="Transfer History Timeline">
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                              </button>
-                              <button onClick={(e) => { e.stopPropagation(); setPrintPatient(p); setIsPrintSummaryModalOpen(true); }} className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-all active:scale-95" title="Print Clinical Summary">
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 1.523a1.125 1.125 0 01-1.12 1.227H7.231c-.615 0-1.114-.507-1.12-1.125L6.34 18m11.32 0h-11.32m11.32 0a3 3 0 003-3V9.75a3 3 0 00-3-3h-11.32a3 3 0 00-3 3V15a3 3 0 003 3m11.32-11.25V4.5a2.25 2.25 0 00-2.25-2.25h-6.75a2.25 2.25 0 00-2.25 2.25v2.25m6.75 0h-6.75M8.25 10.5h.008v.008H8.25V10.5zm.375 0a.375 0 11-.75 0 .375 0 01.75 0z" />
-                                  </svg>
-                              </button>
-                              {isAdmin && (
-                                  <button onClick={(e) => { e.stopPropagation(); setIdToDelete(p.id); setIsConfirmOpen(true); }} className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all active:scale-95" title="Purge Record">
-                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                             return (
+                               <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-extrabold border transition-all ${badgeStyle}`}>
+                                 <span className={`w-1.5 h-1.5 rounded-full ${dotStyle}`}></span>
+                                 {triage}
+                               </span>
+                             );
+                           })()}
+                        </td>
+                        <td className="px-4 py-3">
+                           <span className="bg-slate-100/90 text-slate-700 px-2.5 py-1 rounded-full text-[9px] font-bold border border-slate-200/80 shadow-2xs">
+                             {p.category}
+                           </span>
+                        </td>
+                        <td className="px-4 py-3">
+                           <button
+                             type="button"
+                             onClick={(e) => {
+                               e.stopPropagation();
+                               setExpandedTimelinePatientId(expandedTimelinePatientId === p.id ? null : p.id);
+                             }}
+                             className="inline-flex items-center gap-1 bg-indigo-50/80 hover:bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-full text-[9px] font-extrabold border border-indigo-100 shadow-2xs transition-all cursor-pointer group/loc"
+                             title="Click to view bed placement and transfer timeline"
+                           >
+                             <span className="w-1 h-1 rounded-full bg-indigo-500"></span>
+                             {p.location || 'N/A'}
+                             <svg className="w-2.5 h-2.5 text-indigo-500 ml-0.5 group-hover/loc:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                               <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                             </svg>
+                           </button>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                           <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black border ${
+                             p.codeStatus === 'Full Code' 
+                               ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                               : 'bg-rose-50 text-rose-700 border-rose-200'
+                           }`}>
+                             <span className={`w-1.5 h-1.5 rounded-full ${p.codeStatus === 'Full Code' ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+                             {p.codeStatus}
+                           </span>
+                        </td>
+                        <td className="px-4 py-3 truncate font-medium text-slate-800">{p.consultant}</td>
+                        <td className="px-4 py-3 text-center text-slate-600 font-mono text-[9px] font-bold">{formatDate(p.admissionDate)}</td>
+                        <td className="px-4 py-3 text-center">
+                          {!p.dischargeDate ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8px] font-black uppercase bg-emerald-100/80 text-emerald-800 border border-emerald-300/80">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
+                              Active
+                            </span>
+                          ) : (
+                            <span className="font-mono text-slate-500 text-[9px] font-bold">
+                              {formatDate(p.dischargeDate)}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center font-mono font-extrabold text-red-600 bg-red-50/30 rounded-md">{calculateDynamicLOS(p.admissionDate, p.dischargeDate)}d</td>
+                        <td className="px-4 py-3 text-right">
+                            <div className="flex items-center justify-end space-x-1 opacity-0 group-hover:opacity-100 transition-all">
+                                {canManageRecords && (
+                                    <>
+                                        <button onClick={(e) => { e.stopPropagation(); setEditingPatient(p); setIsModalOpen(true); }} className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all active:scale-95" title="Edit Admission">
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                        </button>
+                                        <button onClick={(e) => { e.stopPropagation(); setTransferringPatient(p); setIsTransferModalOpen(true); }} className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all active:scale-95" title="Transfer Patient">
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L17.5 12M21 7.5H7.5" /></svg>
+                                        </button>
+                                    </>
+                                )}
+                                <button 
+                                  onClick={(e) => { 
+                                    e.stopPropagation(); 
+                                    setExpandedTimelinePatientId(expandedTimelinePatientId === p.id ? null : p.id); 
+                                  }} 
+                                  className={`p-1.5 rounded-lg transition-all active:scale-95 ${
+                                    expandedTimelinePatientId === p.id
+                                      ? 'bg-indigo-600 text-white shadow-xs'
+                                      : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'
+                                  }`} 
+                                  title="Toggle Status Timeline"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                </button>
+                                <button onClick={(e) => { e.stopPropagation(); setPrintPatient(p); setIsPrintSummaryModalOpen(true); }} className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-all active:scale-95" title="Print Clinical Summary">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 1.523a1.125 1.125 0 01-1.12 1.227H7.231c-.615 0-1.114-.507-1.12-1.125L6.34 18m11.32 0h-11.32m11.32 0a3 3 0 003-3V9.75a3 3 0 00-3-3h-11.32a3 3 0 00-3 3V15a3 3 0 003 3m11.32-11.25V4.5a2.25 2.25 0 00-2.25-2.25h-6.75a2.25 2.25 0 00-2.25 2.25v2.25m6.75 0h-6.75M8.25 10.5h.008v.008H8.25V10.5zm.375 0a.375 0 11-.75 0 .375 0 01.75 0z" />
+                                    </svg>
+                                </button>
+                                {isAdmin && (
+                                    <button onClick={(e) => { e.stopPropagation(); setIdToDelete(p.id); setIsConfirmOpen(true); }} className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all active:scale-95" title="Purge Record">
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                    </button>
+                                )}
+                            </div>
+                        </td>
+                      </motion.tr>
+                      {expandedTimelinePatientId === p.id && (
+                        <tr key={`timeline-expanded-${p.id}`} className="bg-slate-100/90 border-b-2 border-indigo-200">
+                          <td colSpan={12} className="p-3 sm:p-4">
+                            <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-sm space-y-3">
+                              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                                <div className="flex items-center space-x-2">
+                                  <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-ping"></span>
+                                  <h4 className="text-xs font-black text-slate-900 uppercase tracking-wide">
+                                    Visual Status & Bed Movement Timeline — {p.name} ({p.regNo})
+                                  </h4>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setHistoryPatient(p);
+                                      setIsHistoryModalOpen(true);
+                                    }}
+                                    className="text-[9px] font-black uppercase text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-2.5 py-1 rounded-md transition-colors"
+                                  >
+                                    Modal View
                                   </button>
-                              )}
-                          </div>
-                      </td>
-                    </motion.tr>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setExpandedTimelinePatientId(null);
+                                    }}
+                                    className="text-[10px] font-black uppercase text-slate-400 hover:text-slate-800 px-2.5 py-1 rounded-md hover:bg-slate-100 cursor-pointer transition-colors"
+                                  >
+                                    Close Timeline ✕
+                                  </button>
+                                </div>
+                              </div>
+                              <PatientStatusTimeline
+                                patient={p}
+                                compact={true}
+                                onOpenTransferModal={(pat) => {
+                                  setTransferringPatient(pat);
+                                  setIsTransferModalOpen(true);
+                                }}
+                              />
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                   ))}
                   {paginatedPatients.length === 0 && (
                       <motion.tr
