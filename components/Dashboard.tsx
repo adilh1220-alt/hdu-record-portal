@@ -10,7 +10,7 @@ import { useUnit } from '../contexts/UnitContext';
 const Dashboard: React.FC = () => {
   const { activeUnit } = useUnit();
   const [isMounted, setIsMounted] = useState(false);
-  const [selectedYear, setSelectedYear] = useState(2026);
+  const [selectedYear, setSelectedYear] = useState<number>(() => new Date().getFullYear());
   const [activeCount, setActiveCount] = useState(0);
   const [mortalityCount, setMortalityCount] = useState(0);
   const [lowStockCount, setLowStockCount] = useState(0);
@@ -24,32 +24,33 @@ const Dashboard: React.FC = () => {
 
   const YEAR_OPTIONS = useMemo(() => {
     const years = [];
-    for (let y = 2025; y <= 2040; y++) years.push(y);
-    return years;
+    for (let y = 2026; y <= 2040; y++) {
+      years.push(y);
+    }
+    return years.sort((a, b) => b - a); // descending order (2040 to 2026)
   }, []);
 
   useEffect(() => {
-    const startOfYear = `${selectedYear}-01-01`;
-    const endOfYear = `${selectedYear}-12-31`;
+    const isRecordInSelectedYear = (dateStr?: string) => {
+      if (!dateStr) return false;
+      const d = new Date(dateStr);
+      return !isNaN(d.getFullYear()) && d.getFullYear() === selectedYear;
+    };
 
     const qActive = query(
       collection(db, 'patients'),
       where('unit', '==', activeUnit)
     );
     const unsubActive = onSnapshot(qActive, (snap: any) => {
-        const startOfYear = `${selectedYear}-01-01`;
-        const endOfYear = `${selectedYear}-12-31`;
         const unitDocs = snap.docs.map((d: any) => d.data() as Patient);
         
-        const yearDocs = unitDocs.filter((data: any) => {
-          return data.admissionDate >= startOfYear && data.admissionDate <= endOfYear;
-        });
+        const yearDocs = unitDocs.filter((data: any) => isRecordInSelectedYear(data.admissionDate));
         setActiveCount(yearDocs.length);
 
         const activeNow = unitDocs.filter((data: any) => data.status === 'ACTIVE' || !data.dischargeDate);
         setCurrentActiveCount(activeNow.length);
 
-        const discharged = unitDocs.filter((data: any) => data.admissionDate >= startOfYear && data.admissionDate <= endOfYear && (data.lengthOfStay !== undefined));
+        const discharged = unitDocs.filter((data: any) => isRecordInSelectedYear(data.admissionDate) && (data.lengthOfStay !== undefined));
         if (discharged.length > 0) {
           const totalLOS = discharged.reduce((acc, curr) => acc + (curr.lengthOfStay || 0), 0);
           setAverageLOS(parseFloat((totalLOS / discharged.length).toFixed(1)));
@@ -61,7 +62,9 @@ const Dashboard: React.FC = () => {
         yearDocs.forEach((data: any) => {
           if (data.admissionDate) {
             const date = new Date(data.admissionDate);
-            counts[date.getMonth()]++;
+            if (!isNaN(date.getMonth())) {
+              counts[date.getMonth()]++;
+            }
           }
         });
         setMonthlyAdmissions(MONTHS.map((m, i) => ({ month: m, count: counts[i] })));
@@ -72,11 +75,9 @@ const Dashboard: React.FC = () => {
       where('unit', '==', activeUnit)
     );
     const unsubMortality = onSnapshot(qMortality, (snap: any) => {
-        const startOfYear = `${selectedYear}-01-01`;
-        const endOfYear = `${selectedYear}-12-31`;
         const unitDocs = snap.docs.filter((doc: any) => {
           const data = doc.data();
-          return data.dischargeDate >= startOfYear && data.dischargeDate <= endOfYear;
+          return isRecordInSelectedYear(data.dischargeDate);
         });
         setMortalityCount(unitDocs.length);
         const mCounts = Array(12).fill(0);
@@ -84,7 +85,9 @@ const Dashboard: React.FC = () => {
           const data = doc.data() as Patient;
           if (data.dischargeDate) {
             const date = new Date(data.dischargeDate);
-            mCounts[date.getMonth()]++;
+            if (!isNaN(date.getMonth())) {
+              mCounts[date.getMonth()]++;
+            }
           }
         });
         setMonthlyMortality(MONTHS.map((m, i) => ({ month: m, count: mCounts[i] })));
@@ -106,11 +109,9 @@ const Dashboard: React.FC = () => {
       where('referringUnit', '==', activeUnit)
     );
     const unsubEndoscopy = onSnapshot(qEndoscopy, (snap: any) => {
-      const startOfYear = `${selectedYear}-01-01`;
-      const endOfYear = `${selectedYear}-12-31`;
       const unitDocs = snap.docs
         .map((doc: any) => doc.data() as EndoscopyRecord)
-        .filter(r => r.date >= startOfYear && r.date <= endOfYear);
+        .filter(r => isRecordInSelectedYear(r.date));
       
       const counts: Record<string, number> = {};
       unitDocs.forEach(r => {

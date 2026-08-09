@@ -122,11 +122,12 @@ export const EndoscopyAnalyticsDashboard: React.FC<EndoscopyAnalyticsDashboardPr
   const [selectedDoctor, setSelectedDoctor] = useState<string>('all');
   const [activePieIndex, setActivePieIndex] = useState<number | undefined>(undefined);
 
-  // Extract unique available years from records
+  // Extract available years list covering 2026 to 2040 plus any record dates
   const availableYears = useMemo(() => {
     const set = new Set<string>();
-    const currentYr = new Date().getFullYear().toString();
-    set.add(currentYr);
+    for (let y = 2026; y <= 2040; y++) {
+      set.add(y.toString());
+    }
     records.forEach(r => {
       if (r.date) {
         const d = new Date(r.date);
@@ -511,7 +512,7 @@ export const EndoscopyAnalyticsDashboard: React.FC<EndoscopyAnalyticsDashboardPr
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  {tf === 'all' ? 'All Time' : tf === 'ytd' ? 'YTD 2026' : tf === '6m' ? 'Last 6 Mo' : 'Last 3 Mo'}
+                  {tf === 'all' ? 'All Time' : tf === 'ytd' ? `YTD ${new Date().getFullYear()}` : tf === '6m' ? 'Last 6 Mo' : 'Last 3 Mo'}
                 </button>
               ))}
             </div>
@@ -684,12 +685,20 @@ export const EndoscopyAnalyticsDashboard: React.FC<EndoscopyAnalyticsDashboardPr
                 <AreaChart data={monthlyVolumeData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#0d9488" stopOpacity={0.4}/>
+                      <stop offset="5%" stopColor="#0d9488" stopOpacity={0.35}/>
                       <stop offset="95%" stopColor="#0d9488" stopOpacity={0}/>
                     </linearGradient>
                     <linearGradient id="colorUpper" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
+                      <stop offset="5%" stopColor="#6366f1" stopOpacity={0.25}/>
                       <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="colorLower" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.25}/>
+                      <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="colorBroncho" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.25}/>
+                      <stop offset="95%" stopColor="#06b6d4" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -737,6 +746,24 @@ export const EndoscopyAnalyticsDashboard: React.FC<EndoscopyAnalyticsDashboardPr
                     strokeWidth={2}
                     fillOpacity={1} 
                     fill="url(#colorUpper)" 
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="lowerGI" 
+                    name="Lower GI (Colonoscopy)" 
+                    stroke="#f59e0b" 
+                    strokeWidth={2}
+                    fillOpacity={1} 
+                    fill="url(#colorLower)" 
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="bronchoscopy" 
+                    name="Flexible Bronchoscopy" 
+                    stroke="#06b6d4" 
+                    strokeWidth={2}
+                    fillOpacity={1} 
+                    fill="url(#colorBroncho)" 
                   />
                 </AreaChart>
               </ResponsiveContainer>
