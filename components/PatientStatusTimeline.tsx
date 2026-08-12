@@ -50,6 +50,27 @@ export const PatientStatusTimeline: React.FC<PatientStatusTimelineProps> = ({
     });
   };
 
+  const getDurationText = (startIso?: string, endIso?: string) => {
+    if (!startIso || !endIso) return null;
+    const start = new Date(startIso);
+    const end = new Date(endIso);
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return null;
+    const diffMs = end.getTime() - start.getTime();
+    if (diffMs <= 0) return null;
+    const totalMinutes = Math.floor(diffMs / (1000 * 60));
+    const days = Math.floor(totalMinutes / (60 * 24));
+    const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+    const mins = totalMinutes % 60;
+
+    if (days > 0) {
+      return `${days}d ${hours}h stay`;
+    }
+    if (hours > 0) {
+      return `${hours}h ${mins}m stay`;
+    }
+    return `${mins}m stay`;
+  };
+
   const getUnitBadgeColor = (unit: ClinicalUnit | string) => {
     switch (unit) {
       case 'HDU':
@@ -231,10 +252,35 @@ export const PatientStatusTimeline: React.FC<PatientStatusTimelineProps> = ({
           <div className="p-3 bg-amber-50/80 border border-amber-200/80 rounded-xl text-center text-[10px] text-amber-800 font-medium">
             No events match the selected filter tab.
           </div>
+        ) : filteredHistory.length === 0 && history.length === 0 ? (
+          <div className="relative group">
+            {/* Timeline Node Ring */}
+            <span className="absolute -left-[33px] top-1 flex h-5 w-5 items-center justify-center rounded-full bg-slate-300 text-slate-600 ring-4 ring-white shadow-xs">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </span>
+
+            <div className="bg-slate-50/90 p-3.5 rounded-xl border border-dashed border-slate-300 text-slate-600 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-[9px] font-black uppercase tracking-wider text-slate-600 bg-slate-200 px-2 py-0.5 rounded">
+                  Continuous Single Stay
+                </span>
+                <span className="text-[8.5px] font-bold text-slate-400">
+                  {getDurationText(patient.admissionDate, new Date().toISOString()) || 'Active Stay'}
+                </span>
+              </div>
+              <p className="text-[10px] font-medium text-slate-600 pt-0.5">
+                No internal unit transfers or bed reassignments recorded. Patient has remained in initial assigned location <strong className="text-slate-800 font-bold">{initialLocation}</strong> since admission.
+              </p>
+            </div>
+          </div>
         ) : (
           filteredHistory.map((log, index) => {
             const isUnitChange = log.fromUnit !== log.toUnit;
             const isExpanded = expandedIndex === index;
+            const prevIso = index === 0 ? patient.admissionDate : filteredHistory[index - 1].timestamp;
+            const durationBadge = getDurationText(prevIso, log.timestamp);
 
             return (
               <div key={index} className="relative group">
@@ -278,6 +324,12 @@ export const PatientStatusTimeline: React.FC<PatientStatusTimelineProps> = ({
                       ) : (
                         <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase bg-indigo-100 text-indigo-700">
                           Bed Reassignment
+                        </span>
+                      )}
+
+                      {durationBadge && (
+                        <span className="px-1.5 py-0.5 rounded text-[8px] font-extrabold bg-slate-100 text-slate-600 border border-slate-200">
+                          ⏱ {durationBadge}
                         </span>
                       )}
                     </div>

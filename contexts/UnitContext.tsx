@@ -17,10 +17,26 @@ export const UnitProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   useEffect(() => {
-    if (currentUser && !isAdmin && currentUser.assignedUnit) {
-      setActiveUnit(currentUser.assignedUnit);
+    if (!currentUser) {
+      setActiveUnit('HDU');
+      localStorage.removeItem('hdu_active_unit');
+      return;
     }
-  }, [currentUser, isAdmin]);
+
+    if (!isAdmin && currentUser.assignedUnit) {
+      setActiveUnit(currentUser.assignedUnit);
+      localStorage.setItem('hdu_active_unit', currentUser.assignedUnit);
+    } else {
+      const saved = localStorage.getItem('hdu_active_unit') as ClinicalUnit;
+      if (saved) {
+        setActiveUnit(saved);
+      } else {
+        const defaultUnit = currentUser.assignedUnit || 'HDU';
+        setActiveUnit(defaultUnit);
+        localStorage.setItem('hdu_active_unit', defaultUnit);
+      }
+    }
+  }, [currentUser?.uid, isAdmin, currentUser?.assignedUnit]);
 
   const handleSetUnit = (unit: ClinicalUnit) => {
     if (!isAdmin && currentUser?.assignedUnit && unit !== currentUser.assignedUnit) {

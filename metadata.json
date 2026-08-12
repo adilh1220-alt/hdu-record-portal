@@ -1,6 +1,6 @@
 {
   "name": "Record Management Portal",
   "description": "A concise, high-performance clinical recording and reporting application for HDU admissions, endoscopy procedure logs, mortality records, and medical analytics.",
-  "requestFramePermissions": ["microphone"],
+  "requestFramePermissions": ["camera", "microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

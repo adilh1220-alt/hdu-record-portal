@@ -2,13 +2,16 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useUnit } from '../contexts/UnitContext';
+import { useToast } from '../contexts/ToastContext';
 import { CLINICAL_UNITS, UNIT_DETAILS } from '../constants';
 import ConfirmModal from './ConfirmModal';
 import SettingsModal from './SettingsModal';
 import ShortcutsModal from './ShortcutsModal';
+import HeaderLogoModal from './HeaderLogoModal';
 import { ShortcutsOverlay } from './ShortcutsOverlay';
 import { db } from '../services/firebaseConfig';
 import { onSnapshotsInSync } from 'firebase/firestore';
+import { getEffectiveLogoBase64, getLogoSettings, saveLogoSettings, getLogoUrlWithCacheBust } from '../services/pdfService';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -18,6 +21,7 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPrintClick }) => {
+  const { toast } = useToast();
   const [isSidebarOpen, setSidebarOpen] = useState(() => {
     if (typeof window !== 'undefined') {
       return window.innerWidth >= 768;
@@ -27,6 +31,28 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
   const [isLogoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [isSettingsOpen, setSettingsOpen] = useState(false);
   const [isShortcutsOpen, setShortcutsOpen] = useState(false);
+  const [isHeaderLogoOpen, setHeaderLogoOpen] = useState(false);
+  const [sidebarLogo, setSidebarLogo] = useState<string>('');
+
+  React.useEffect(() => {
+    setSidebarLogo(getEffectiveLogoBase64());
+
+    let previousLogo = getEffectiveLogoBase64();
+
+    const handleLogoChange = () => {
+      const currentLogo = getEffectiveLogoBase64();
+      setSidebarLogo(currentLogo);
+
+      if (currentLogo !== previousLogo) {
+        previousLogo = currentLogo;
+        toast.success('Hospital logo uploaded and applied successfully across all reports & sidebar!', 'Logo Uploaded');
+      }
+    };
+    window.addEventListener('hdu_logo_settings_changed', handleLogoChange);
+    return () => {
+      window.removeEventListener('hdu_logo_settings_changed', handleLogoChange);
+    };
+  }, [toast]);
   const { currentUser, logout, isAdmin } = useAuth();
   const { activeUnit, setActiveUnit } = useUnit();
 
@@ -40,6 +66,107 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
   const [isOnline, setIsOnline] = useState(() => typeof navigator !== 'undefined' ? navigator.onLine : true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(new Date());
+
+  // Backend API Connectivity Health & Latency
+  const [apiStatus, setApiStatus] = useState<'online' | 'degraded' | 'offline'>('online');
+  const [apiLatency, setApiLatency] = useState<number | null>(null);
+
+  // User Session Time Remaining (8-hour shift countdown)
+  const SESSION_DURATION_MS = 8 * 60 * 60 * 1000; // 8 Hours Clinical Shift
+  const [sessionStartTime, setSessionStartTime] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('hdu_session_start_time');
+      if (saved) {
+        const parsed = parseInt(saved, 10);
+        if (!isNaN(parsed) && Date.now() - parsed < SESSION_DURATION_MS) {
+          return parsed;
+        }
+      }
+      const now = Date.now();
+      localStorage.setItem('hdu_session_start_time', now.toString());
+      return now;
+    }
+    return Date.now();
+  });
+
+  const [remainingSeconds, setRemainingSeconds] = useState<number>(() => {
+    const elapsedMs = Date.now() - sessionStartTime;
+    return Math.max(0, Math.floor((SESSION_DURATION_MS - elapsedMs) / 1000));
+  });
+
+  const [sessionExtendedNotice, setSessionExtendedNotice] = useState(false);
+
+  // Backend API Health Polling
+  React.useEffect(() => {
+    let isMounted = true;
+    const checkApiHealth = async () => {
+      if (typeof window === 'undefined') return;
+      if (!navigator.onLine) {
+        if (isMounted) {
+          setApiStatus('offline');
+          setApiLatency(null);
+        }
+        return;
+      }
+      try {
+        const startTime = performance.now();
+        const res = await fetch('/api/health', { method: 'GET', cache: 'no-store' });
+        const endTime = performance.now();
+        const latency = Math.round(endTime - startTime);
+        if (res.ok) {
+          if (isMounted) {
+            setApiStatus('online');
+            setApiLatency(latency);
+          }
+        } else {
+          if (isMounted) {
+            setApiStatus('degraded');
+            setApiLatency(latency);
+          }
+        }
+      } catch (err) {
+        if (isMounted) {
+          setApiStatus('offline');
+          setApiLatency(null);
+        }
+      }
+    };
+
+    checkApiHealth();
+    const interval = setInterval(checkApiHealth, 15000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  // Session Time Countdown
+  React.useEffect(() => {
+    const timer = setInterval(() => {
+      const elapsedMs = Date.now() - sessionStartTime;
+      const rem = Math.max(0, Math.floor((SESSION_DURATION_MS - elapsedMs) / 1000));
+      setRemainingSeconds(rem);
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [sessionStartTime]);
+
+  const handleExtendSession = () => {
+    const now = Date.now();
+    setSessionStartTime(now);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('hdu_session_start_time', now.toString());
+    }
+    setSessionExtendedNotice(true);
+    setTimeout(() => setSessionExtendedNotice(false), 2500);
+  };
+
+  const formatTimeRemaining = (seconds: number) => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  };
 
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -215,21 +342,64 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
           }
         `}
       >
-        <div className={`p-6 flex items-center border-b border-slate-100 dark:border-slate-800 ${isSidebarOpen ? 'justify-between' : 'justify-center'}`}>
-          <div className={`flex items-center space-x-2 overflow-hidden ${!isSidebarOpen && 'hidden'}`}>
-            <div className="w-8 h-8 bg-red-600 rounded-md flex items-center justify-center">
-              <span className="text-white font-bold text-xl">+</span>
+        <div className={`p-4 flex flex-col border-b border-slate-100 dark:border-slate-800 gap-2.5`}>
+          <div className={`flex items-center ${isSidebarOpen ? 'justify-between' : 'justify-center'}`}>
+            <div 
+              onClick={() => setHeaderLogoOpen(true)}
+              title="Click to manage institution logo & branding"
+              className={`flex items-center space-x-2.5 overflow-hidden cursor-pointer group hover:opacity-90 transition-all ${!isSidebarOpen && 'hidden'}`}
+            >
+              {sidebarLogo ? (
+                <img 
+                  key={getLogoSettings().updatedAt || Date.now()}
+                  src={getLogoUrlWithCacheBust(sidebarLogo)} 
+                  alt="Hospital Logo" 
+                  style={{ width: '40px', height: 'auto', maxHeight: '40px' }}
+                  className="object-contain drop-shadow-sm group-hover:scale-105 transition-all"
+                />
+              ) : (
+                <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center shrink-0">
+                  <span className="text-white font-bold text-xl">+</span>
+                </div>
+              )}
+              <div className="flex flex-col min-w-0">
+                <span className="text-slate-900 dark:text-slate-100 font-black text-base tracking-tight leading-none truncate">MediLog</span>
+                <span className="text-[9px] font-black uppercase text-red-600 dark:text-red-400 tracking-wider truncate mt-0.5">The Kidney Centre</span>
+              </div>
             </div>
-            <span className="text-slate-900 dark:text-slate-100 font-bold text-xl tracking-tight">MediLog</span>
+
+            {!isSidebarOpen && (
+              <div 
+                onClick={() => setHeaderLogoOpen(true)}
+                title="Click to manage institution logo & branding"
+                className="cursor-pointer group p-1"
+              >
+                {sidebarLogo ? (
+                  <img 
+                    key={getLogoSettings().updatedAt || Date.now()}
+                    src={getLogoUrlWithCacheBust(sidebarLogo)} 
+                    alt="Hospital Logo" 
+                    style={{ width: '36px', height: 'auto', maxHeight: '36px' }}
+                    className="object-contain group-hover:scale-110 transition-all"
+                  />
+                ) : (
+                  <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center shrink-0">
+                    <span className="text-white font-bold text-xl">+</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <button 
+              onClick={() => setSidebarOpen(!isSidebarOpen)} 
+              className="text-slate-400 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-all shrink-0"
+              title={isSidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />
+              </svg>
+            </button>
           </div>
-          <button 
-            onClick={() => setSidebarOpen(!isSidebarOpen)} 
-            className="text-slate-400 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white p-1"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />
-            </svg>
-          </button>
         </div>
 
         {/* Firebase Sync status (shown below branding header) */}
@@ -343,6 +513,23 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
               )}
             </button>
 
+            {/* Header Logo Settings */}
+            <button
+              onClick={() => {
+                setHeaderLogoOpen(true);
+                if (typeof window !== 'undefined' && window.innerWidth < 768) {
+                  setSidebarOpen(false);
+                }
+              }}
+              title="Header Logo Settings"
+              className="w-full flex items-center space-x-3 p-3 rounded-lg transition-all text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-red-600 dark:hover:text-red-500"
+            >
+              <svg className="w-6 h-6 text-red-600 dark:text-red-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              <span className={`${!isSidebarOpen && 'hidden'} font-medium`}>Header Logo Settings</span>
+            </button>
+
             <button
               onClick={() => {
                 setSettingsOpen(true);
@@ -371,20 +558,39 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
               <span className={`${!isSidebarOpen && 'hidden'} font-medium`}>Sign Out</span>
             </button>
             {onPrintClick && (
-              <button
-                onClick={() => {
-                  onPrintClick();
-                  if (typeof window !== 'undefined' && window.innerWidth < 768) {
-                    setSidebarOpen(false);
-                  }
-                }}
-                className="w-full flex items-center space-x-3 p-3 rounded-lg transition-all text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-red-600 dark:hover:text-red-500 mt-2"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                </svg>
-                <span className={`${!isSidebarOpen && 'hidden'} font-medium`}>Print Report</span>
-              </button>
+              <div className="relative group/print mt-2">
+                <button
+                  onClick={() => {
+                    onPrintClick();
+                    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+                      setSidebarOpen(false);
+                    }
+                  }}
+                  title="Print Report (Alt + P)"
+                  className="w-full flex items-center justify-between p-3 rounded-lg transition-all text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-red-600 dark:hover:text-red-500 cursor-pointer"
+                >
+                  <div className="flex items-center space-x-3">
+                    <svg className="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                    </svg>
+                    <span className={`${!isSidebarOpen && 'hidden'} font-medium whitespace-nowrap`}>Print Report</span>
+                  </div>
+                  {isSidebarOpen && (
+                    <kbd className="px-1.5 py-0.5 text-[9px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 rounded group-hover/print:border-red-300 dark:group-hover/print:border-red-900 group-hover/print:text-red-600 dark:group-hover/print:text-red-400 transition-colors">
+                      Alt+P
+                    </kbd>
+                  )}
+                </button>
+
+                {/* Floating hover hint tooltip */}
+                <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 hidden group-hover/print:flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-900 dark:bg-slate-800 text-white text-[10px] font-semibold rounded-lg shadow-xl border border-slate-700/80 pointer-events-none whitespace-nowrap z-50 transition-all">
+                  <span>Quick Print</span>
+                  <span className="text-slate-400">·</span>
+                  <kbd className="px-1.5 py-0.5 bg-slate-800 dark:bg-slate-900 text-red-400 border border-slate-700 text-[9px] font-mono rounded font-black">
+                    Alt + P
+                  </kbd>
+                </div>
+              </div>
             )}
             <button
               onClick={() => {
@@ -467,6 +673,128 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
             </div>
           </div>
           {children}
+
+          {/* Layout Footer & Real-Time Status Bar */}
+          <footer className="mt-10 space-y-3 no-print">
+            {/* Real-time Unobtrusive Status Bar */}
+            <div className="bg-slate-50/90 dark:bg-slate-900/90 border border-slate-200/90 dark:border-slate-800 rounded-xl px-3.5 py-2 flex flex-wrap items-center justify-between gap-2.5 text-[11px] font-medium text-slate-600 dark:text-slate-400 shadow-2xs">
+              {/* Left Group: Real-time Backend API Connectivity & Cloud DB */}
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                {/* Backend API Real-time Health Indicator */}
+                <div 
+                  className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 shadow-2xs cursor-help transition-all hover:border-slate-300 dark:hover:border-slate-600"
+                  title={apiStatus === 'online' ? `Backend API Health: Connected (${apiLatency !== null ? `${apiLatency}ms latency` : 'Active'})` : apiStatus === 'degraded' ? 'Backend API response degraded' : 'Backend API offline'}
+                >
+                  <span className="relative flex h-2 w-2">
+                    {apiStatus === 'online' && (
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    )}
+                    <span className={`relative inline-flex rounded-full h-2 w-2 ${
+                      apiStatus === 'online' ? 'bg-emerald-500' : apiStatus === 'degraded' ? 'bg-amber-500' : 'bg-red-500'
+                    }`}></span>
+                  </span>
+                  <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 flex items-center space-x-1">
+                    <span className="text-slate-400 dark:text-slate-500 font-medium">Backend API:</span>
+                    <span className={apiStatus === 'online' ? 'text-emerald-600 dark:text-emerald-400 font-extrabold' : apiStatus === 'degraded' ? 'text-amber-600 dark:text-amber-400 font-extrabold' : 'text-red-600 dark:text-red-400 font-extrabold'}>
+                      {apiStatus === 'online' ? 'Connected' : apiStatus === 'degraded' ? 'Degraded' : 'Offline'}
+                    </span>
+                  </span>
+                  {apiStatus === 'online' && apiLatency !== null && (
+                    <span className="text-[9px] font-mono font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-900 px-1.5 py-0.2 rounded border border-slate-200/50 dark:border-slate-800">
+                      {apiLatency}ms
+                    </span>
+                  )}
+                </div>
+
+                {/* Cloud Firestore Sync Status */}
+                <div 
+                  className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 shadow-2xs cursor-help"
+                  title={!isOnline ? 'Offline: Local changes cached' : isSyncing ? 'Syncing with Firestore...' : `Cloud DB Ledger: Synced. Last sync: ${lastSyncTime ? lastSyncTime.toLocaleTimeString() : 'Just now'}`}
+                >
+                  <span className="relative flex h-2 w-2">
+                    {isOnline && (
+                      <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                        isSyncing ? 'bg-amber-400' : 'bg-emerald-400'
+                      }`}></span>
+                    )}
+                    <span className={`relative inline-flex rounded-full h-2 w-2 ${
+                      !isOnline ? 'bg-red-500' : isSyncing ? 'bg-amber-500' : 'bg-emerald-500'
+                    }`}></span>
+                  </span>
+                  <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 flex items-center space-x-1">
+                    <span className="text-slate-400 dark:text-slate-500 font-medium">Cloud DB:</span>
+                    <span className={!isOnline ? 'text-red-600 dark:text-red-400 font-extrabold' : isSyncing ? 'text-amber-600 dark:text-amber-400 font-extrabold' : 'text-emerald-600 dark:text-emerald-400 font-extrabold'}>
+                      {!isOnline ? 'Offline' : isSyncing ? 'Syncing...' : 'Synced'}
+                    </span>
+                  </span>
+                </div>
+              </div>
+
+              {/* Right Group: Real-Time Session Timer & Quick Extensions */}
+              <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+                {/* User Session Time Remaining */}
+                <div 
+                  className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-lg border text-[10px] font-mono font-bold transition-all shadow-2xs ${
+                    remainingSeconds < 600
+                      ? 'bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-900 text-red-700 dark:text-red-400 animate-pulse'
+                      : remainingSeconds < 1800
+                        ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-900 text-amber-700 dark:text-amber-400'
+                        : 'bg-white dark:bg-slate-800/80 border-slate-200/80 dark:border-slate-700/80 text-slate-700 dark:text-slate-300'
+                  }`}
+                  title={`Active clinical session countdown for ${currentUser?.displayName || currentUser?.email || 'User'}. Click extend icon to refresh shift timer.`}
+                >
+                  <svg className="w-3 h-3 shrink-0 text-slate-400 dark:text-slate-500" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>
+                    <span className="text-slate-400 dark:text-slate-500 font-normal mr-1">Session Left:</span>
+                    <strong className="font-mono font-black">{formatTimeRemaining(remainingSeconds)}</strong>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleExtendSession}
+                    className="ml-1 p-0.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-all cursor-pointer active:scale-95"
+                    title="Extend Session (+8 Hours Shift Renewal)"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                    </svg>
+                  </button>
+                </div>
+
+                {sessionExtendedNotice && (
+                  <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800 animate-fade-in">
+                    ✓ Extended +8h
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Standard Portal Footer Bar */}
+            <div className="pt-1 flex flex-col sm:flex-row items-center justify-between gap-3 text-slate-400 dark:text-slate-500 text-[11px]">
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0" />
+                <span className="font-semibold text-slate-500 dark:text-slate-400">
+                  MediLog Clinical Portal • {UNIT_DETAILS[activeUnit]?.label || activeUnit}
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setShortcutsOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-[10px] uppercase tracking-wider transition-all border border-slate-200/80 dark:border-slate-700 active:scale-95 cursor-pointer shadow-2xs"
+                  title="Keyboard Shortcuts (Alt+H)"
+                >
+                  <svg className="w-3.5 h-3.5 text-red-600 dark:text-red-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>Help Shortcuts</span>
+                  <kbd className="px-1.5 py-0.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 text-[9px] font-mono rounded text-red-600 dark:text-red-400 font-black">
+                    Alt+H
+                  </kbd>
+                </button>
+              </div>
+            </div>
+          </footer>
         </main>
       </div>
 
@@ -483,6 +811,11 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
       <SettingsModal 
         isOpen={isSettingsOpen}
         onClose={() => setSettingsOpen(false)}
+      />
+
+      <HeaderLogoModal
+        isOpen={isHeaderLogoOpen}
+        onClose={() => setHeaderLogoOpen(false)}
       />
 
       <ShortcutsModal 

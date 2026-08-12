@@ -1,5 +1,6 @@
 import React from 'react';
-import { generateKidneyCentreLogoBase64 } from '../services/pdfService';
+import { getEffectiveLogoBase64, getLogoUrlWithCacheBust, getLogoSettings } from '../services/pdfService';
+import { GastroScopeIcon } from './GastroScopeIcon';
 
 export interface EndoscopyReportPreviewSheetProps {
   formName: string;
@@ -80,8 +81,8 @@ export const EndoscopyReportPreviewSheet: React.FC<EndoscopyReportPreviewSheetPr
 }) => {
   return (
     <div
-      className={`bg-white text-slate-800 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] border border-slate-200 w-full max-w-4xl flex flex-col justify-between relative select-text transition-all duration-300 endoscopy-print-sheet ${
-        isCompactView ? 'p-6 sm:p-9' : 'p-8 sm:p-14'
+      className={`bg-white text-slate-800 shadow-2xl border border-slate-300 w-full max-w-4xl flex flex-col justify-between relative select-text transition-all duration-300 endoscopy-print-sheet rounded-xl my-auto ${
+        isCompactView ? 'p-4 sm:p-6 md:p-8' : 'p-6 sm:p-10 md:p-12'
       }`}
       style={{ minHeight: '297mm' }}
     >
@@ -95,7 +96,8 @@ export const EndoscopyReportPreviewSheet: React.FC<EndoscopyReportPreviewSheetPr
           {/* Left Side: The Kidney Centre logo */}
           <div className="flex-shrink-0">
             <img
-              src={generateKidneyCentreLogoBase64()}
+              key={getLogoSettings().updatedAt || Date.now()}
+              src={getLogoUrlWithCacheBust(getEffectiveLogoBase64())}
               alt="The Kidney Centre"
               className={`w-full h-auto object-contain transition-all ${
                 isCompactView
@@ -220,13 +222,16 @@ export const EndoscopyReportPreviewSheet: React.FC<EndoscopyReportPreviewSheetPr
           isCompactView ? 'px-3 py-1.5' : 'px-4 py-2.5'
         }`}>
           <div className="flex items-center space-x-2.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span>
+            <div className="p-1 bg-red-600/90 text-white rounded shadow-xs flex items-center justify-center">
+              <GastroScopeIcon className="w-4 h-4 text-white" glow />
+            </div>
             <h3 className={`font-black tracking-widest uppercase text-white ${
               isCompactView ? 'text-xs' : 'text-sm sm:text-base'
             }`}>
               {formProcedure ? (formProcedure.toUpperCase().includes('REPORT') ? formProcedure.toUpperCase() : `${formProcedure.toUpperCase()} REPORT`) : 'ENDOSCOPY PROCEDURE REPORT'}
             </h3>
           </div>
+          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse mr-1"></span>
         </div>
 
         {/* Main 2-Column Grid for Text & Image alignment */}
@@ -854,19 +859,19 @@ export const EndoscopyReportPreviewSheet: React.FC<EndoscopyReportPreviewSheetPr
                   ASSESSMENT
                 </h4>
                 <div
-                  className={`bg-slate-50 border-l-4 border-slate-900 rounded-r shadow-sm transition-all ${
-                    isCompactView ? 'px-2.5 py-1' : 'px-3 py-2'
+                  className={`bg-slate-50 border-l-4 border-slate-900 rounded-lg border border-slate-200 shadow-sm transition-all ${
+                    isCompactView ? 'px-3 py-1.5' : 'px-3.5 py-2.5'
                   }`}
                 >
                   <p
-                    className={`text-slate-950 leading-relaxed font-extrabold uppercase tracking-wide transition-all ${
+                    className={`text-slate-900 leading-relaxed font-extrabold uppercase tracking-wide transition-all ${
                       isCompactView ? 'text-[8.5px]' : 'text-[10px]'
                     }`}
                   >
                     Diagnosis:
                   </p>
                   <p
-                    className={`text-slate-800 leading-relaxed font-bold transition-all ${
+                    className={`text-slate-900 leading-relaxed font-bold transition-all ${
                       isCompactView ? 'text-[9.5px] mt-0.5' : 'text-xs mt-1'
                     }`}
                   >
@@ -884,13 +889,19 @@ export const EndoscopyReportPreviewSheet: React.FC<EndoscopyReportPreviewSheetPr
                 >
                   RECOMMENDATIONS
                 </h4>
-                <p
-                  className={`text-slate-700 leading-relaxed font-normal whitespace-pre-wrap transition-all ${
-                    isCompactView ? 'text-[9.5px]' : 'text-xs'
+                <div
+                  className={`bg-slate-50 border border-slate-200 rounded-lg shadow-sm transition-all ${
+                    isCompactView ? 'px-3 py-1.5' : 'px-3.5 py-2.5'
                   }`}
                 >
-                  {formRecommendations || 'N/A'}
-                </p>
+                  <p
+                    className={`text-slate-800 leading-relaxed font-semibold whitespace-pre-wrap transition-all ${
+                      isCompactView ? 'text-[9.5px]' : 'text-xs'
+                    }`}
+                  >
+                    {formRecommendations || 'N/A'}
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -938,15 +949,19 @@ export const EndoscopyReportPreviewSheet: React.FC<EndoscopyReportPreviewSheetPr
       </div>
 
       {/* Signatures & Footer sticking to the bottom */}
-      <div className={`border-t border-slate-200 transition-all ${isCompactView ? 'mt-8 pt-4' : 'mt-16 pt-10'}`}>
-        <div className={`flex flex-col sm:flex-row justify-start items-center text-center transition-all ${isCompactView ? 'gap-4' : 'gap-8'}`}>
-          <div className="w-full sm:w-1/3 space-y-1.5">
-            <div className="h-0.5 bg-slate-300 w-full" />
-            <p className={`font-black text-slate-500 uppercase tracking-widest ${isCompactView ? 'text-[8px]' : 'text-[9px]'}`}>
-              Performing Physician Signature
+      <div className={`border-t border-slate-300 transition-all ${isCompactView ? 'mt-6 pt-4' : 'mt-10 pt-6'}`}>
+        <div className="flex flex-col sm:flex-row justify-start items-center text-center gap-6">
+          <div className="w-full sm:w-1/3 max-w-xs space-y-1.5">
+            <div className="h-0.5 bg-slate-400 w-full" />
+            <p className={`font-black text-slate-600 uppercase tracking-widest ${isCompactView ? 'text-[8px]' : 'text-[9px]'}`}>
+              Performing Physician / Endoscopist Signature
             </p>
           </div>
         </div>
+
+        <p className={`font-extrabold text-slate-400 uppercase tracking-widest text-center transition-all ${isCompactView ? 'text-[7.5px] mt-4' : 'text-[8.5px] mt-6'}`}>
+          CONFIDENTIAL CLINICAL DOCUMENT — FOR HEALTHCARE PROFESSIONAL USE ONLY
+        </p>
       </div>
     </div>
   );

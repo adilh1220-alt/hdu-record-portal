@@ -15,6 +15,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { UnitProvider, useUnit } from './contexts/UnitContext';
 import { SearchProvider } from './contexts/SearchContext';
 import { ConfirmProvider } from './contexts/ConfirmContext';
+import { ToastProvider } from './contexts/ToastContext';
 import { AdvancedSearchModal } from './components/AdvancedSearchModal';
 import { UNIT_DETAILS } from './constants';
 import { PrintPreviewModal } from './components/PrintPreviewModal';
@@ -159,7 +160,9 @@ const App: React.FC = () => (
     <UnitProvider>
       <SearchProvider>
         <ConfirmProvider>
-          <MainAppContent />
+          <ToastProvider>
+            <MainAppContent />
+          </ToastProvider>
         </ConfirmProvider>
       </SearchProvider>
     </UnitProvider>

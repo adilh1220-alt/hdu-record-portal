@@ -1,12 +1,18 @@
 // @ts-ignore
 import { initializeApp, getApps, getApp } from 'firebase/app';
-// Fix: Added @ts-ignore to suppress 'no exported member' error for modular auth in this environment
 // @ts-ignore
 import { getAuth } from 'firebase/auth';
 // @ts-ignore
-import { getFirestore, initializeFirestore } from 'firebase/firestore';
+import { getFirestore, initializeFirestore, setLogLevel } from 'firebase/firestore';
 // @ts-ignore
 import { getStorage } from 'firebase/storage';
+
+// Suppress non-fatal Firestore network timeout and offline warning logs in sandboxed environment
+try {
+  setLogLevel('error');
+} catch (e) {
+  // ignore
+}
 
 // Production Firebase Configuration
 const firebaseConfig = {
@@ -21,14 +27,13 @@ const firebaseConfig = {
 
 // Singleton initialization pattern
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-// Fix: Access getAuth directly through named import
 const auth = getAuth(app);
 
-// Use initializeFirestore with experimentalForceLongPolling to ensure reliable connectivity in containerized/sandboxed environments
+// Use initializeFirestore with experimentalAutoDetectLongPolling to handle both WebSocket and long-polling environments smoothly
 let db;
 try {
   db = initializeFirestore(app, {
-    experimentalForceLongPolling: true
+    experimentalAutoDetectLongPolling: true
   });
 } catch (e) {
   db = getFirestore(app);
@@ -37,4 +42,5 @@ try {
 const storage = getStorage(app);
 
 export { auth, db, storage, firebaseConfig };
+
 

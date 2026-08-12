@@ -8,6 +8,7 @@ import { downloadCSV } from '../services/exportService';
 import { useAuth } from '../contexts/AuthContext';
 import { useUnit } from '../contexts/UnitContext';
 import { useSearch } from '../contexts/SearchContext';
+import { useToast } from '../contexts/ToastContext';
 import { activityService } from '../services/activityService';
 import { CONSULTANTS, CATEGORIES, LOCATIONS, CODE_STATUSES, UNIT_DETAILS } from '../constants';
 import Modal from '../components/Modal';
@@ -385,6 +386,7 @@ const MortalityPage: React.FC = () => {
   const prevIdsRef = useRef<Set<string>>(new Set());
   const searchInputRef = useRef<HTMLInputElement>(null);
   const { currentUser, isAdmin, canManageRecords } = useAuth();
+  const { toast } = useToast();
 
   useEffect(() => {
     const handleNewRecord = () => {
@@ -573,6 +575,7 @@ const MortalityPage: React.FC = () => {
         filters: `Unit: ${activeUnit}, Archive: Mortality, Period: ${appliedStartDate || 'Any'} to ${appliedEndDate || 'Any'}` 
       });
     }
+    toast.exportComplete(`Mortality archive ${opts.format || 'report'} exported.`);
   };
 
   const autoSerialNo = useMemo(() => {
@@ -725,33 +728,47 @@ const MortalityPage: React.FC = () => {
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto whitespace-nowrap max-h-[600px] overflow-y-auto">
           {loading ? (
-            <div className="flex flex-col items-center justify-center py-20 space-y-4">
-              <div className="w-10 h-10 border-4 border-slate-100 border-t-slate-800 rounded-full animate-spin"></div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Accessing {activeUnit} Archive...</p>
+            <div className="p-4 space-y-3 animate-pulse min-w-[900px]">
+              <div className="h-10 bg-slate-900 rounded-lg w-full flex items-center px-4 justify-between">
+                <div className="h-3 w-12 bg-slate-700 rounded" />
+                <div className="h-3 w-20 bg-slate-700 rounded" />
+                <div className="h-3 w-36 bg-slate-700 rounded" />
+                <div className="h-3 w-28 bg-slate-700 rounded" />
+                <div className="h-3 w-24 bg-slate-700 rounded" />
+              </div>
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div key={i} className="h-12 bg-slate-50 rounded-lg w-full flex items-center px-4 justify-between border border-slate-100">
+                  <div className="h-4 w-10 bg-slate-200 rounded" />
+                  <div className="h-4 w-20 bg-slate-200 rounded" />
+                  <div className="h-4 w-36 bg-slate-200 rounded" />
+                  <div className="h-4 w-28 bg-slate-200 rounded" />
+                  <div className="h-4 w-24 bg-slate-200 rounded" />
+                </div>
+              ))}
             </div>
           ) : (
             <table className="w-full text-left min-w-[1000px] border-separate border-spacing-0">
-              <thead className="bg-slate-900 text-white sticky top-0 z-10 shadow-md">
-                <tr className="text-[10px] font-black uppercase tracking-widest select-none">
-                  <th className="px-6 py-5 w-20 cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleSort('serialNo')}>
+              <thead className="bg-slate-100 text-slate-700 sticky top-0 z-10 shadow-xs border-b border-slate-200">
+                <tr className="text-[10px] font-black uppercase tracking-widest select-none border-b border-slate-200">
+                  <th className="px-6 py-4 w-20 cursor-pointer hover:bg-slate-200/80 transition-colors border-b border-slate-200" onClick={() => handleSort('serialNo')}>
                     <div className="flex items-center">S.No <SortIndicator column="serialNo" /></div>
                   </th>
-                  <th className="px-6 py-5 w-32 cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleSort('regNo')}>
+                  <th className="px-6 py-4 w-32 cursor-pointer hover:bg-slate-200/80 transition-colors border-b border-slate-200" onClick={() => handleSort('regNo')}>
                     <div className="flex items-center">Reg No <SortIndicator column="regNo" /></div>
                   </th>
-                  <th className="px-6 py-5 cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleSort('name')}>
+                  <th className="px-6 py-4 cursor-pointer hover:bg-slate-200/80 transition-colors border-b border-slate-200" onClick={() => handleSort('name')}>
                     <div className="flex items-center">Patient Identity <SortIndicator column="name" /></div>
                   </th>
-                  <th className="px-6 py-5 w-40 cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleSort('consultant')}>
+                  <th className="px-6 py-4 w-40 cursor-pointer hover:bg-slate-200/80 transition-colors border-b border-slate-200" onClick={() => handleSort('consultant')}>
                     <div className="flex items-center">Consultant <SortIndicator column="consultant" /></div>
                   </th>
-                  <th className="px-6 py-5 w-32 text-center cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleSort('dischargeDate')}>
+                  <th className="px-6 py-4 w-32 text-center cursor-pointer hover:bg-slate-200/80 transition-colors border-b border-slate-200" onClick={() => handleSort('dischargeDate')}>
                     <div className="flex items-center justify-center">Expiry Date <SortIndicator column="dischargeDate" /></div>
                   </th>
-                  <th className="px-6 py-5 w-20 text-center cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleSort('lengthOfStay')}>
+                  <th className="px-6 py-4 w-20 text-center cursor-pointer hover:bg-slate-200/80 transition-colors border-b border-slate-200" onClick={() => handleSort('lengthOfStay')}>
                     <div className="flex items-center justify-center">LOS <SortIndicator column="lengthOfStay" /></div>
                   </th>
-                  <th className="px-6 py-5 w-24 text-right bg-slate-900">Action</th>
+                  <th className="px-6 py-4 w-24 text-right bg-slate-100 border-b border-slate-200">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-[10px] font-bold text-slate-600 uppercase">
@@ -848,6 +865,7 @@ const MortalityPage: React.FC = () => {
             );
             
             setIdToDelete(null); 
+            toast.success(`Deleted mortality record for ${patName}`, 'Record Deleted');
           } 
         }} 
         title="Purge Archive Entry" 

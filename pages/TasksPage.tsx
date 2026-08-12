@@ -6,6 +6,7 @@ import { db } from '../services/firebaseConfig';
 import { ClinicalTask, TaskPriority, ClinicalUnit } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useUnit } from '../contexts/UnitContext';
+import { useToast } from '../contexts/ToastContext';
 import { activityService } from '../services/activityService';
 import { TASK_PRIORITIES, PRIORITY_COLORS, UNIT_DETAILS } from '../constants';
 import Modal from '../components/Modal';
@@ -15,6 +16,7 @@ import { VoiceDictationButton } from '../components/VoiceDictationButton';
 const TasksPage: React.FC = () => {
   const { activeUnit } = useUnit();
   const { currentUser, canManageRecords } = useAuth();
+  const { toast } = useToast();
 
   useEffect(() => {
     const handleNewRecord = () => {
@@ -178,8 +180,10 @@ const TasksPage: React.FC = () => {
       setPriority('Medium');
       setDueDate('');
       setLastSavedTime(null);
+      toast.recordSaved(`Task "${taskTitle}" assigned for ${activeUnit}`);
     } catch (err) {
       console.error("Failed to commit task:", err);
+      toast.error('Failed to create clinical task.');
     } finally {
       setIsSaving(false);
     }
@@ -198,8 +202,10 @@ const TasksPage: React.FC = () => {
         currentUser?.displayName || currentUser?.email || 'Anonymous User',
         activeUnit
       );
+      toast.success(`Task "${task.title}" marked as ${newStatus}`, 'Task Updated');
     } catch (err) {
       console.error("Status Toggle Failed:", err);
+      toast.error('Failed to update task status.');
     }
   };
 
@@ -219,8 +225,10 @@ const TasksPage: React.FC = () => {
       );
       
       setIdToDelete(null);
+      toast.success(`Deleted task "${taskTitle}"`, 'Record Deleted');
     } catch (err) {
       console.error("Purge Failed:", err);
+      toast.error('Failed to delete task.');
     }
   };
 
@@ -295,9 +303,23 @@ const TasksPage: React.FC = () => {
       </header>
 
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-20 gap-4">
-          <div className="w-10 h-10 border-4 border-slate-100 border-t-red-600 rounded-full animate-spin"></div>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Synchronizing Duty Board...</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-pulse">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="h-4 w-24 bg-slate-200 rounded" />
+                <div className="h-5 w-16 bg-slate-100 rounded-full" />
+              </div>
+              <div className="space-y-2">
+                <div className="h-5 w-3/4 bg-slate-200 rounded" />
+                <div className="h-3 w-full bg-slate-100 rounded" />
+              </div>
+              <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
+                <div className="h-3 w-20 bg-slate-100 rounded" />
+                <div className="h-3 w-28 bg-slate-200 rounded" />
+              </div>
+            </div>
+          ))}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

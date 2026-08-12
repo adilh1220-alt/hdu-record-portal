@@ -8,6 +8,7 @@ import { IncidentRecord, ClinicalUnit } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useUnit } from '../contexts/UnitContext';
 import { useSearch } from '../contexts/SearchContext';
+import { useToast } from '../contexts/ToastContext';
 import { activityService } from '../services/activityService';
 import { UNIT_DETAILS, INCIDENT_CATEGORIES, CLINICAL_UNITS } from '../constants';
 import { exportIncidentsPDF } from '../services/pdfService';
@@ -365,6 +366,7 @@ const SafetyIncidentsPage: React.FC = () => {
 
   const prevIdsRef = useRef<Set<string>>(new Set());
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     const handleNewRecord = () => {
@@ -549,8 +551,10 @@ const SafetyIncidentsPage: React.FC = () => {
       
       setIsModalOpen(false);
       setEditingIncident(null);
+      toast.recordSaved(`Safety incident report ${actionLabel.toLowerCase()} for ${incidentData.patientName}`);
     } catch (err) {
       console.error("Error saving incident:", err);
+      toast.error('Failed to save safety incident report.');
     } finally {
       setIsSaving(false);
     }
@@ -575,8 +579,10 @@ const SafetyIncidentsPage: React.FC = () => {
         
         setIdToDelete(null);
         setIsConfirmOpen(false);
+        toast.success(`Deleted incident report for ${patientName}`, 'Record Deleted');
       } catch (err) {
         console.error(err);
+        toast.error('Failed to delete safety incident report.');
       }
     }
   };
@@ -603,6 +609,7 @@ const SafetyIncidentsPage: React.FC = () => {
         filters: `Unit: ${activeUnit}, Period: ${appliedStartDate || 'Any'} to ${appliedEndDate || 'Any'}` 
       });
     }
+    toast.exportComplete(`Safety incident ${opts.format || 'report'} exported.`);
   };
 
   const SortIndicator = ({ column }: { column: keyof IncidentRecord }) => {
@@ -721,51 +728,65 @@ const SafetyIncidentsPage: React.FC = () => {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-auto max-h-[600px] whitespace-nowrap scroll-smooth">
           {loading ? (
-            <div className="flex flex-col items-center justify-center py-20 space-y-4">
-              <div className="w-10 h-10 border-4 border-slate-100 border-t-red-600 rounded-full animate-spin"></div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Synchronizing Safety Database...</p>
+            <div className="p-4 space-y-3 animate-pulse min-w-[1000px]">
+              <div className="h-10 bg-slate-900 rounded-lg w-full flex items-center px-4 justify-between">
+                <div className="h-3 w-12 bg-slate-700 rounded" />
+                <div className="h-3 w-20 bg-slate-700 rounded" />
+                <div className="h-3 w-32 bg-slate-700 rounded" />
+                <div className="h-3 w-28 bg-slate-700 rounded" />
+                <div className="h-3 w-24 bg-slate-700 rounded" />
+              </div>
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div key={i} className="h-12 bg-slate-50 rounded-lg w-full flex items-center px-4 justify-between border border-slate-100">
+                  <div className="h-4 w-10 bg-slate-200 rounded" />
+                  <div className="h-4 w-20 bg-slate-200 rounded" />
+                  <div className="h-4 w-32 bg-slate-200 rounded" />
+                  <div className="h-4 w-28 bg-slate-200 rounded" />
+                  <div className="h-4 w-24 bg-slate-200 rounded" />
+                </div>
+              ))}
             </div>
           ) : (
             <table className="w-full text-left min-w-[1200px] border-separate border-spacing-0">
-              <thead className="bg-slate-900 text-white sticky top-0 z-10 shadow-md">
-                <tr className="text-[10px] font-black uppercase tracking-widest select-none">
+              <thead className="bg-slate-100 text-slate-700 sticky top-0 z-10 shadow-xs border-b border-slate-200">
+                <tr className="text-[10px] font-black uppercase tracking-widest select-none border-b border-slate-200">
                   <th 
-                    className={`px-4 py-4 w-16 text-center cursor-pointer transition-all duration-200 group ${sortConfig.key === 'serialNo' ? 'bg-slate-800 text-red-400' : 'hover:bg-slate-800'}`} 
+                    className={`px-4 py-4 w-16 text-center cursor-pointer transition-all duration-200 group border-b border-slate-200 ${sortConfig.key === 'serialNo' ? 'bg-slate-200 text-red-600' : 'hover:bg-slate-200/80'}`} 
                     onClick={() => handleSort('serialNo')}
                   >
                     <div className="flex items-center justify-center">S.NO <SortIndicator column="serialNo" /></div>
                   </th>
                   <th 
-                    className={`px-4 py-4 w-32 cursor-pointer transition-all duration-200 group ${sortConfig.key === 'incidentDate' ? 'bg-slate-800 text-red-400' : 'hover:bg-slate-800'}`} 
+                    className={`px-4 py-4 w-32 cursor-pointer transition-all duration-200 group border-b border-slate-200 ${sortConfig.key === 'incidentDate' ? 'bg-slate-200 text-red-600' : 'hover:bg-slate-200/80'}`} 
                     onClick={() => handleSort('incidentDate')}
                   >
                     <div className="flex items-center">DATE <SortIndicator column="incidentDate" /></div>
                   </th>
                   <th 
-                    className={`px-4 py-4 cursor-pointer transition-all duration-200 group ${sortConfig.key === 'patientName' ? 'bg-slate-800 text-red-400' : 'hover:bg-slate-800'}`} 
+                    className={`px-4 py-4 cursor-pointer transition-all duration-200 group border-b border-slate-200 ${sortConfig.key === 'patientName' ? 'bg-slate-200 text-red-600' : 'hover:bg-slate-200/80'}`} 
                     onClick={() => handleSort('patientName')}
                   >
                     <div className="flex items-center">PATIENT IDENTITY <SortIndicator column="patientName" /></div>
                   </th>
                   <th 
-                    className={`px-4 py-4 w-40 cursor-pointer transition-all duration-200 group ${sortConfig.key === 'category' ? 'bg-slate-800 text-red-400' : 'hover:bg-slate-800'}`} 
+                    className={`px-4 py-4 w-40 cursor-pointer transition-all duration-200 group border-b border-slate-200 ${sortConfig.key === 'category' ? 'bg-slate-200 text-red-600' : 'hover:bg-slate-200/80'}`} 
                     onClick={() => handleSort('category')}
                   >
                     <div className="flex items-center">CATEGORY <SortIndicator column="category" /></div>
                   </th>
                   <th 
-                    className={`px-4 py-4 w-40 cursor-pointer transition-all duration-200 group ${sortConfig.key === 'unit' ? 'bg-slate-800 text-red-400' : 'hover:bg-slate-800'}`} 
+                    className={`px-4 py-4 w-40 cursor-pointer transition-all duration-200 group border-b border-slate-200 ${sortConfig.key === 'unit' ? 'bg-slate-200 text-red-600' : 'hover:bg-slate-200/80'}`} 
                     onClick={() => handleSort('unit')}
                   >
                     <div className="flex items-center">LOCATION <SortIndicator column="unit" /></div>
                   </th>
                   <th 
-                    className={`px-4 py-4 w-40 cursor-pointer transition-all duration-200 group ${sortConfig.key === 'reportedBy' ? 'bg-slate-800 text-red-400' : 'hover:bg-slate-800'}`} 
+                    className={`px-4 py-4 w-40 cursor-pointer transition-all duration-200 group border-b border-slate-200 ${sortConfig.key === 'reportedBy' ? 'bg-slate-200 text-red-600' : 'hover:bg-slate-200/80'}`} 
                     onClick={() => handleSort('reportedBy')}
                   >
                     <div className="flex items-center">REPORTED BY <SortIndicator column="reportedBy" /></div>
                   </th>
-                  <th className="px-4 py-4 w-28 text-right bg-slate-900">ACTION</th>
+                  <th className="px-4 py-4 w-28 text-right bg-slate-100 text-slate-700 border-b border-slate-200">ACTION</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-[10px] font-bold text-slate-600 uppercase">

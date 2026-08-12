@@ -84,7 +84,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.setItem(`hdu_role_${user.uid}`, role);
       } else {
         setCurrentUser(null);
-        localStorage.removeItem('hdu_session');
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith('hdu_') || key.startsWith('clinical_')) {
+            localStorage.removeItem(key);
+          }
+        });
       }
       setLoading(false);
     });
@@ -105,7 +109,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCurrentUser(null);
     // Clear all HDU related session data
     Object.keys(localStorage).forEach(key => {
-      if (key.startsWith('hdu_')) {
+      if (key.startsWith('hdu_') || key.startsWith('clinical_')) {
         localStorage.removeItem(key);
       }
     });

@@ -11,6 +11,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useUnit } from '../contexts/UnitContext';
 import { useSearch } from '../contexts/SearchContext';
 import { useConfirm } from '../contexts/ConfirmContext';
+import { useToast } from '../contexts/ToastContext';
 import { activityService } from '../services/activityService';
 import { CONSULTANTS, CATEGORIES, LOCATIONS, CODE_STATUSES, TRIAGE_PRIORITIES, TRIAGE_COLORS, CLINICAL_UNITS, UNIT_DETAILS } from '../constants';
 import Modal from './Modal';
@@ -19,6 +20,9 @@ import ExportModal from './ExportModal';
 import { VoiceDictationButton } from './VoiceDictationButton';
 import { ActiveFiltersBar } from './ActiveFiltersBar';
 import { PatientStatusTimeline } from './PatientStatusTimeline';
+import PatientQRCodeModal from './PatientQRCodeModal';
+import QRScannerModal from './QRScannerModal';
+import { QrCode } from 'lucide-react';
 
 interface FormErrors {
   name?: string;
@@ -1063,6 +1067,7 @@ const PatientTable: React.FC = () => {
     scope: advScope, 
     openAdvancedSearch 
   } = useSearch();
+  const { toast } = useToast();
 
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1088,6 +1093,8 @@ const PatientTable: React.FC = () => {
   const [historyPatient, setHistoryPatient] = useState<Patient | null>(null);
   const [isPrintSummaryModalOpen, setIsPrintSummaryModalOpen] = useState(false);
   const [printPatient, setPrintPatient] = useState<Patient | null>(null);
+  const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
+  const [qrModalPatient, setQrModalPatient] = useState<Patient | null>(null);
 
   const [idToDelete, setIdToDelete] = useState<string | null>(null);
   const [expandedTimelinePatientId, setExpandedTimelinePatientId] = useState<string | null>(null);
@@ -1197,6 +1204,7 @@ const PatientTable: React.FC = () => {
         
         setShowUpdateToast(true);
         setTimeout(() => setShowUpdateToast(false), 3000);
+        toast.recordSaved(`Updated record for ${patientData.name} (Reg No: ${patientData.regNo})`);
       } else {
         const newRef = doc(collection(db, 'patients'));
         await setDoc(newRef, {
@@ -1211,11 +1219,13 @@ const PatientTable: React.FC = () => {
           currentUser?.displayName || currentUser?.email || 'Anonymous User',
           activeUnit
         );
+        toast.recordSaved(`Admitted patient ${patientData.name} to ${activeUnit}`);
       }
       setIsModalOpen(false);
       setEditingPatient(null);
     } catch (err) {
       console.error("Clinical Sync Failure:", err);
+      toast.error('Failed to sync patient record with database.');
     } finally {
       setIsSaving(false);
     }
@@ -1261,8 +1271,10 @@ const PatientTable: React.FC = () => {
       
       setShowUpdateToast(true);
       setTimeout(() => setShowUpdateToast(false), 3000);
+      toast.recordSaved(`Transferred patient ${transferringPatient.name} to ${destUnit}`);
     } catch (err) {
       console.error("Failed to transfer patient:", err);
+      toast.error('Transfer failed. Please check network connection.');
     } finally {
       setIsSaving(false);
     }
@@ -1293,6 +1305,7 @@ const PatientTable: React.FC = () => {
         filters: `Unit: ${activeUnit}, Status: Active Census` 
       });
     }
+    toast.exportComplete(`${opts.format || 'Census'} report generated for ${activeUnit}`);
   };
 
   const calculateDynamicLOS = (admissionDate: string, dischargeDate?: string) => {
@@ -1339,6 +1352,7 @@ const PatientTable: React.FC = () => {
 
     setAppliedStartDate(startDateInput);
     setAppliedEndDate(endDateInput);
+    toast.searchUpdated(`Date range filter set: ${startDateInput} to ${endDateInput}`);
   };
 
   const resetFilters = () => {
@@ -1350,6 +1364,7 @@ const PatientTable: React.FC = () => {
     setConsultantFilter('');
     setMrnFilter('');
     setNameFilter('');
+    toast.searchUpdated('All search and filter conditions cleared.');
   };
 
   const isFilterActive = !!(appliedStartDate || appliedEndDate || consultantFilter || mrnFilter || nameFilter || searchTerm);
@@ -1427,16 +1442,25 @@ const PatientTable: React.FC = () => {
       let aValue: any = a[sortConfig.key];
       let bValue: any = b[sortConfig.key];
 
-      if (aValue === undefined || aValue === null) return 1;
-      if (bValue === undefined || bValue === null) return -1;
-
-      if (sortConfig.key === 'serialNo' || sortConfig.key === 'lengthOfStay') {
-        aValue = parseInt(aValue.toString(), 10) || 0;
-        bValue = parseInt(bValue.toString(), 10) || 0;
+      if (sortConfig.key === 'status') {
+        aValue = a.dischargeDate ? 'Discharged' : (a.status || 'Active');
+        bValue = b.dischargeDate ? 'Discharged' : (b.status || 'Active');
+      } else if (sortConfig.key === 'admissionDate' || sortConfig.key === 'dischargeDate') {
+        aValue = aValue ? new Date(aValue).getTime() : 0;
+        bValue = bValue ? new Date(bValue).getTime() : 0;
+      } else if (sortConfig.key === 'lengthOfStay') {
+        aValue = calculateDynamicLOS(a.admissionDate, a.dischargeDate);
+        bValue = calculateDynamicLOS(b.admissionDate, b.dischargeDate);
+      } else if (sortConfig.key === 'serialNo') {
+        aValue = parseInt((aValue || '0').toString(), 10) || 0;
+        bValue = parseInt((bValue || '0').toString(), 10) || 0;
       } else if (typeof aValue === 'string') {
         aValue = aValue.toLowerCase();
         bValue = bValue.toLowerCase();
       }
+
+      if (aValue === undefined || aValue === null) return 1;
+      if (bValue === undefined || bValue === null) return -1;
 
       if (aValue < bValue) {
         return sortConfig.direction === 'asc' ? -1 : 1;
@@ -1560,6 +1584,15 @@ const PatientTable: React.FC = () => {
                 Admission
               </button>
             )}
+            <button 
+              type="button"
+              onClick={() => setIsQRScannerOpen(true)}
+              className="bg-indigo-600 text-white px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-colors shadow-lg active:scale-95 flex items-center gap-2"
+              title="Scan Patient Bedside QR Code using mobile/desktop camera"
+            >
+              <QrCode className="w-4 h-4" />
+              <span>Scan QR</span>
+            </button>
           </div>
           <button 
             onClick={() => setIsExportModalOpen(true)}
@@ -1635,85 +1668,98 @@ const PatientTable: React.FC = () => {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-auto max-h-[600px] whitespace-nowrap scroll-smooth">
           {loading ? (
-            <div className="flex flex-col items-center justify-center py-20 space-y-4">
-              <div className="w-10 h-10 border-4 border-slate-100 border-t-red-600 rounded-full animate-spin"></div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Synchronizing {activeUnit} Census...</p>
+            <div className="p-4 space-y-3 animate-pulse min-w-[1000px]">
+              <div className="h-10 bg-slate-900 rounded-lg w-full flex items-center px-4 justify-between">
+                <div className="h-3 w-12 bg-slate-700 rounded" />
+                <div className="h-3 w-24 bg-slate-700 rounded" />
+                <div className="h-3 w-36 bg-slate-700 rounded" />
+                <div className="h-3 w-28 bg-slate-700 rounded" />
+                <div className="h-3 w-20 bg-slate-700 rounded" />
+                <div className="h-3 w-28 bg-slate-700 rounded" />
+              </div>
+              {[1, 2, 3, 4, 5, 6, 7].map((i) => (
+                <div key={i} className="h-12 bg-slate-50 dark:bg-slate-800/50 rounded-lg w-full flex items-center px-4 justify-between border border-slate-100 dark:border-slate-800">
+                  <div className="h-4 w-10 bg-slate-200 dark:bg-slate-700 rounded" />
+                  <div className="h-4 w-24 bg-slate-200 dark:bg-slate-700 rounded" />
+                  <div className="h-4 w-36 bg-slate-200 dark:bg-slate-700 rounded" />
+                  <div className="h-4 w-28 bg-slate-200 dark:bg-slate-700 rounded" />
+                  <div className="h-4 w-20 bg-slate-200 dark:bg-slate-700 rounded" />
+                  <div className="h-4 w-24 bg-slate-200 dark:bg-slate-700 rounded" />
+                </div>
+              ))}
             </div>
           ) : (
             <table className="w-full text-left min-w-[1200px] border-separate border-spacing-0">
-              <thead className="bg-slate-900 text-white sticky top-0 z-10 shadow-md">
-                <tr className="text-[10px] font-black uppercase tracking-widest select-none">
+              <thead className="bg-slate-100 text-slate-700 sticky top-0 z-10 shadow-xs border-b border-slate-200">
+                <tr className="text-[10px] font-black uppercase tracking-widest select-none border-b border-slate-200">
                   <th 
-                    className={`px-4 py-4 w-16 text-center cursor-pointer transition-all duration-200 group ${sortConfig.key === 'serialNo' ? 'bg-slate-800 text-red-400' : 'hover:bg-slate-800'}`} 
+                    className={`px-4 py-4 w-16 text-center cursor-pointer transition-all duration-200 group border-b border-slate-200 ${sortConfig.key === 'serialNo' ? 'bg-slate-200 text-red-600' : 'hover:bg-slate-200/80'}`} 
                     onClick={() => handleSort('serialNo')}
                   >
                     <div className="flex items-center justify-center">S.No <SortIndicator column="serialNo" /></div>
                   </th>
                   <th 
-                    className={`px-4 py-4 w-32 cursor-pointer transition-all duration-200 group ${sortConfig.key === 'regNo' ? 'bg-slate-800 text-red-400' : 'hover:bg-slate-800'}`} 
+                    className={`px-4 py-4 w-32 cursor-pointer transition-all duration-200 group border-b border-slate-200 ${sortConfig.key === 'regNo' ? 'bg-slate-200 text-red-600' : 'hover:bg-slate-200/80'}`} 
                     onClick={() => handleSort('regNo')}
                   >
                     <div className="flex items-center">Reg No <SortIndicator column="regNo" /></div>
                   </th>
                   <th 
-                    className={`px-4 py-4 cursor-pointer transition-all duration-200 group ${sortConfig.key === 'name' ? 'bg-slate-800 text-red-400' : 'hover:bg-slate-800'}`} 
+                    className={`px-4 py-4 cursor-pointer transition-all duration-200 group border-b border-slate-200 ${sortConfig.key === 'name' ? 'bg-slate-200 text-red-600' : 'hover:bg-slate-200/80'}`} 
                     onClick={() => handleSort('name')}
                   >
                     <div className="flex items-center">Patient Identity <SortIndicator column="name" /></div>
                   </th>
                   <th 
-                    className={`px-4 py-4 w-28 text-center cursor-pointer transition-all duration-200 group ${sortConfig.key === 'triagePriority' ? 'bg-slate-800 text-red-400' : 'hover:bg-slate-800'}`} 
-                    onClick={() => handleSort('triagePriority')}
-                  >
-                    <div className="flex items-center justify-center">Triage <SortIndicator column="triagePriority" /></div>
-                  </th>
-                  <th 
-                    className={`px-4 py-4 w-28 cursor-pointer transition-all duration-200 group ${sortConfig.key === 'category' ? 'bg-slate-800 text-red-400' : 'hover:bg-slate-800'}`} 
+                    className={`px-4 py-4 w-28 cursor-pointer transition-all duration-200 group border-b border-slate-200 ${sortConfig.key === 'category' ? 'bg-slate-200 text-red-600' : 'hover:bg-slate-200/80'}`} 
                     onClick={() => handleSort('category')}
                   >
                     <div className="flex items-center">Category <SortIndicator column="category" /></div>
                   </th>
                   <th 
-                    className={`px-4 py-4 w-24 cursor-pointer transition-all duration-200 group ${sortConfig.key === 'location' ? 'bg-slate-800 text-red-400' : 'hover:bg-slate-800'}`} 
+                    className={`px-4 py-4 w-24 cursor-pointer transition-all duration-200 group border-b border-slate-200 ${sortConfig.key === 'location' ? 'bg-slate-200 text-red-600' : 'hover:bg-slate-200/80'}`} 
                     onClick={() => handleSort('location')}
                   >
                     <div className="flex items-center">Location <SortIndicator column="location" /></div>
                   </th>
                   <th 
-                    className={`px-4 py-4 w-24 text-center cursor-pointer transition-all duration-200 group ${sortConfig.key === 'codeStatus' ? 'bg-slate-800 text-red-400' : 'hover:bg-slate-800'}`} 
+                    className={`px-4 py-4 w-24 text-center cursor-pointer transition-all duration-200 group border-b border-slate-200 ${sortConfig.key === 'codeStatus' ? 'bg-slate-200 text-red-600' : 'hover:bg-slate-200/80'}`} 
                     onClick={() => handleSort('codeStatus')}
                   >
                     <div className="flex items-center justify-center">Code <SortIndicator column="codeStatus" /></div>
                   </th>
                   <th 
-                    className={`px-4 py-4 w-40 cursor-pointer transition-all duration-200 group ${sortConfig.key === 'consultant' ? 'bg-slate-800 text-red-400' : 'hover:bg-slate-800'}`} 
+                    className={`px-4 py-4 w-40 cursor-pointer transition-all duration-200 group border-b border-slate-200 ${sortConfig.key === 'consultant' ? 'bg-slate-200 text-red-600' : 'hover:bg-slate-200/80'}`} 
                     onClick={() => handleSort('consultant')}
                   >
                     <div className="flex items-center">Consultant <SortIndicator column="consultant" /></div>
                   </th>
                   <th 
-                    className={`px-4 py-4 w-32 text-center cursor-pointer transition-all duration-200 group ${sortConfig.key === 'admissionDate' ? 'bg-slate-800 text-red-400' : 'hover:bg-slate-800'}`} 
+                    className={`px-4 py-4 w-32 text-center cursor-pointer transition-all duration-200 group border-b border-slate-200 ${sortConfig.key === 'admissionDate' ? 'bg-slate-200 text-red-600' : 'hover:bg-slate-200/80'}`} 
                     onClick={() => handleSort('admissionDate')}
+                    title="Click to sort by Date of Admission"
                   >
                     <div className="flex items-center justify-center">In Date <SortIndicator column="admissionDate" /></div>
                   </th>
                   <th 
-                    className={`px-4 py-4 w-32 text-center cursor-pointer transition-all duration-200 group ${sortConfig.key === 'dischargeDate' ? 'bg-slate-800 text-red-400' : 'hover:bg-slate-800'}`} 
-                    onClick={() => handleSort('dischargeDate')}
+                    className={`px-4 py-4 w-32 text-center cursor-pointer transition-all duration-200 group border-b border-slate-200 ${sortConfig.key === 'status' || sortConfig.key === 'dischargeDate' ? 'bg-slate-200 text-red-600' : 'hover:bg-slate-200/80'}`} 
+                    onClick={() => handleSort('status')}
+                    title="Click to sort by Patient Status"
                   >
-                    <div className="flex items-center justify-center">Out Date <SortIndicator column="dischargeDate" /></div>
+                    <div className="flex items-center justify-center">Out Date / Status <SortIndicator column="status" /></div>
                   </th>
                   <th 
-                    className={`px-4 py-4 w-24 text-center cursor-pointer transition-all duration-200 group ${sortConfig.key === 'admissionDate' ? 'bg-slate-800 text-red-400' : 'hover:bg-slate-800'}`} 
-                    onClick={() => handleSort('admissionDate')}
+                    className={`px-4 py-4 w-24 text-center cursor-pointer transition-all duration-200 group border-b border-slate-200 ${sortConfig.key === 'lengthOfStay' ? 'bg-slate-200 text-red-600' : 'hover:bg-slate-200/80'}`} 
+                    onClick={() => handleSort('lengthOfStay')}
+                    title="Click to sort by Length of Stay"
                   >
-                    <div className="flex items-center justify-center">Stay <SortIndicator column="admissionDate" /></div>
+                    <div className="flex items-center justify-center">Stay <SortIndicator column="lengthOfStay" /></div>
                   </th>
-                  <th className="px-4 py-4 w-28 text-right bg-slate-900">Action</th>
+                  <th className="px-4 py-4 w-28 text-right bg-slate-100 text-slate-700 border-b border-slate-200">Action</th>
                 </tr>
-                <tr className="bg-slate-800/90 border-t border-slate-700/50">
-                  <th className="px-2 py-1.5 bg-slate-800 text-center"></th>
-                  <th className="px-3 py-1.5 bg-slate-800">
+                <tr className="bg-slate-100/90 border-b border-slate-200">
+                  <th className="px-2 py-1.5 bg-slate-100 border-b border-slate-200 text-center"></th>
+                  <th className="px-3 py-1.5 bg-slate-100 border-b border-slate-200">
                     <div className="relative">
                       <input 
                         type="text"
@@ -1721,19 +1767,19 @@ const PatientTable: React.FC = () => {
                         value={mrnFilter}
                         onChange={(e) => setMrnFilter(e.target.value)}
                         onClick={(e) => e.stopPropagation()}
-                        className="w-full bg-slate-950/60 border border-slate-700/80 rounded px-2 py-1 text-[9px] font-extrabold outline-none text-slate-100 placeholder-slate-500 focus:ring-1 focus:ring-red-400 transition-all uppercase"
+                        className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-[9px] font-extrabold outline-none text-slate-800 placeholder-slate-400 focus:ring-1 focus:ring-red-400 transition-all uppercase"
                       />
                       {mrnFilter && (
                         <button 
                           onClick={(e) => { e.stopPropagation(); setMrnFilter(''); }}
-                          className="absolute right-2 top-1.5 text-slate-400 hover:text-white text-[9px] font-black cursor-pointer"
+                          className="absolute right-2 top-1.5 text-slate-400 hover:text-slate-700 text-[9px] font-black cursor-pointer"
                         >
                           ✕
                         </button>
                       )}
                     </div>
                   </th>
-                  <th className="px-3 py-1.5 bg-slate-800">
+                  <th className="px-3 py-1.5 bg-slate-100 border-b border-slate-200">
                     <div className="relative">
                       <input 
                         type="text"
@@ -1741,31 +1787,28 @@ const PatientTable: React.FC = () => {
                         value={nameFilter}
                         onChange={(e) => setNameFilter(e.target.value)}
                         onClick={(e) => e.stopPropagation()}
-                        className="w-full bg-slate-950/60 border border-slate-700/80 rounded px-2.5 py-1 text-[9px] font-extrabold outline-none text-slate-100 placeholder-slate-500 focus:ring-1 focus:ring-red-400 transition-all uppercase"
+                        className="w-full bg-white border border-slate-300 rounded px-2.5 py-1 text-[9px] font-extrabold outline-none text-slate-800 placeholder-slate-400 focus:ring-1 focus:ring-red-400 transition-all uppercase"
                       />
                       {nameFilter && (
                         <button 
                           onClick={(e) => { e.stopPropagation(); setNameFilter(''); }}
-                          className="absolute right-2 top-1.5 text-slate-400 hover:text-white text-[9px] font-black cursor-pointer"
+                          className="absolute right-2 top-1.5 text-slate-400 hover:text-slate-700 text-[9px] font-black cursor-pointer"
                         >
                           ✕
                         </button>
                       )}
                     </div>
                   </th>
-                  <th className="px-2 py-1.5 bg-slate-800"></th>
-                  <th className="px-2 py-1.5 bg-slate-800"></th>
-                  <th className="px-2 py-1.5 bg-slate-800"></th>
-                  <th className="px-2 py-1.5 bg-slate-800"></th>
-                  <th className="px-2 py-1.5 bg-slate-800"></th>
-                  <th className="px-2 py-1.5 bg-slate-800"></th>
-                  <th className="px-2 py-1.5 bg-slate-800"></th>
-                  <th className="px-2 py-1.5 bg-slate-800"></th>
-                  <th className="px-2 py-1.5 bg-slate-800 text-right"></th>
+                  <th className="px-2 py-1.5 bg-slate-100 border-b border-slate-200"></th>
+                  <th className="px-2 py-1.5 bg-slate-100 border-b border-slate-200"></th>
+                  <th className="px-2 py-1.5 bg-slate-100 border-b border-slate-200"></th>
+                  <th className="px-2 py-1.5 bg-slate-100 border-b border-slate-200"></th>
+                  <th className="px-2 py-1.5 bg-slate-100 border-b border-slate-200"></th>
+                  <th className="px-2 py-1.5 bg-slate-100 border-b border-slate-200"></th>
+                  <th className="px-2 py-1.5 bg-slate-100 border-b border-slate-200 text-right"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-[10px] font-bold text-slate-700 uppercase relative">
-                <AnimatePresence mode="popLayout" initial={false}>
                   {paginatedPatients.map((p, idx) => (
                     <React.Fragment key={p.id}>
                       <motion.tr 
@@ -1796,34 +1839,6 @@ const PatientTable: React.FC = () => {
                                 </div>
                                 <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">{p.gender}</p>
                             </div>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                           {(() => {
-                             const triage = p.triagePriority || 'Stable';
-                             let badgeStyle = 'bg-slate-100 text-slate-700 border-slate-200';
-                             let dotStyle = 'bg-slate-400';
-                             
-                             if (triage.toLowerCase().includes('critical') || triage.toLowerCase().includes('red') || triage.toLowerCase().includes('p1')) {
-                               badgeStyle = 'bg-red-50 text-red-700 border-red-200 shadow-xs';
-                               dotStyle = 'bg-red-500 animate-pulse';
-                             } else if (triage.toLowerCase().includes('urgent') || triage.toLowerCase().includes('yellow') || triage.toLowerCase().includes('p2')) {
-                               badgeStyle = 'bg-amber-50 text-amber-700 border-amber-200';
-                               dotStyle = 'bg-amber-500';
-                             } else if (triage.toLowerCase().includes('stable') || triage.toLowerCase().includes('green') || triage.toLowerCase().includes('p3')) {
-                               badgeStyle = 'bg-emerald-50 text-emerald-700 border-emerald-200';
-                               dotStyle = 'bg-emerald-500';
-                             } else if (triage.toLowerCase().includes('elective') || triage.toLowerCase().includes('blue')) {
-                               badgeStyle = 'bg-blue-50 text-blue-700 border-blue-200';
-                               dotStyle = 'bg-blue-500';
-                             }
-
-                             return (
-                               <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-extrabold border transition-all ${badgeStyle}`}>
-                                 <span className={`w-1.5 h-1.5 rounded-full ${dotStyle}`}></span>
-                                 {triage}
-                               </span>
-                             );
-                           })()}
                         </td>
                         <td className="px-4 py-3">
                            <span className="bg-slate-100/90 text-slate-700 px-2.5 py-1 rounded-full text-[9px] font-bold border border-slate-200/80 shadow-2xs">
@@ -1873,7 +1888,7 @@ const PatientTable: React.FC = () => {
                         </td>
                         <td className="px-4 py-3 text-center font-mono font-extrabold text-red-600 bg-red-50/30 rounded-md">{calculateDynamicLOS(p.admissionDate, p.dischargeDate)}d</td>
                         <td className="px-4 py-3 text-right">
-                            <div className="flex items-center justify-end space-x-1 opacity-0 group-hover:opacity-100 transition-all">
+                            <div className="flex items-center justify-end space-x-1 opacity-80 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
                                 {canManageRecords && (
                                     <>
                                         <button onClick={(e) => { e.stopPropagation(); setEditingPatient(p); setIsModalOpen(true); }} className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all active:scale-95" title="Edit Admission">
@@ -1898,6 +1913,17 @@ const PatientTable: React.FC = () => {
                                 >
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                 </button>
+                                <button 
+                                  type="button"
+                                  onClick={(e) => { 
+                                    e.stopPropagation(); 
+                                    setQrModalPatient(p); 
+                                  }} 
+                                  className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all active:scale-95" 
+                                  title="Generate & View Bedside QR Code"
+                                >
+                                  <QrCode className="w-4 h-4" />
+                                </button>
                                 <button onClick={(e) => { e.stopPropagation(); setPrintPatient(p); setIsPrintSummaryModalOpen(true); }} className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-all active:scale-95" title="Print Clinical Summary">
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 1.523a1.125 1.125 0 01-1.12 1.227H7.231c-.615 0-1.114-.507-1.12-1.125L6.34 18m11.32 0h-11.32m11.32 0a3 3 0 003-3V9.75a3 3 0 00-3-3h-11.32a3 3 0 00-3 3V15a3 3 0 003 3m11.32-11.25V4.5a2.25 2.25 0 00-2.25-2.25h-6.75a2.25 2.25 0 00-2.25 2.25v2.25m6.75 0h-6.75M8.25 10.5h.008v.008H8.25V10.5zm.375 0a.375 0 11-.75 0 .375 0 01.75 0z" />
@@ -1913,7 +1939,7 @@ const PatientTable: React.FC = () => {
                       </motion.tr>
                       {expandedTimelinePatientId === p.id && (
                         <tr key={`timeline-expanded-${p.id}`} className="bg-slate-100/90 border-b-2 border-indigo-200">
-                          <td colSpan={12} className="p-3 sm:p-4">
+                          <td colSpan={11} className="p-3 sm:p-4">
                             <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-sm space-y-3">
                               <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
                                 <div className="flex items-center space-x-2">
@@ -1965,10 +1991,9 @@ const PatientTable: React.FC = () => {
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.2 }}
                       >
-                        <td colSpan={12} className="px-4 py-10 text-center text-slate-400 italic font-medium">No records match your search or date criteria.</td>
+                        <td colSpan={11} className="px-4 py-10 text-center text-slate-400 italic font-medium">No records match your search or date criteria.</td>
                       </motion.tr>
                   )}
-                </AnimatePresence>
               </tbody>
             </table>
           )}
@@ -2102,6 +2127,23 @@ const PatientTable: React.FC = () => {
         isOpen={isPrintSummaryModalOpen}
         onClose={() => { setIsPrintSummaryModalOpen(false); setPrintPatient(null); }}
         patient={printPatient}
+      />
+
+      <PatientQRCodeModal
+        isOpen={!!qrModalPatient}
+        onClose={() => setQrModalPatient(null)}
+        patient={qrModalPatient}
+        type="patient"
+      />
+
+      <QRScannerModal
+        isOpen={isQRScannerOpen}
+        onClose={() => setIsQRScannerOpen(false)}
+        patients={patients}
+        onSelectPatient={(patient) => {
+          setEditingPatient(patient);
+          setIsModalOpen(true);
+        }}
       />
     </div>
   );

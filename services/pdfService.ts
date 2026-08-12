@@ -46,148 +46,270 @@ export const generateKidneyCentreLogoBase64 = (): string => {
   ctx.fillStyle = '#FFFFFF';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Red Logo Badge Container (Taller height, smaller width: x:20, y:12, w:115, h:148)
-  const redColor = '#C81E2B';
-  ctx.fillStyle = redColor;
-  if (typeof ctx.roundRect === 'function') {
-    ctx.beginPath();
-    ctx.roundRect(20, 12, 115, 148, 10);
-    ctx.fill();
-  } else {
-    ctx.fillRect(20, 12, 115, 148);
-  }
+  // Red Logo Badge Container (Official TKC Red Square)
+  const redColor = '#C81C24';
+  const badgeX = 18;
+  const badgeY = 12;
+  const badgeW = 142;
+  const badgeH = 142;
 
-  // --- 1. White Vertical Kidney Silhouette inside Red Badge (Outer Curve LEFT, Hilum RIGHT) ---
+  ctx.fillStyle = redColor;
+  ctx.fillRect(badgeX, badgeY, badgeW, badgeH);
+
+  // --- 1. Left Emblem: White Kidney Outer Silhouette ---
   ctx.fillStyle = '#FFFFFF';
   ctx.beginPath();
-  ctx.moveTo(76, 24); // Top pole
-  // Outer convex curve on the LEFT side
-  ctx.bezierCurveTo(48, 24, 38, 52, 38, 86);  // Upper left outer convex lobe
-  ctx.bezierCurveTo(38, 120, 48, 148, 76, 148); // Lower left outer convex lobe to bottom pole
-  // Hilum notch on the RIGHT side
-  ctx.bezierCurveTo(102, 148, 118, 122, 112, 92); // Lower right hilum notch
-  ctx.bezierCurveTo(104, 86, 104, 72, 112, 66);  // Center hilum indentation
-  ctx.bezierCurveTo(118, 48, 102, 24, 76, 24);   // Upper right hilum notch back to top pole
+  ctx.moveTo(badgeX + 22, badgeY + 128);
+  ctx.bezierCurveTo(badgeX + 8, badgeY + 92, badgeX + 12, badgeY + 28, badgeX + 46, badgeY + 10);
+  ctx.bezierCurveTo(badgeX + 68, badgeY + 2, badgeX + 88, badgeY + 12, badgeX + 90, badgeY + 34);
+  ctx.bezierCurveTo(badgeX + 92, badgeY + 58, badgeX + 88, badgeY + 92, badgeX + 76, badgeY + 112);
+  ctx.bezierCurveTo(badgeX + 68, badgeY + 125, badgeX + 54, badgeY + 138, badgeX + 46, badgeY + 138);
+  ctx.bezierCurveTo(badgeX + 38, badgeY + 138, badgeX + 28, badgeY + 132, badgeX + 22, badgeY + 128);
   ctx.fill();
 
-  // --- 2. Internal Red Renal Pelvis, Calyces & Ureter Tree (Entering from Hilum on RIGHT, Branching LEFT) ---
+  // --- 2. Inner Red Cavity inside Kidney ---
+  ctx.fillStyle = redColor;
+  ctx.beginPath();
+  ctx.moveTo(badgeX + 38, badgeY + 128);
+  ctx.bezierCurveTo(badgeX + 24, badgeY + 92, badgeX + 26, badgeY + 36, badgeX + 48, badgeY + 22);
+  ctx.bezierCurveTo(badgeX + 64, badgeY + 14, badgeX + 76, badgeY + 24, badgeX + 78, badgeY + 40);
+  ctx.bezierCurveTo(badgeX + 80, badgeY + 60, badgeX + 74, badgeY + 86, badgeX + 62, badgeY + 106);
+  ctx.bezierCurveTo(badgeX + 52, badgeY + 118, badgeX + 44, badgeY + 124, badgeX + 38, badgeY + 128);
+  ctx.fill();
+
+  // --- 3. White Internal Calyx Tree / Wave Branches ---
+  ctx.fillStyle = '#FFFFFF';
+  ctx.beginPath();
+  ctx.moveTo(badgeX + 38, badgeY + 128);
+  ctx.bezierCurveTo(badgeX + 35, badgeY + 100, badgeX + 38, badgeY + 70, badgeX + 48, badgeY + 52);
+  // Branch 1 (Upper left)
+  ctx.bezierCurveTo(badgeX + 50, badgeY + 40, badgeX + 58, badgeY + 32, badgeX + 64, badgeY + 36);
+  ctx.bezierCurveTo(badgeX + 68, badgeY + 40, badgeX + 64, badgeY + 48, badgeX + 58, badgeY + 50);
+  // Branch 2 (Upper middle)
+  ctx.bezierCurveTo(badgeX + 66, badgeY + 44, badgeX + 74, badgeY + 40, badgeX + 78, badgeY + 48);
+  ctx.bezierCurveTo(badgeX + 80, badgeY + 54, badgeX + 72, badgeY + 60, badgeX + 64, badgeY + 62);
+  // Branch 3 (Middle)
+  ctx.bezierCurveTo(badgeX + 72, badgeY + 60, badgeX + 80, badgeY + 58, badgeX + 82, badgeY + 66);
+  ctx.bezierCurveTo(badgeX + 82, badgeY + 74, badgeX + 72, badgeY + 78, badgeX + 62, badgeY + 78);
+  // Branch 4 (Lower)
+  ctx.bezierCurveTo(badgeX + 68, badgeY + 80, badgeX + 76, badgeY + 82, badgeX + 74, badgeY + 92);
+  ctx.bezierCurveTo(badgeX + 70, badgeY + 100, badgeX + 58, badgeY + 106, badgeX + 46, badgeY + 128);
+  ctx.closePath();
+  ctx.fill();
+
+  // --- 4. Red Internal Wave Accents ---
   ctx.strokeStyle = redColor;
-  ctx.lineWidth = 3.5;
+  ctx.lineWidth = 2.5;
   ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-
-  // Main renal pelvis trunk entering from hilum notch on the right
   ctx.beginPath();
-  ctx.moveTo(106, 86);
-  ctx.lineTo(88, 86);
+  ctx.moveTo(badgeX + 42, badgeY + 115);
+  ctx.bezierCurveTo(badgeX + 45, badgeY + 85, badgeX + 52, badgeY + 65, badgeX + 62, badgeY + 50);
   ctx.stroke();
 
-  // Ureter curve dropping downwards along the right side of the kidney
+  // --- 5. Right Emblem: White Wing / Crest Symbol in Upper Right of Badge ---
+  ctx.fillStyle = '#FFFFFF';
   ctx.beginPath();
-  ctx.moveTo(98, 86);
-  ctx.bezierCurveTo(102, 104, 106, 122, 108, 134);
-  ctx.stroke();
+  ctx.moveTo(badgeX + 96, badgeY + 22);
+  ctx.lineTo(badgeX + 122, badgeY + 22);
+  ctx.lineTo(badgeX + 122, badgeY + 16);
+  ctx.lineTo(badgeX + 128, badgeY + 16);
+  ctx.lineTo(badgeX + 128, badgeY + 22);
+  ctx.lineTo(badgeX + 134, badgeY + 22);
+  ctx.lineTo(badgeX + 134, badgeY + 28);
+  // Outer scalloped wing contour
+  ctx.bezierCurveTo(badgeX + 136, badgeY + 48, badgeX + 126, badgeY + 68, badgeX + 98, badgeY + 78);
+  // Inner wing curve back to top
+  ctx.bezierCurveTo(badgeX + 112, badgeY + 62, badgeX + 115, badgeY + 44, badgeX + 106, badgeY + 32);
+  ctx.lineTo(badgeX + 96, badgeY + 28);
+  ctx.closePath();
+  ctx.fill();
 
-  // Upper Major Calyx (branching up and left toward upper pole)
+  // Wing inner notch cutouts
+  ctx.fillStyle = redColor;
   ctx.beginPath();
-  ctx.moveTo(88, 86);
-  ctx.bezierCurveTo(78, 72, 68, 56, 58, 44);
-  ctx.stroke();
+  ctx.arc(badgeX + 120, badgeY + 38, 3, 0, Math.PI * 2);
+  ctx.arc(badgeX + 114, badgeY + 52, 3.5, 0, Math.PI * 2);
+  ctx.arc(badgeX + 106, badgeY + 64, 3, 0, Math.PI * 2);
+  ctx.fill();
 
-  // Upper Minor Calyces
-  ctx.beginPath();
-  ctx.moveTo(72, 65);
-  ctx.bezierCurveTo(62, 58, 52, 58, 46, 60);
-  ctx.stroke();
-
-  ctx.beginPath();
-  ctx.moveTo(62, 50);
-  ctx.bezierCurveTo(52, 44, 48, 42, 44, 44);
-  ctx.stroke();
-
-  // Middle Major Calyx (branching straight left)
-  ctx.beginPath();
-  ctx.moveTo(88, 86);
-  ctx.bezierCurveTo(72, 88, 58, 90, 48, 90);
-  ctx.stroke();
-
-  // Middle Minor Calyces
-  ctx.beginPath();
-  ctx.moveTo(70, 88);
-  ctx.bezierCurveTo(60, 78, 52, 76, 46, 78);
-  ctx.stroke();
-
-  ctx.beginPath();
-  ctx.moveTo(68, 89);
-  ctx.bezierCurveTo(58, 100, 50, 102, 45, 100);
-  ctx.stroke();
-
-  // Lower Major Calyx (branching down and left toward lower pole)
-  ctx.beginPath();
-  ctx.moveTo(88, 86);
-  ctx.bezierCurveTo(78, 102, 68, 118, 60, 132);
-  ctx.stroke();
-
-  // Lower Minor Calyces
-  ctx.beginPath();
-  ctx.moveTo(74, 110);
-  ctx.bezierCurveTo(62, 118, 52, 120, 46, 118);
-  ctx.stroke();
-
-  ctx.beginPath();
-  ctx.moveTo(64, 125);
-  ctx.bezierCurveTo(54, 132, 48, 134, 44, 132);
-  ctx.stroke();
-
-  // --- 3. English Stacked Header Text (3-step stacked layout) ---
+  // --- 6. English Stacked Header Text ---
   ctx.fillStyle = '#000000';
-  ctx.font = '900 36px "Arial Black", "Helvetica Neue", Arial, sans-serif';
+  ctx.font = '900 38px "Arial Black", "Helvetica Neue", Arial, sans-serif';
   ctx.textBaseline = 'alphabetic';
   ctx.textAlign = 'left';
-  ctx.fillText('THE', 152, 45);
-  ctx.fillText('KIDNEY', 152, 82);
-  ctx.fillText('CENTRE', 152, 119);
+  ctx.fillText('THE', 178, 48);
+  ctx.fillText('KIDNEY', 178, 88);
+  ctx.fillText('CENTRE', 178, 128);
 
-  ctx.font = 'bold 16px Arial, Helvetica, sans-serif';
-  ctx.fillStyle = '#1E293B';
-  ctx.fillText('POST GRADUATE TRAINING INSTITUTE', 152, 146);
+  ctx.font = 'bold 15px Arial, Helvetica, sans-serif';
+  ctx.fillStyle = '#101828';
+  ctx.fillText('POST GRADUATE TRAINING INSTITUTE', 178, 150);
 
-  // --- 4. Horizontal Separator Line ---
+  // --- 7. Horizontal Separator Line ---
   ctx.strokeStyle = '#000000';
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 2.5;
   ctx.beginPath();
-  ctx.moveTo(15, 170);
-  ctx.lineTo(865, 170);
+  ctx.moveTo(15, 168);
+  ctx.lineTo(865, 168);
   ctx.stroke();
 
-  // --- 5. Single-Line Urdu Calligraphy ---
-  ctx.font = 'bold 28px "Jameel Noori Nastaleeq", "Noto Nastaliq Urdu", "Urdu Typesetting", Arial, sans-serif';
+  // --- 8. Urdu Title Section ---
+  ctx.font = 'bold 24px "Jameel Noori Nastaleeq", "Noto Nastaliq Urdu", "Urdu Typesetting", Arial, sans-serif';
   ctx.textAlign = 'center';
   ctx.fillStyle = '#000000';
-  ctx.fillText('دی کڈنی سینٹر پوسٹ گریجویٹ ٹریننگ انسٹیٹیوٹ', 440, 206);
+  ctx.fillText('دی کڈنی سینٹر پوسٹ گریجوئٹ ٹریننگ انسٹیٹیوٹ', 440, 214, 830);
 
-  // --- 6. Address and Contact Details ---
-  ctx.font = 'bold 19px Arial, Helvetica, sans-serif';
+  // --- 9. Address and Contact Details ---
+  ctx.font = 'bold 16px Arial, Helvetica, sans-serif';
   ctx.fillStyle = '#000000';
-  ctx.fillText('172/N, R.A. Lines, Rafiqi Shaheed Road, Karachi-75530, Pakistan', 440, 242);
-
-  ctx.font = 'bold 19px Arial, Helvetica, sans-serif';
-  ctx.fillText('Tel: (92-21) 35661000-10', 440, 274);
+  ctx.fillText('172/N, R.A. Lines, Rafiqi Shaheed Road, Karachi-75530, Pakistan  |  Tel: (92-21) 35661000-10', 440, 268, 830);
 
   return canvas.toDataURL('image/png');
+};
+
+export interface LogoSettings {
+  useCustomLogo: boolean;
+  customLogoDataUrl: string | null;
+  customLogoBase64?: string;
+  logoUrl?: string;
+  updatedAt?: number;
+  widthMm: number;
+  heightMm: number;
+  scaleHeightMm?: number;
+  sidebarLogoWidthPx?: number;
+  scalePercent: number;
+  align: 'left' | 'center' | 'right';
+  alignment?: 'left' | 'center' | 'right';
+  offsetX: number;
+  offsetY: number;
+  offsetYMm?: number;
+  maintainAspectRatio: boolean;
+}
+
+export const DEFAULT_LOGO_SETTINGS: LogoSettings = {
+  useCustomLogo: false,
+  customLogoDataUrl: null,
+  customLogoBase64: '',
+  logoUrl: '',
+  updatedAt: Date.now(),
+  widthMm: 42,
+  heightMm: 14,
+  scaleHeightMm: 14,
+  sidebarLogoWidthPx: 40,
+  scalePercent: 100,
+  align: 'left',
+  alignment: 'left',
+  offsetX: 0,
+  offsetY: 0,
+  offsetYMm: 0,
+  maintainAspectRatio: true,
+};
+
+export const getLogoSettings = (): LogoSettings => {
+  if (typeof window === 'undefined') return DEFAULT_LOGO_SETTINGS;
+  try {
+    const saved = localStorage.getItem('hdu_logo_settings');
+    if (saved) {
+      return { ...DEFAULT_LOGO_SETTINGS, ...JSON.parse(saved) };
+    }
+  } catch (e) {
+    console.error('Error loading logo settings:', e);
+  }
+  return DEFAULT_LOGO_SETTINGS;
+};
+
+export const saveLogoSettings = (settings: LogoSettings) => {
+  if (typeof window === 'undefined') return;
+  try {
+    const updatedSettings: LogoSettings = {
+      ...settings,
+      updatedAt: Date.now()
+    };
+    localStorage.setItem('hdu_logo_settings', JSON.stringify(updatedSettings));
+    window.dispatchEvent(new Event('hdu_logo_settings_changed'));
+  } catch (e) {
+    console.error('Error saving logo settings:', e);
+  }
+};
+
+export const getEffectiveLogoBase64 = (): string => {
+  const settings = getLogoSettings();
+  const custom = settings.customLogoBase64 || settings.customLogoDataUrl || settings.logoUrl;
+  if (custom) {
+    return custom;
+  }
+  return generateKidneyCentreLogoBase64();
+};
+
+/**
+ * Appends a cache-busting timestamp parameter to the logo URL or data reference
+ * to ensure that PDF views and preview sheets load the newly updated image immediately
+ * without returning cached browser image resources.
+ */
+export const getLogoUrlWithCacheBust = (providedUrl?: string | null): string => {
+  const settings = getLogoSettings();
+  const timestamp = settings.updatedAt || Date.now();
+  const targetUrl = providedUrl || settings.logoUrl || settings.customLogoBase64 || settings.customLogoDataUrl || getEffectiveLogoBase64();
+
+  if (!targetUrl) return '';
+
+  if (targetUrl.startsWith('http://') || targetUrl.startsWith('https://') || targetUrl.startsWith('/')) {
+    const separator = targetUrl.includes('?') ? '&' : '?';
+    return `${targetUrl}${separator}t=${timestamp}`;
+  }
+
+  return targetUrl;
+};
+
+export const calculateLogoRenderParams = (
+  defaultX: number = 14,
+  defaultY: number = 7,
+  defaultWidth: number = 42,
+  defaultHeight: number = 14,
+  pageWidth: number = 210
+) => {
+  const settings = getLogoSettings();
+  const rawLogo = getEffectiveLogoBase64();
+  const logoBase64 = getLogoUrlWithCacheBust(rawLogo);
+  const timestamp = settings.updatedAt || Date.now();
+
+  const align = settings.alignment || settings.align || 'left';
+
+  const targetWidth = defaultWidth;
+  const targetHeight = defaultHeight;
+
+  let calculatedX = defaultX;
+  if (align === 'center') {
+    calculatedX = (pageWidth - targetWidth) / 2;
+  } else if (align === 'right') {
+    calculatedX = pageWidth - targetWidth - defaultX;
+  }
+
+  calculatedX += settings.offsetX || 0;
+  const offsetYVal = settings.offsetYMm !== undefined ? settings.offsetYMm : (settings.offsetY || 0);
+  const calculatedY = defaultY + offsetYVal;
+
+  return {
+    logoBase64,
+    cacheBustTimestamp: timestamp,
+    x: Math.max(0, calculatedX),
+    y: Math.max(0, calculatedY),
+    width: Math.max(5, targetWidth),
+    height: Math.max(5, targetHeight)
+  };
 };
 
 export const exportToPDF = (title: string, headers: string[], rows: any[][], metadata: ReportMetadata) => {
   const doc = new jsPDF('landscape'); 
   
-  // Official Kidney Centre Header Logo
-  const logoBase64 = generateKidneyCentreLogoBase64();
-  if (logoBase64) {
-    doc.addImage(logoBase64, 'PNG', 14, 6, 52, 26);
+  // Header Logo with user adjustments
+  const renderParams = calculateLogoRenderParams(14, 6, 42, 14, 297);
+  if (renderParams.logoBase64) {
+    doc.addImage(renderParams.logoBase64, 'PNG', renderParams.x, renderParams.y, renderParams.width, renderParams.height);
   }
 
   // Report Title & Metadata
-  const startX = logoBase64 ? 70 : 14;
+  const startX = renderParams.logoBase64 ? Math.max(60, renderParams.x + renderParams.width + 4) : 14;
   doc.setFontSize(13);
   doc.setTextColor(15, 23, 42); // Slate-900
   doc.setFont('helvetica', 'bold');
@@ -544,9 +666,9 @@ export const exportPatientSummaryPDF = (patient: Patient, generatedBy: string) =
   const doc = new jsPDF();
   
   // Header Block with Logo
-  const logoBase64 = generateKidneyCentreLogoBase64();
-  if (logoBase64) {
-    doc.addImage(logoBase64, 'PNG', 14, 7, 52, 25);
+  const renderParams = calculateLogoRenderParams(14, 8, 42, 14, 210);
+  if (renderParams.logoBase64) {
+    doc.addImage(renderParams.logoBase64, 'PNG', renderParams.x, renderParams.y, renderParams.width, renderParams.height);
   }
 
   doc.setFillColor(15, 23, 42); // Slate-900
@@ -807,10 +929,10 @@ export const exportSingleEndoscopyReportPDF = async (record: EndoscopyRecord, ge
     }
   }
 
-  // Place the Kidney Centre logo on the left
-  const logoBase64 = generateKidneyCentreLogoBase64();
-  if (logoBase64) {
-    doc.addImage(logoBase64, 'PNG', 14, 6, 80, 28);
+  // Place the Kidney Centre logo on the left with custom settings
+  const renderParams = calculateLogoRenderParams(14, 12, 42, 14, 210);
+  if (renderParams.logoBase64) {
+    doc.addImage(renderParams.logoBase64, 'PNG', renderParams.x, renderParams.y, renderParams.width, renderParams.height);
   }
 
   // Patient / Procedure Metadata on Right (Aligned from x=102 to 196)
@@ -859,7 +981,7 @@ export const exportSingleEndoscopyReportPDF = async (record: EndoscopyRecord, ge
   doc.text(dynamicTitle, 18, 45);
 
   // Procedure Details Metrics Box
-  const boxWidth = hasImages ? 136 : (pageWidth - 28);
+  const boxWidth = pageWidth - 28;
   const labelX = 18;
   const valueX = 62;
   const maxValWidth = boxWidth - (valueX - 14) - 4;
@@ -1004,6 +1126,121 @@ export const exportSingleEndoscopyReportPDF = async (record: EndoscopyRecord, ge
         }
       }
       currentY += isCompact ? 2 : 4; // Final section spacing
+    } else if (title === "ASSESSMENT") {
+      const isPageOne = doc.getNumberOfPages() === 1;
+      const activeWidth = (hasImages && isPageOne) ? 136 : (pageWidth - 28);
+      const boxX = 14;
+      const innerPaddingX = 4;
+      const textWidth = activeWidth - (innerPaddingX * 2);
+
+      const rawDiagnosis = record.diagnosis || "N/A";
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(isCompact ? 7.5 : 8.5);
+      const splitDiag = doc.splitTextToSize(rawDiagnosis, textWidth);
+
+      const labelHeight = isCompact ? 3.5 : 4;
+      const diagLineHeight = isCompact ? 3.5 : 4.2;
+      const topPadding = 3;
+      const bottomPadding = 3;
+      const gapAfterLabel = 1.5;
+
+      const totalBoxHeight = topPadding + labelHeight + gapAfterLabel + (splitDiag.length * diagLineHeight) + bottomPadding;
+
+      if (currentY + totalBoxHeight > pageHeight - 15) {
+        doc.addPage();
+        currentY = 20;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(isCompact ? 7.5 : 9);
+        doc.setTextColor(30, 41, 59);
+        doc.text(title, 14, currentY);
+        doc.setDrawColor(241, 245, 249);
+        doc.line(14, currentY + 1.2, 14 + activeWidth, currentY + 1.2);
+        currentY += isCompact ? 3.5 : 5;
+      }
+
+      const boxY = currentY;
+
+      // Draw background and light border
+      doc.setFillColor(248, 250, 252); // slate-50
+      doc.setDrawColor(203, 213, 225); // slate-300
+      doc.setLineWidth(0.3);
+      doc.roundedRect(boxX, boxY, activeWidth, totalBoxHeight, 2, 2, 'FD');
+
+      // Draw thick left dark accent border bar (slate-900) matching print preview
+      doc.setFillColor(15, 23, 42); // slate-900
+      doc.rect(boxX, boxY, 1.8, totalBoxHeight, 'F');
+
+      let innerY = boxY + topPadding + 2.5;
+
+      // "DIAGNOSIS:" Label
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(isCompact ? 7 : 8);
+      doc.setTextColor(15, 23, 42); // slate-900
+      doc.text("DIAGNOSIS:", boxX + innerPaddingX + 1, innerY);
+
+      innerY += gapAfterLabel + (isCompact ? 2.5 : 3.5);
+
+      // Diagnosis content
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(isCompact ? 7.5 : 8.5);
+      doc.setTextColor(15, 23, 42);
+
+      for (const line of splitDiag) {
+        doc.text(line, boxX + innerPaddingX + 1, innerY);
+        innerY += diagLineHeight;
+      }
+
+      currentY = boxY + totalBoxHeight + (isCompact ? 4 : 6);
+    } else if (title === "RECOMMENDATIONS") {
+      const isPageOne = doc.getNumberOfPages() === 1;
+      const activeWidth = (hasImages && isPageOne) ? 136 : (pageWidth - 28);
+      const boxX = 14;
+      const innerPaddingX = 4;
+      const textWidth = activeWidth - (innerPaddingX * 2);
+
+      const rawRec = record.recommendations || "N/A";
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(isCompact ? 7.5 : 8.5);
+      const splitRec = doc.splitTextToSize(rawRec, textWidth);
+
+      const recLineHeight = isCompact ? 3.5 : 4.2;
+      const topPadding = 3.5;
+      const bottomPadding = 3.5;
+
+      const totalBoxHeight = topPadding + (splitRec.length * recLineHeight) + bottomPadding;
+
+      if (currentY + totalBoxHeight > pageHeight - 15) {
+        doc.addPage();
+        currentY = 20;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(isCompact ? 7.5 : 9);
+        doc.setTextColor(30, 41, 59);
+        doc.text(title, 14, currentY);
+        doc.setDrawColor(241, 245, 249);
+        doc.line(14, currentY + 1.2, 14 + activeWidth, currentY + 1.2);
+        currentY += isCompact ? 3.5 : 5;
+      }
+
+      const boxY = currentY;
+
+      // Draw background and light border
+      doc.setFillColor(248, 250, 252); // slate-50
+      doc.setDrawColor(203, 213, 225); // slate-300
+      doc.setLineWidth(0.3);
+      doc.roundedRect(boxX, boxY, activeWidth, totalBoxHeight, 2, 2, 'FD');
+
+      let innerY = boxY + topPadding + 2.5;
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(isCompact ? 7.5 : 8.5);
+      doc.setTextColor(30, 41, 59); // slate-800
+
+      for (const line of splitRec) {
+        doc.text(line, boxX + innerPaddingX, innerY);
+        innerY += recLineHeight;
+      }
+
+      currentY = boxY + totalBoxHeight + (isCompact ? 4 : 6);
     } else {
       const currentWidth = (hasImages && doc.getNumberOfPages() === 1) ? 136 : (pageWidth - 28);
       const splitLines = doc.splitTextToSize(content || 'No details recorded.', currentWidth);

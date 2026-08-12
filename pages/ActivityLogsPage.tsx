@@ -302,9 +302,17 @@ const ActivityLogsPage: React.FC = () => {
 
         <div className="divide-y divide-slate-100 max-h-[800px] overflow-y-auto">
           {loading ? (
-            <div className="flex flex-col items-center justify-center py-20 gap-4">
-              <div className="w-10 h-10 border-4 border-slate-100 border-t-red-600 rounded-full animate-spin"></div>
-              <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Synchronizing activity database...</p>
+            <div className="p-6 space-y-4 animate-pulse">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="flex items-center gap-4 p-4 rounded-xl border border-slate-100 bg-slate-50">
+                  <div className="w-10 h-10 rounded-xl bg-slate-200 shrink-0" />
+                  <div className="space-y-2 flex-1">
+                    <div className="h-4 w-48 bg-slate-200 rounded" />
+                    <div className="h-3 w-3/4 bg-slate-100 rounded" />
+                  </div>
+                  <div className="h-3 w-20 bg-slate-200 rounded shrink-0" />
+                </div>
+              ))}
             </div>
           ) : filteredActivities.length === 0 ? (
             <div className="text-center py-20 flex flex-col items-center gap-3">

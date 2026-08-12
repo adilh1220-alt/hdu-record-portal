@@ -10,6 +10,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useUnit } from '../contexts/UnitContext';
 import { useSearch } from '../contexts/SearchContext';
 import { useConfirm } from '../contexts/ConfirmContext';
+import { useToast } from '../contexts/ToastContext';
 import { activityService } from '../services/activityService';
 import { ENDOSCOPY_DOCTORS, ENDOSCOPY_PROCEDURES, UNIT_DETAILS, CONSULTANTS, CATEGORIES, CODE_STATUSES, TRIAGE_PRIORITIES, formatProcedureDisplay } from '../constants';
 import Modal from '../components/Modal';
@@ -22,6 +23,7 @@ import { EndoscopyReportPreviewSheet } from '../components/EndoscopyReportPrevie
 import WhatsAppDispatchModal, { COUNTRY_CODES, sanitizeLocalNumber } from '../components/WhatsAppDispatchModal';
 import { ActiveFiltersBar } from '../components/ActiveFiltersBar';
 import { EndoscopyAnalyticsDashboard } from '../components/EndoscopyAnalyticsDashboard';
+import { GastroScopeIcon } from '../components/GastroScopeIcon';
 
 type SortKey = keyof EndoscopyRecord;
 type SortDirection = 'asc' | 'desc';
@@ -367,8 +369,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
     duration?: number;
   }
 
-  const [toasts, setToasts] = useState<Toast[]>([]);
-  const activeToastsRef = useRef<Set<string>>(new Set());
+  const { toast: globalToast } = useToast();
 
   const showToast = (
     message: string, 
@@ -377,135 +378,18 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
     action?: { label: string; onClick: () => void },
     duration: number = 4000
   ) => {
-    if (activeToastsRef.current.has(message)) {
-      return;
+    if (type === 'success') {
+      globalToast.success(message, title, action, duration);
+    } else if (type === 'error') {
+      globalToast.error(message, title, action, duration);
+    } else if (type === 'warning') {
+      globalToast.warning(message, title, action, duration);
+    } else {
+      globalToast.info(message, title, action, duration);
     }
-    activeToastsRef.current.add(message);
-
-    const id = Math.random().toString(36).substring(2, 9);
-    setToasts((prev) => {
-      if (prev.some((t) => t.message === message)) {
-        return prev;
-      }
-      return [...prev, { id, message, type, title, action, duration }];
-    });
-
-    setTimeout(() => {
-      activeToastsRef.current.delete(message);
-      setToasts((curr) => curr.filter((t) => t.id !== id));
-    }, duration);
   };
 
-  const removeToast = (id: string, message: string) => {
-    activeToastsRef.current.delete(message);
-    setToasts((curr) => curr.filter((t) => t.id !== id));
-  };
-
-  const renderToastContainer = () => (
-    <div className="fixed top-6 right-6 z-[9999] flex flex-col space-y-3 max-w-sm pointer-events-none">
-      <AnimatePresence>
-        {toasts.map((toast) => (
-          <motion.div
-            key={toast.id}
-            initial={{ opacity: 0, y: -20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9, y: -10 }}
-            transition={{ duration: 0.25, ease: "easeOut" }}
-            className="pointer-events-auto bg-slate-900/95 backdrop-blur-md border border-slate-800/80 rounded-xl px-4 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.5)] flex items-center space-x-3 text-slate-200 select-none relative overflow-hidden group min-w-[300px]"
-          >
-            {/* Glow accent */}
-            <div className={`absolute left-0 top-0 bottom-0 w-1 ${
-              toast.type === 'success' ? 'bg-emerald-500' :
-              toast.type === 'error' ? 'bg-red-500' :
-              toast.type === 'warning' ? 'bg-orange-500' : 'bg-blue-500'
-            }`} />
-            
-            {/* Icon */}
-            <div className={`p-1.5 rounded-lg shrink-0 ${
-              toast.type === 'success' ? 'bg-emerald-950/50 text-emerald-400' :
-              toast.type === 'error' ? 'bg-red-950/50 text-red-400' :
-              toast.type === 'warning' ? 'bg-orange-950/50 text-orange-400' : 'bg-blue-950/50 text-blue-400'
-            }`}>
-              {toast.type === 'success' && (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-              )}
-              {toast.type === 'error' && (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              )}
-              {toast.type === 'warning' && (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-              )}
-              {toast.type === 'info' && (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              )}
-            </div>
-            
-            {/* Message */}
-            <div className="flex-1 min-w-[150px]">
-              <p className="text-xs font-black uppercase tracking-wider text-slate-100">
-                {toast.title || (
-                  toast.type === 'success' ? 'Successfully Saved' : 
-                  toast.type === 'error' ? 'Record Deleted' :
-                  toast.type === 'warning' ? 'Warning' : 'Information'
-                )}
-              </p>
-              <p className="text-[9.5px] font-bold text-slate-300 mt-0.5 uppercase tracking-wide leading-relaxed">
-                {toast.message}
-              </p>
-            </div>
-
-            {/* Action / Undo Button */}
-            {toast.action && (
-              <button
-                onClick={() => {
-                  toast.action?.onClick();
-                  removeToast(toast.id, toast.message);
-                }}
-                className="px-2.5 py-1 bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-950 font-black text-[10px] uppercase tracking-wider rounded-lg shadow-md transition-all flex items-center space-x-1 cursor-pointer shrink-0 border border-amber-300"
-              >
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
-                </svg>
-                <span>{toast.action.label}</span>
-              </button>
-            )}
-            
-            {/* Dismiss Button */}
-            <button
-              onClick={() => removeToast(toast.id, toast.message)}
-              className="p-1 rounded hover:bg-slate-800 text-slate-500 hover:text-slate-300 transition-colors cursor-pointer shrink-0"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-
-            {/* 5-second countdown progress bar for timed actions */}
-            {toast.duration && (
-              <motion.div
-                initial={{ width: "100%" }}
-                animate={{ width: "0%" }}
-                transition={{ duration: toast.duration / 1000, ease: "linear" }}
-                className={`absolute bottom-0 left-0 h-1 ${
-                  toast.type === 'error' ? 'bg-red-500' :
-                  toast.type === 'success' ? 'bg-emerald-500' :
-                  toast.type === 'warning' ? 'bg-orange-500' : 'bg-blue-500'
-                }`}
-              />
-            )}
-          </motion.div>
-        ))}
-      </AnimatePresence>
-    </div>
-  );
+  const renderToastContainer = () => null;
 
   // Global error listener to help debug crashes instantly
   useEffect(() => {
@@ -2008,7 +1892,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
 
           {/* Workspace Top Header Bar */}
           <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-slate-300 pb-4 gap-4 relative z-10">
-            <div className="flex items-center space-x-4">
+            <div className="flex flex-wrap items-center gap-3">
               <button
                 onClick={() => {
                   if (!isSaving) {
@@ -2027,32 +1911,25 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                     }
                   }
                 }}
-                className="flex items-center space-x-2 text-slate-600 hover:text-rose-600 transition-all bg-white hover:bg-rose-50 border border-slate-300 hover:border-rose-400 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider cursor-pointer active:scale-95 shadow-sm"
+                className="flex items-center space-x-2 text-slate-600 hover:text-rose-600 transition-all bg-white hover:bg-rose-50 border border-slate-300 hover:border-rose-400 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider cursor-pointer active:scale-95 shadow-sm shrink-0"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                 </svg>
-                <span>Exit Workspace</span>
+                <span className="whitespace-nowrap">Exit Workspace</span>
               </button>
-              <div className="h-6 w-px bg-slate-300 hidden sm:block" />
-              <div className="flex items-center space-x-3">
-                <div className="p-2 bg-gradient-to-br from-teal-500 via-teal-600 to-emerald-600 text-white rounded-xl shadow-md shadow-teal-500/20 ring-2 ring-teal-100 flex items-center justify-center shrink-0">
-                  {/* Gastro/Endoscopy Fiberoptic Scope Icon */}
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 3c-3.5 0-6.5 2.2-7.5 5.5C3.3 12 3 15.5 4.8 19c1.8 3.5 5.2 5 8.7 5 4.5 0 7.5-3 7.5-7.5 0-3.5-2.2-6.5-5.5-7.5" strokeWidth="2" opacity="0.85" />
-                    <circle cx="17.5" cy="6.5" r="3" strokeWidth="2" fill="currentColor" fillOpacity="0.2" />
-                    <circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" />
-                    <path d="M14 9l-4 4" strokeWidth="2.2" />
-                    <path d="M7 6c1.2 1.5 2.8 2.2 4.5 2.2" strokeWidth="1.8" strokeDasharray="2 2" />
-                  </svg>
+              <div className="h-6 w-px bg-slate-300 hidden sm:block shrink-0" />
+              <div className="flex items-center space-x-3 shrink-0">
+                <div className="p-2.5 bg-gradient-to-br from-red-600 via-rose-600 to-pink-600 text-white rounded-xl shadow-md shadow-red-500/20 ring-2 ring-red-100 flex items-center justify-center shrink-0">
+                  <GastroScopeIcon className="w-5 h-5 text-white" glow />
                 </div>
-                <div>
-                  <h2 className="text-sm font-bold tracking-tight text-slate-900 flex items-center space-x-2">
-                    <span>Endoscopy Report</span>
-                    <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse" />
+                <div className="whitespace-nowrap">
+                  <h2 className="text-sm font-black tracking-tight text-slate-900 flex items-center space-x-2 whitespace-nowrap">
+                    <span className="whitespace-nowrap">Endoscopy Report Studio</span>
+                    <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse shrink-0" />
                   </h2>
-                  <p className="text-[10px] text-slate-500 font-normal">
-                    Fill clinical findings to preview, print, or archive.
+                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider whitespace-nowrap">
+                    Clinical Procedure Reports
                   </p>
                 </div>
               </div>
@@ -3206,15 +3083,33 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
           </div>
 
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="bg-slate-900 text-white px-4 py-2.5 flex items-center justify-between border-b border-slate-800">
+              <div className="flex items-center space-x-2">
+                <div className="p-1 bg-red-600 text-white rounded shadow-xs">
+                  <GastroScopeIcon className="w-3.5 h-3.5 text-white" />
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-100">
+                  Saved Endoscopy Clinical Log Archives
+                </span>
+              </div>
+              <span className="text-[8px] font-mono text-slate-400 bg-slate-800 px-2 py-0.5 rounded font-bold">
+                {paginatedRecords.length} Entries
+              </span>
+            </div>
             <div className="overflow-x-auto whitespace-nowrap max-h-96 overflow-y-auto">
               <table className="w-full text-left border-separate border-spacing-0">
-                <thead className="bg-slate-50 text-slate-600 sticky top-0 z-10 shadow-sm">
+                <thead className="bg-slate-100 text-slate-700 sticky top-0 z-10 shadow-sm border-b border-slate-200">
                   <tr className="text-[9px] font-black uppercase tracking-widest select-none">
                     <th className="px-4 py-3.5 border-b border-slate-200">S.No</th>
                     <th className="px-4 py-3.5 border-b border-slate-200">Reg No</th>
                     <th className="px-4 py-3.5 border-b border-slate-200">Patient Name</th>
                     <th className="px-4 py-3.5 border-b border-slate-200">Physician</th>
-                    <th className="px-4 py-3.5 border-b border-slate-200">Procedure</th>
+                    <th className="px-4 py-3.5 border-b border-slate-200 bg-red-50/60">
+                      <div className="flex items-center space-x-1.5 text-red-700 font-black">
+                        <GastroScopeIcon className="w-3.5 h-3.5 text-red-600" />
+                        <span>Scope Procedure</span>
+                      </div>
+                    </th>
                     <th className="px-4 py-3.5 border-b border-slate-200">Date</th>
                     <th className="px-4 py-3.5 text-right border-b border-slate-200">Action</th>
                   </tr>
@@ -3448,7 +3343,21 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
           setIsPatientSelectorOpen(false);
           setIsSelectorQuickAdmission(false);
         }}
-        title="Select or Register Patient for Endoscopy Report"
+        title={
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-gradient-to-br from-red-600 via-rose-600 to-pink-600 text-white rounded-xl shadow-md shadow-red-500/20">
+              <GastroScopeIcon className="w-4 h-4 text-white" glow />
+            </div>
+            <div>
+              <h3 className="text-sm font-black uppercase text-slate-900 dark:text-white tracking-wider">
+                Select or Register Patient for Endoscopy Report
+              </h3>
+              <p className="text-[9px] text-slate-400 font-bold tracking-widest uppercase">
+                Gastro / Endoscopy Clinical Report Creation
+              </p>
+            </div>
+          </div>
+        }
         maxWidth="max-w-2xl"
       >
         <div className="space-y-6 max-h-[75vh] overflow-y-auto pr-2">
@@ -3829,8 +3738,8 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
             </div>
           </div>
 
-          {/* Interactive Page Container */}
-          <div className="flex-1 overflow-y-auto bg-slate-900/60 p-4 sm:p-12 flex justify-center custom-scrollbar">
+          {/* Interactive Page Container Workspace */}
+          <div className="flex-1 overflow-y-auto bg-slate-900/90 p-3 sm:p-8 md:p-12 flex justify-center custom-scrollbar pb-24 sm:pb-32">
             {/* The physical-looking A4 medical sheet Workspace */}
             <EndoscopyReportPreviewSheet
               formName={formName}
@@ -3892,28 +3801,6 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
 
   return (
     <div className="space-y-6">
-      <header className="flex items-center space-x-3.5">
-        <div className="p-2.5 bg-gradient-to-br from-red-600 via-rose-600 to-pink-600 text-white rounded-2xl shadow-md shadow-red-500/20 ring-2 ring-red-100/80 flex items-center justify-center shrink-0">
-          {/* Gastro / Endoscopy Medical Camera Scope Icon */}
-          <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 3c-3.5 0-6.5 2.2-7.5 5.5C3.3 12 3 15.5 4.8 19c1.8 3.5 5.2 5 8.7 5 4.5 0 7.5-3 7.5-7.5 0-3.5-2.2-6.5-5.5-7.5" strokeWidth="2" opacity="0.9" />
-            <circle cx="17.5" cy="6.5" r="3" strokeWidth="2" fill="currentColor" fillOpacity="0.2" />
-            <circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" />
-            <path d="M14 9l-4 4" strokeWidth="2.2" />
-            <path d="M7 6c1.2 1.5 2.8 2.2 4.5 2.2" strokeWidth="1.8" strokeDasharray="2 2" />
-          </svg>
-        </div>
-        <div>
-          <h1 className="text-lg font-black text-slate-900 tracking-wider uppercase flex items-center gap-2">
-            <span>{activeUnit} Endoscopy & Gastro</span>
-            <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse" />
-          </h1>
-          <p className="text-slate-500 text-xs font-semibold">
-            Clinical archives and reporting for <span className="text-slate-800 font-extrabold">{UNIT_DETAILS[activeUnit].label}</span>.
-          </p>
-        </div>
-      </header>
-
       {/* Top View Selector Tabs */}
       <div className="flex items-center justify-between gap-3 bg-white p-2.5 rounded-2xl border border-slate-200 shadow-sm">
         <div className="flex items-center space-x-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200/80">
@@ -3955,11 +3842,11 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
         <div className="flex flex-col gap-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex flex-1 gap-2">
-            <div className="relative flex-1 max-w-md" title={`Search ${activeUnit} Endoscopy logs (Alt+S)`}>
+            <div className="relative flex-1 max-w-md" title="Search Endoscopy logs (Alt+S)">
               <input 
                 ref={searchInputRef}
                 type="text" 
-                placeholder={`Search ${activeUnit} logs...`}
+                placeholder="Search endoscopy logs..."
                 className="pl-4 pr-24 py-2 border border-slate-200 rounded-lg w-full text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 shadow-sm dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:focus:ring-red-950"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -4022,12 +3909,6 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
             Fetch Data
           </button>
-          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-800 rounded-lg border border-emerald-200 text-[9px] font-black uppercase tracking-wider shadow-sm">
-            <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            Records Fetched: <span className="text-emerald-950 font-black text-[11px] px-1.5 py-0.5 bg-emerald-200/60 rounded ml-0.5">{sortedAndFiltered.length}</span>
-          </div>
           {isFilterActive && (
             <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full border border-blue-200">
                <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse" />
@@ -4044,40 +3925,74 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
         </div>
 
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto whitespace-nowrap max-h-[600px] overflow-y-auto">
-          {loading ? (
-            <div className="flex flex-col items-center justify-center py-20 space-y-4">
-              <div className="w-10 h-10 border-4 border-slate-100 border-t-red-600 rounded-full animate-spin"></div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Querying Procedures...</p>
+          <div className="bg-slate-100 text-slate-800 px-5 py-2.5 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200">
+            <div className="flex items-center space-x-2.5">
+              <div className="p-1.5 bg-gradient-to-br from-red-600 via-rose-600 to-pink-600 text-white rounded-lg shadow-sm flex items-center justify-center">
+                <GastroScopeIcon className="w-3.5 h-3.5 text-white" glow />
+              </div>
+              <div>
+                <h3 className="text-[10px] font-black uppercase tracking-wider text-slate-800 flex items-center space-x-2">
+                  <span>Endoscopy & Gastro Procedure Register</span>
+                </h3>
+                <p className="text-[8.5px] text-slate-500 font-medium">Recorded clinical procedures, endoscopic findings & report archives</p>
+              </div>
             </div>
-          ) : (
-            <table className="w-full text-left border-separate border-spacing-0">
-              <thead className="bg-slate-900 text-white sticky top-0 z-10 shadow-md">
-                <tr className="text-[10px] font-black uppercase tracking-widest select-none">
-                  <th className="px-6 py-5 cursor-pointer hover:bg-slate-800 transition-colors group" onClick={() => handleSort('serialNo')}>
-                    <div className="flex items-center">S.No <SortIndicator column="serialNo" /></div>
-                  </th>
-                  <th className="px-6 py-5 cursor-pointer hover:bg-slate-800 transition-colors group" onClick={() => handleSort('regNo')}>
-                    <div className="flex items-center">Reg No <SortIndicator column="regNo" /></div>
-                  </th>
-                  <th className="px-6 py-5 cursor-pointer hover:bg-slate-800 transition-colors group" onClick={() => handleSort('name')}>
-                    <div className="flex items-center">Patient Name <SortIndicator column="name" /></div>
-                  </th>
-                  <th className="px-6 py-5 cursor-pointer hover:bg-slate-800 transition-colors group" onClick={() => handleSort('doctor')}>
-                    <div className="flex items-center">Physician <SortIndicator column="doctor" /></div>
-                  </th>
-                  <th className="px-6 py-5 cursor-pointer hover:bg-slate-800 transition-colors group" onClick={() => handleSort('procedure')}>
-                    <div className="flex items-center">Procedure <SortIndicator column="procedure" /></div>
-                  </th>
-                  <th className="px-6 py-5 cursor-pointer hover:bg-slate-800 transition-colors group" onClick={() => handleSort('date')}>
-                    <div className="flex items-center">Date <SortIndicator column="date" /></div>
-                  </th>
-                  <th className="px-6 py-5 text-right bg-slate-900">Action</th>
-                </tr>
-              </thead>
+            <div className="flex items-center space-x-2">
+              <span className="text-[8.5px] font-mono text-slate-600 font-bold bg-slate-200/70 px-2.5 py-0.5 rounded-md border border-slate-300 shadow-xs">
+                Active View: <strong className="text-red-600 font-extrabold">{sortedAndFiltered.length}</strong> Records
+              </span>
+            </div>
+          </div>
+          <div className="overflow-x-auto whitespace-nowrap max-h-[600px] overflow-y-auto">
+            {loading ? (
+              <div className="p-4 space-y-3 animate-pulse min-w-[1000px]">
+                <div className="h-8 bg-slate-100 rounded-lg w-full flex items-center px-4 justify-between">
+                  <div className="h-3 w-12 bg-slate-200 rounded" />
+                  <div className="h-3 w-20 bg-slate-200 rounded" />
+                  <div className="h-3 w-36 bg-slate-200 rounded" />
+                  <div className="h-3 w-28 bg-slate-200 rounded" />
+                  <div className="h-3 w-24 bg-slate-200 rounded" />
+                  <div className="h-3 w-28 bg-slate-200 rounded" />
+                </div>
+                {[1, 2, 3, 4, 5, 6, 7].map((i) => (
+                  <div key={i} className="h-10 bg-slate-50 rounded-lg w-full flex items-center px-4 justify-between border border-slate-100">
+                    <div className="h-3 w-10 bg-slate-200 rounded" />
+                    <div className="h-3 w-20 bg-slate-200 rounded" />
+                    <div className="h-3 w-36 bg-slate-200 rounded" />
+                    <div className="h-3 w-28 bg-slate-200 rounded" />
+                    <div className="h-3 w-24 bg-slate-200 rounded" />
+                    <div className="h-3 w-28 bg-slate-200 rounded" />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <table className="w-full text-left border-separate border-spacing-0">
+                <thead className="bg-slate-100 text-slate-700 sticky top-0 z-10 shadow-xs border-b border-slate-200">
+                  <tr className="text-[9.5px] font-black uppercase tracking-widest select-none border-b border-slate-200">
+                    <th className="px-5 py-2.5 cursor-pointer hover:bg-slate-200/80 transition-colors group border-b border-slate-200" onClick={() => handleSort('serialNo')}>
+                      <div className="flex items-center space-x-1.5"><span>S.No</span> <SortIndicator column="serialNo" /></div>
+                    </th>
+                    <th className="px-5 py-2.5 cursor-pointer hover:bg-slate-200/80 transition-colors group border-b border-slate-200" onClick={() => handleSort('regNo')}>
+                      <div className="flex items-center space-x-1.5"><span>Reg No</span> <SortIndicator column="regNo" /></div>
+                    </th>
+                    <th className="px-5 py-2.5 cursor-pointer hover:bg-slate-200/80 transition-colors group border-b border-slate-200" onClick={() => handleSort('name')}>
+                      <div className="flex items-center space-x-1.5"><span>Patient Name</span> <SortIndicator column="name" /></div>
+                    </th>
+                    <th className="px-5 py-2.5 cursor-pointer hover:bg-slate-200/80 transition-colors group border-b border-slate-200" onClick={() => handleSort('doctor')}>
+                      <div className="flex items-center space-x-1.5"><span>Physician</span> <SortIndicator column="doctor" /></div>
+                    </th>
+                    <th className="px-5 py-2.5 cursor-pointer hover:bg-slate-200/80 transition-colors group border-b border-slate-200" onClick={() => handleSort('procedure')}>
+                      <div className="flex items-center space-x-1.5"><span>Procedure</span> <SortIndicator column="procedure" /></div>
+                    </th>
+                    <th className="px-5 py-2.5 cursor-pointer hover:bg-slate-200/80 transition-colors group border-b border-slate-200" onClick={() => handleSort('date')}>
+                      <div className="flex items-center space-x-1.5"><span>Date</span> <SortIndicator column="date" /></div>
+                    </th>
+                    <th className="px-5 py-2.5 text-right bg-slate-100 border-b border-slate-200">Action</th>
+                  </tr>
+                </thead>
               <tbody className="divide-y divide-slate-100 text-[10px] font-bold text-slate-700 uppercase">
                 <AnimatePresence initial={false}>
-                  {sortedAndFiltered.map((record) => (
+                  {paginatedRecords.map((record) => (
                     <motion.tr 
                       key={record.id} 
                       layout
@@ -4152,6 +4067,59 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
             </table>
           )}
         </div>
+
+        {/* Pagination Controls & Records Summary */}
+        {!loading && sortedAndFiltered.length > 0 && (
+          <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+              Showing <span className="text-slate-900">{Math.min(sortedAndFiltered.length, (currentPage - 1) * itemsPerPage + 1)}</span> to <span className="text-slate-900">{Math.min(sortedAndFiltered.length, currentPage * itemsPerPage)}</span> of <span className="text-slate-900">{sortedAndFiltered.length}</span> Records
+            </div>
+            <div className="flex items-center gap-1">
+              <button 
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className={`p-2 rounded-xl border transition-all ${currentPage === 1 ? 'bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100 active:scale-95 cursor-pointer shadow-2xs'}`}
+                title="Previous Page"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg>
+              </button>
+              
+              <div className="flex items-center gap-1 px-2">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+                  
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={`w-8 h-8 rounded-xl text-[10px] font-black transition-all cursor-pointer ${currentPage === pageNum ? 'bg-red-600 text-white shadow-md' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100 shadow-2xs'}`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button 
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages || totalPages === 0}
+                className={`p-2 rounded-xl border transition-all ${currentPage === totalPages || totalPages === 0 ? 'bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100 active:scale-95 cursor-pointer shadow-2xs'}`}
+                title="Next Page"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
+              </button>
+            </div>
+          </div>
+        )}
       </div>
       </div>
       )}
@@ -4159,16 +4127,31 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
       <Modal 
         isOpen={isWorkspaceOpen} 
         onClose={() => { if(!isSaving) { setIsWorkspaceOpen(false); setEditingRecord(null); } }} 
-        title={editingRecord ? `Edit Endoscopy Log Entry` : `Add Patient Endoscopy Log`}
+        title={
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-gradient-to-br from-red-600 via-rose-600 to-pink-600 text-white rounded-xl shadow-md shadow-red-500/20">
+              <GastroScopeIcon className="w-4 h-4 text-white" glow />
+            </div>
+            <div>
+              <h3 className="text-sm font-black uppercase text-slate-900 dark:text-white tracking-wider">
+                {editingRecord ? `Edit Endoscopy Log Entry` : `Add Patient Endoscopy Log`}
+              </h3>
+              <p className="text-[9px] text-slate-400 font-bold tracking-widest uppercase">
+                Gastroenterology & Endoscopy Clinical Entry
+              </p>
+            </div>
+          </div>
+        }
         maxWidth="max-w-xl"
       >
-                <form onSubmit={handleSubmit} className="space-y-4 max-h-[75vh] overflow-y-auto pr-2 text-slate-700">
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-start space-x-2">
-            <svg className="w-4 h-4 text-slate-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 111.063.852l-.708 2.836a.75.75 0 001.063.852l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <div className="text-[10px] text-slate-600 uppercase font-bold tracking-wider leading-relaxed">
-              Fill in the patient and procedure details below to record an endoscopy log entry for the monthly archives.
+        <form onSubmit={handleSubmit} className="space-y-4 max-h-[75vh] overflow-y-auto pr-2 text-slate-700">
+          <div className="bg-gradient-to-r from-red-50 via-rose-50/50 to-slate-50 border border-red-200/80 rounded-xl p-3 flex items-start space-x-3 shadow-xs">
+            <div className="p-1.5 bg-red-600 text-white rounded-lg shadow-xs shrink-0 mt-0.5">
+              <GastroScopeIcon className="w-3.5 h-3.5 text-white" />
+            </div>
+            <div className="text-[10px] text-slate-700 uppercase font-bold tracking-wider leading-relaxed">
+              <span className="text-red-700 font-black block text-[11px] mb-0.5">ENDOSCOPY CLINICAL REPORT FORM</span>
+              Fill in patient identification, physician details, and procedure findings to record an endoscopy log entry for the monthly archives.
             </div>
           </div>
 
@@ -4411,7 +4394,21 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
           setIsPatientSelectorOpen(false);
           setIsSelectorQuickAdmission(false);
         }}
-        title="Select or Register Patient for Endoscopy Report"
+        title={
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-gradient-to-br from-red-600 via-rose-600 to-pink-600 text-white rounded-xl shadow-md shadow-red-500/20">
+              <GastroScopeIcon className="w-4 h-4 text-white" glow />
+            </div>
+            <div>
+              <h3 className="text-sm font-black uppercase text-slate-900 dark:text-white tracking-wider">
+                Select or Register Patient for Endoscopy Report
+              </h3>
+              <p className="text-[9px] text-slate-400 font-bold tracking-widest uppercase">
+                Gastro / Endoscopy Clinical Report Creation
+              </p>
+            </div>
+          </div>
+        }
         maxWidth="max-w-2xl"
       >
         <div className="space-y-6 max-h-[75vh] overflow-y-auto pr-2">
@@ -4811,8 +4808,8 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
             </div>
           </div>
 
-          {/* Interactive Page Container */}
-          <div className="flex-1 overflow-y-auto bg-slate-900/60 p-4 sm:p-12 flex justify-center custom-scrollbar">
+          {/* Interactive Page Container Dashboard */}
+          <div className="flex-1 overflow-y-auto bg-slate-900/90 p-3 sm:p-8 md:p-12 flex justify-center custom-scrollbar pb-24 sm:pb-32">
             {/* The physical-looking A4 medical sheet Dashboard */}
             <EndoscopyReportPreviewSheet
               formName={formName}

@@ -9,6 +9,7 @@ import { downloadCSV } from '../services/exportService';
 import { useAuth } from '../contexts/AuthContext';
 import { useUnit } from '../contexts/UnitContext';
 import { useSearch } from '../contexts/SearchContext';
+import { useToast } from '../contexts/ToastContext';
 import { activityService } from '../services/activityService';
 import { INVENTORY_CATEGORIES, INVENTORY_UNITS } from '../constants';
 import Modal from './Modal';
@@ -29,6 +30,7 @@ const InventoryTable: React.FC = () => {
     severity: advSeverity,
     openAdvancedSearch
   } = useSearch();
+  const { toast } = useToast();
 
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -269,8 +271,10 @@ const InventoryTable: React.FC = () => {
         );
         
         setIdToDelete(null);
+        toast.success(`Removed inventory item ${itemName}`, 'Record Deleted');
       } catch (err) {
         console.error("Delete Error:", err);
+        toast.error('Failed to delete item from database.');
       }
     }
   };
@@ -345,6 +349,7 @@ const InventoryTable: React.FC = () => {
           currentUser?.displayName || currentUser?.email || 'Anonymous User',
           activeUnit
         );
+        toast.recordSaved(`Updated stock for ${itemData.name}`);
       } else {
         await addDoc(collection(db, 'inventory'), itemData);
         
@@ -355,6 +360,7 @@ const InventoryTable: React.FC = () => {
           currentUser?.displayName || currentUser?.email || 'Anonymous User',
           activeUnit
         );
+        toast.recordSaved(`Added ${itemData.name} (${itemData.quantity} ${itemData.measurementUnit}) to ${activeUnit}`);
       }
       
       setIsModalOpen(false);
@@ -362,6 +368,7 @@ const InventoryTable: React.FC = () => {
       setFormErrors({});
     } catch (err) {
       console.error("Save Inventory Error:", err);
+      toast.error('Failed to save inventory item.');
     } finally {
       setIsSaving(false);
     }
@@ -389,6 +396,7 @@ const InventoryTable: React.FC = () => {
       };
       exportInventoryPDF(sortedAndFiltered, metadata);
     }
+    toast.exportComplete(`Inventory ${opts.format || 'report'} exported for ${activeUnit}.`);
   };
 
   const InputError = ({ name }: { name: string }) => (
@@ -523,28 +531,42 @@ const InventoryTable: React.FC = () => {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
           {loading ? (
-            <div className="flex flex-col items-center justify-center py-20 space-y-4">
-              <div className="w-10 h-10 border-4 border-slate-100 border-t-red-600 rounded-full animate-spin"></div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Querying {activeUnit} Stores...</p>
+            <div className="p-4 space-y-3 animate-pulse">
+              <div className="h-10 bg-slate-900 rounded-lg w-full flex items-center px-4 justify-between">
+                <div className="h-3 w-32 bg-slate-700 rounded" />
+                <div className="h-3 w-24 bg-slate-700 rounded" />
+                <div className="h-3 w-20 bg-slate-700 rounded" />
+                <div className="h-3 w-16 bg-slate-700 rounded" />
+                <div className="h-3 w-28 bg-slate-700 rounded" />
+              </div>
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div key={i} className="h-12 bg-slate-50 dark:bg-slate-800/50 rounded-lg w-full flex items-center px-4 justify-between border border-slate-100 dark:border-slate-800">
+                  <div className="h-4 w-40 bg-slate-200 dark:bg-slate-700 rounded" />
+                  <div className="h-4 w-28 bg-slate-200 dark:bg-slate-700 rounded" />
+                  <div className="h-4 w-16 bg-slate-200 dark:bg-slate-700 rounded" />
+                  <div className="h-4 w-12 bg-slate-200 dark:bg-slate-700 rounded" />
+                  <div className="h-4 w-24 bg-slate-200 dark:bg-slate-700 rounded" />
+                </div>
+              ))}
             </div>
           ) : (
             <table className="w-full text-left border-separate border-spacing-0">
-              <thead className="sticky top-0 z-10">
-                <tr className="bg-slate-900 text-white shadow-md select-none">
-                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleSort('name')}>
+              <thead className="bg-slate-100 text-slate-700 sticky top-0 z-10 shadow-xs border-b border-slate-200">
+                <tr className="bg-slate-100 text-slate-700 select-none border-b border-slate-200">
+                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest cursor-pointer hover:bg-slate-200/80 transition-colors border-b border-slate-200" onClick={() => handleSort('name')}>
                     <div className="flex items-center">Equipment <SortIndicator column="name" /></div>
                   </th>
-                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleSort('category')}>
+                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest cursor-pointer hover:bg-slate-200/80 transition-colors border-b border-slate-200" onClick={() => handleSort('category')}>
                     <div className="flex items-center">Category <SortIndicator column="category" /></div>
                   </th>
-                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-center">Status</th>
-                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleSort('quantity')}>
+                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-center border-b border-slate-200">Status</th>
+                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest cursor-pointer hover:bg-slate-200/80 transition-colors border-b border-slate-200" onClick={() => handleSort('quantity')}>
                     <div className="flex items-center">Stock <SortIndicator column="quantity" /></div>
                   </th>
-                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-center cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleSort('lastUpdated')}>
+                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-center cursor-pointer hover:bg-slate-200/80 transition-colors border-b border-slate-200" onClick={() => handleSort('lastUpdated')}>
                     <div className="flex items-center justify-center">Updated <SortIndicator column="lastUpdated" /></div>
                   </th>
-                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-right bg-slate-900">Actions</th>
+                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-right bg-slate-100 text-slate-700 border-b border-slate-200">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-[10px] font-bold text-slate-600 uppercase">

@@ -2,6 +2,10 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import { offlineService } from './services/offlineService';
+
+// Initialize Service Worker for offline viewing & draft protection
+offlineService.registerServiceWorker();
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -14,3 +18,4 @@ root.render(
     <App />
   </React.StrictMode>
 );
+

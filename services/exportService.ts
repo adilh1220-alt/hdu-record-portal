@@ -28,3 +28,64 @@ export const downloadCSV = (filename: string, headers: string[], rows: any[][]) 
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
 };
+
+/**
+ * Generates and triggers a download for an Excel spreadsheet (.xls file with HTML table markup).
+ * @param filename Name of the file (without extension)
+ * @param headers Array of column headers
+ * @param rows 2D array of data rows
+ */
+export const downloadExcel = (filename: string, headers: string[], rows: any[][]) => {
+  const escapeXml = (str: any) => String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+
+  const headerRow = headers.map(h => `<th style="background-color:#0f172a;color:#ffffff;font-weight:bold;padding:8px;border:1px solid #cbd5e1;text-align:left;">${escapeXml(h)}</th>`).join('');
+  const bodyRows = rows.map(row => 
+    '<tr>' + row.map(cell => `<td style="padding:6px;border:1px solid #cbd5e1;text-align:left;">${escapeXml(cell)}</td>`).join('') + '</tr>'
+  ).join('');
+
+  const excelContent = `
+    <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+    <head>
+      <meta charset="utf-8"/>
+      <!--[if gte mso 9]>
+      <xml>
+        <x:ExcelWorkbook>
+          <x:ExcelWorksheets>
+            <x:ExcelWorksheet>
+              <x:Name>Clinical Report</x:Name>
+              <x:WorksheetOptions>
+                <x:DisplayGridlines/>
+              </x:WorksheetOptions>
+            </x:ExcelWorksheet>
+          </x:ExcelWorksheets>
+        </x:ExcelWorkbook>
+      </xml>
+      <![endif]-->
+    </head>
+    <body>
+      <table border="1" style="border-collapse:collapse;font-family:sans-serif;font-size:12px;">
+        <thead><tr>${headerRow}</tr></thead>
+        <tbody>${bodyRows}</tbody>
+      </table>
+    </body>
+    </html>
+  `;
+
+  const blob = new Blob([excelContent], { type: 'application/vnd.ms-excel;charset=utf-8' });
+  const link = document.createElement("a");
+  const url = URL.createObjectURL(blob);
+  
+  const timestamp = new Date().toISOString().split('T')[0];
+  link.setAttribute("href", url);
+  link.setAttribute("download", `${filename.replace(/\s+/g, '_').toLowerCase()}_${timestamp}.xls`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+

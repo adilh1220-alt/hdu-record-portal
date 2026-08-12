@@ -1,9 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { EndoscopyRecord } from '../types';
 import { 
   ResponsiveContainer, 
-  AreaChart, 
-  Area, 
   BarChart, 
   Bar, 
   PieChart, 
@@ -17,6 +15,43 @@ import {
   Legend 
 } from 'recharts';
 
+// Custom Volume Tooltip ensuring Total Procedures always appears at the end
+const CustomVolumeTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    const specificItems = payload.filter((p: any) => p.dataKey !== 'total');
+    const totalItem = payload.find((p: any) => p.dataKey === 'total');
+
+    return (
+      <div className="bg-white p-3 border border-slate-200 rounded-xl shadow-xl text-xs font-bold space-y-2 min-w-[210px]">
+        <p className="text-sky-600 font-extrabold uppercase text-[11px] pb-1 border-b border-slate-100 tracking-wider">
+          {label}
+        </p>
+        <div className="space-y-1.5">
+          {specificItems.map((entry: any, index: number) => (
+            <div key={`item-${index}`} className="flex items-center justify-between gap-4 text-slate-700">
+              <span className="flex items-center gap-1.5 font-bold">
+                <span className="w-2.5 h-2.5 rounded-full inline-block shrink-0" style={{ backgroundColor: entry.stroke || entry.color || entry.fill }} />
+                <span>{entry.name}:</span>
+              </span>
+              <span className="font-black text-slate-900 font-mono">{entry.value}</span>
+            </div>
+          ))}
+        </div>
+        {totalItem && (
+          <div className="pt-2 border-t border-slate-200 flex items-center justify-between gap-4 text-orange-800 font-black">
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full inline-block shrink-0 bg-orange-500" />
+              <span>{totalItem.name}:</span>
+            </span>
+            <span className="text-orange-900 text-sm font-extrabold font-mono">{totalItem.value}</span>
+          </div>
+        )}
+      </div>
+    );
+  }
+  return null;
+};
+
 interface EndoscopyAnalyticsDashboardProps {
   records: EndoscopyRecord[];
   activeUnit?: string;
@@ -26,18 +61,18 @@ interface EndoscopyAnalyticsDashboardProps {
 type TimeFrame = 'all' | 'ytd' | '6m' | '3m';
 type ProcedureFilter = 'all' | 'upper_gi' | 'lower_gi' | 'pulmonary';
 
-// Color palette for charts
+// Color palette for charts (Vibrant theme with Orange & Pink accent, no green)
 const COLORS = [
-  '#0d9488', // Teal
+  '#f97316', // Vibrant Orange
+  '#ec4899', // Vibrant Pink
   '#6366f1', // Indigo
-  '#f59e0b', // Amber
-  '#ec4899', // Pink
+  '#f59e0b', // Amber / Golden
   '#8b5cf6', // Purple
-  '#3b82f6', // Blue
-  '#10b981', // Emerald
-  '#ef4444', // Red
+  '#3b82f6', // Royal Blue
+  '#e11d48', // Crimson / Rose
+  '#d946ef', // Fuchsia
   '#06b6d4', // Cyan
-  '#f97316', // Orange
+  '#ea580c', // Deep Orange
 ];
 
 // Custom active shape component rendering expanded slice, glow ring, crosshair hover lines & target dots
@@ -121,6 +156,15 @@ export const EndoscopyAnalyticsDashboard: React.FC<EndoscopyAnalyticsDashboardPr
   const [procedureFilter, setProcedureFilter] = useState<ProcedureFilter>('all');
   const [selectedDoctor, setSelectedDoctor] = useState<string>('all');
   const [activePieIndex, setActivePieIndex] = useState<number | undefined>(undefined);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    setLoading(true);
+    const timer = setTimeout(() => {
+      setLoading(false);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [timeFrame, selectedYear, procedureFilter, selectedDoctor, activeUnit, records]);
 
   // Extract available years list covering 2026 to 2040 plus any record dates
   const availableYears = useMemo(() => {
@@ -472,23 +516,53 @@ export const EndoscopyAnalyticsDashboard: React.FC<EndoscopyAnalyticsDashboardPr
       .slice(0, 8); // Top 8 doctors
   }, [filteredRecords]);
 
+  // Max and Min values for Physician Workload color indications (Top, Middle, Lowest)
+  const maxDoctorWorkload = useMemo(() => {
+    if (!doctorWorkloadData || doctorWorkloadData.length === 0) return 0;
+    return Math.max(...doctorWorkloadData.map(d => d.count));
+  }, [doctorWorkloadData]);
+
+  const minDoctorWorkload = useMemo(() => {
+    if (!doctorWorkloadData || doctorWorkloadData.length === 0) return 0;
+    return Math.min(...doctorWorkloadData.map(d => d.count));
+  }, [doctorWorkloadData]);
+
+  // Max and Min values for Common Diagnostic Findings color indications
+  const maxFindingCount = useMemo(() => {
+    if (!commonFindingsData || commonFindingsData.length === 0) return 0;
+    return Math.max(...commonFindingsData.map(d => d.count));
+  }, [commonFindingsData]);
+
+  const minFindingCount = useMemo(() => {
+    if (!commonFindingsData || commonFindingsData.length === 0) return 0;
+    return Math.min(...commonFindingsData.map(d => d.count));
+  }, [commonFindingsData]);
+
   return (
     <div className="space-y-6">
       {/* Top Header & Filter Toolbar */}
       <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center space-x-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-teal-500 animate-pulse" />
-              <h2 className="text-xl font-black text-slate-900 tracking-tight uppercase">
-                Endoscopy Clinical Analytics & Intelligence
-              </h2>
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-gradient-to-br from-red-600 via-rose-600 to-pink-600 text-white rounded-2xl shadow-md shadow-red-500/20 ring-2 ring-red-100 flex items-center justify-center shrink-0">
+              <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 3c-3.5 0-6.5 2.2-7.5 5.5C3.3 12 3 15.5 4.8 19c1.8 3.5 5.2 5 8.7 5 4.5 0 7.5-3 7.5-7.5 0-3.5-2.2-6.5-5.5-7.5" strokeWidth="2" opacity="0.9" />
+                <circle cx="17.5" cy="6.5" r="3" strokeWidth="2" fill="currentColor" fillOpacity="0.2" />
+                <circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" />
+                <path d="M14 9l-4 4" strokeWidth="2.2" />
+                <path d="M7 6c1.2 1.5 2.8 2.2 4.5 2.2" strokeWidth="1.8" strokeDasharray="2 2" />
+              </svg>
             </div>
-            <p className="text-xs text-slate-500 font-medium mt-1">
-              Real-time monitoring of procedure volumes, monthly trends, diagnostic pathology distributions, and physician productivity.
-            </p>
+            <div>
+              <h2 className="text-lg font-black text-slate-900 tracking-tight uppercase flex items-center gap-2">
+                <span>Endoscopy Clinical Analytics & Intelligence</span>
+                <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse" />
+              </h2>
+              <p className="text-xs text-slate-500 font-medium mt-0.5">
+                Real-time monitoring of procedure volumes, monthly trends, diagnostic pathology distributions, and physician productivity.
+              </p>
+            </div>
           </div>
-
         </div>
 
         {/* Filter Controls Bar */}
@@ -508,7 +582,7 @@ export const EndoscopyAnalyticsDashboard: React.FC<EndoscopyAnalyticsDashboardPr
                   }}
                   className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase transition-all cursor-pointer ${
                     timeFrame === tf && selectedYear === 'all'
-                      ? 'bg-white text-teal-700 shadow-sm border border-slate-200' 
+                      ? 'bg-white text-orange-700 shadow-sm border border-slate-200' 
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
@@ -526,9 +600,9 @@ export const EndoscopyAnalyticsDashboard: React.FC<EndoscopyAnalyticsDashboardPr
                   setTimeFrame('all');
                 }
               }}
-              className={`px-3 py-1.5 border rounded-xl font-bold text-[10px] uppercase outline-none focus:ring-2 focus:ring-teal-500/30 cursor-pointer ${
+              className={`px-3 py-1.5 border rounded-xl font-bold text-[10px] uppercase outline-none focus:ring-2 focus:ring-orange-500/30 cursor-pointer ${
                 selectedYear !== 'all'
-                  ? 'bg-teal-50 border-teal-300 text-teal-800 ring-1 ring-teal-200'
+                  ? 'bg-orange-50 border-orange-300 text-orange-800 ring-1 ring-orange-200'
                   : 'bg-slate-50 border-slate-200 text-slate-700'
               }`}
             >
@@ -542,7 +616,7 @@ export const EndoscopyAnalyticsDashboard: React.FC<EndoscopyAnalyticsDashboardPr
             <select
               value={procedureFilter}
               onChange={(e) => setProcedureFilter(e.target.value as ProcedureFilter)}
-              className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-bold text-[10px] uppercase outline-none focus:ring-2 focus:ring-teal-500/30 cursor-pointer"
+              className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-bold text-[10px] uppercase outline-none focus:ring-2 focus:ring-orange-500/30 cursor-pointer"
             >
               <option value="all">All Procedure Types</option>
               <option value="upper_gi">Upper GI (EGD)</option>
@@ -555,7 +629,7 @@ export const EndoscopyAnalyticsDashboard: React.FC<EndoscopyAnalyticsDashboardPr
               <select
                 value={selectedDoctor}
                 onChange={(e) => setSelectedDoctor(e.target.value)}
-                className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-bold text-[10px] uppercase outline-none focus:ring-2 focus:ring-teal-500/30 cursor-pointer"
+                className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-bold text-[10px] uppercase outline-none focus:ring-2 focus:ring-orange-500/30 cursor-pointer"
               >
                 <option value="all">All Endoscopists ({doctorsList.length})</option>
                 {doctorsList.map(doc => (
@@ -571,13 +645,140 @@ export const EndoscopyAnalyticsDashboard: React.FC<EndoscopyAnalyticsDashboardPr
         </div>
       </div>
 
-      {/* KPI Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* KPI Cards & Charts Skeleton Grid */}
+      {loading ? (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-3 animate-pulse">
+                <div className="flex items-center justify-between">
+                  <div className="h-3 w-28 bg-slate-200 rounded" />
+                  <div className="w-8 h-8 bg-slate-100 rounded-xl" />
+                </div>
+                <div className="space-y-2">
+                  <div className="h-8 w-24 bg-slate-200 rounded-md" />
+                  <div className="h-3 w-36 bg-slate-100 rounded" />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Main Bar Chart Skeleton */}
+            <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <div className="h-4 w-48 bg-slate-200 rounded animate-pulse" />
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-orange-50 text-orange-600 border border-orange-100">
+                      <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-ping" />
+                      Loading
+                    </span>
+                  </div>
+                  <div className="h-3 w-64 bg-slate-100 rounded animate-pulse" />
+                </div>
+                <div className="h-6 w-24 bg-slate-100 rounded-lg animate-pulse" />
+              </div>
+              <div className="h-72 w-full relative flex flex-col justify-between pt-4">
+                <div className="absolute inset-0 flex flex-col justify-between pointer-events-none py-2">
+                  {[1, 2, 3, 4].map(j => (
+                    <div key={j} className="border-b border-dashed border-slate-100 w-full" />
+                  ))}
+                </div>
+                <div className="relative z-10 w-full h-full flex items-end justify-between gap-2 pt-4">
+                  {[30, 50, 75, 40, 85, 60, 95, 70, 45, 80, 65, 50].map((h, i) => (
+                    <div key={i} className="flex-1 flex flex-col items-center gap-2 h-full justify-end">
+                      <div 
+                        className="w-full bg-gradient-to-t from-slate-200 via-slate-300 to-slate-200 rounded-t-lg animate-pulse" 
+                        style={{ height: `${h}%`, animationDelay: `${i * 60}ms` }} 
+                      />
+                      <div className="h-2 w-6 bg-slate-200 rounded animate-pulse" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Pie Chart Skeleton */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="space-y-1">
+                  <div className="h-4 w-36 bg-slate-200 rounded animate-pulse" />
+                  <div className="h-3 w-44 bg-slate-100 rounded animate-pulse" />
+                </div>
+                <div className="h-5 w-16 bg-slate-100 rounded animate-pulse" />
+              </div>
+              <div className="h-72 w-full flex flex-col items-center justify-center space-y-4">
+                <div className="relative w-40 h-40 flex items-center justify-center">
+                  <div className="absolute inset-0 rounded-full border-[18px] border-slate-100 animate-pulse" />
+                  <div className="absolute inset-2 rounded-full border-[18px] border-orange-200/60 border-t-orange-500 animate-spin" />
+                  <div className="w-12 h-12 bg-white rounded-full shadow-inner flex items-center justify-center">
+                    <span className="w-2 h-2 rounded-full bg-orange-500 animate-ping" />
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 pt-2">
+                  {[1, 2, 3].map(k => (
+                    <div key={k} className="h-3 w-16 bg-slate-100 rounded animate-pulse" />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Horizontal Bar Chart Skeleton */}
+            <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="space-y-1">
+                  <div className="h-4 w-56 bg-slate-200 rounded animate-pulse" />
+                  <div className="h-3 w-72 bg-slate-100 rounded animate-pulse" />
+                </div>
+                <div className="h-5 w-24 bg-slate-100 rounded-lg animate-pulse" />
+              </div>
+              <div className="h-80 w-full flex flex-col justify-around pt-2">
+                {[70, 50, 85, 40, 60].map((w, i) => (
+                  <div key={i} className="flex items-center gap-4">
+                    <div className="h-3 w-28 bg-slate-200 rounded shrink-0 animate-pulse" />
+                    <div 
+                      className="h-6 bg-gradient-to-r from-slate-200 via-slate-300 to-slate-200 rounded-r-lg animate-pulse" 
+                      style={{ width: `${w}%`, animationDelay: `${i * 100}ms` }} 
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Doctor Workload Bar Chart Skeleton */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="space-y-1">
+                  <div className="h-4 w-36 bg-slate-200 rounded animate-pulse" />
+                  <div className="h-3 w-44 bg-slate-100 rounded animate-pulse" />
+                </div>
+                <div className="h-5 w-20 bg-slate-100 rounded animate-pulse" />
+              </div>
+              <div className="h-80 w-full flex items-end justify-between gap-3 pt-6">
+                {[45, 70, 35, 90, 60].map((h, i) => (
+                  <div key={i} className="flex-1 flex flex-col items-center gap-2 h-full justify-end">
+                    <div 
+                      className="w-full bg-gradient-to-t from-slate-200 via-slate-300 to-slate-200 rounded-t-lg animate-pulse" 
+                      style={{ height: `${h}%`, animationDelay: `${i * 120}ms` }} 
+                    />
+                    <div className="h-2 w-10 bg-slate-200 rounded animate-pulse" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1: Total Procedures */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between space-y-3 relative overflow-hidden group hover:border-teal-300 transition-all">
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between space-y-3 relative overflow-hidden group hover:border-orange-300 transition-all">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Procedures</span>
-            <div className="p-2 bg-teal-50 text-teal-600 rounded-xl border border-teal-100">
+            <div className="p-2 bg-orange-50 text-orange-600 rounded-xl border border-orange-100">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
@@ -674,7 +875,7 @@ export const EndoscopyAnalyticsDashboard: React.FC<EndoscopyAnalyticsDashboardPr
                 Tracking monthly endoscopy case counts across GI & Pulmonary procedures
               </p>
             </div>
-            <span className="px-2.5 py-1 bg-teal-50 text-teal-700 border border-teal-200 rounded-lg text-[9px] font-black uppercase">
+            <span className="px-2.5 py-1 bg-orange-50 text-orange-700 border border-orange-200 rounded-lg text-[9px] font-black uppercase">
               Monthly Volume
             </span>
           </div>
@@ -682,25 +883,7 @@ export const EndoscopyAnalyticsDashboard: React.FC<EndoscopyAnalyticsDashboardPr
           {monthlyVolumeData.length > 0 ? (
             <div className="h-72 w-full pt-2">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={monthlyVolumeData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#0d9488" stopOpacity={0.35}/>
-                      <stop offset="95%" stopColor="#0d9488" stopOpacity={0}/>
-                    </linearGradient>
-                    <linearGradient id="colorUpper" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#6366f1" stopOpacity={0.25}/>
-                      <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
-                    </linearGradient>
-                    <linearGradient id="colorLower" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.25}/>
-                      <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
-                    </linearGradient>
-                    <linearGradient id="colorBroncho" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.25}/>
-                      <stop offset="95%" stopColor="#06b6d4" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
+                <BarChart data={monthlyVolumeData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis 
                     dataKey="month" 
@@ -712,60 +895,35 @@ export const EndoscopyAnalyticsDashboard: React.FC<EndoscopyAnalyticsDashboardPr
                     axisLine={{ stroke: '#e2e8f0' }}
                     allowDecimals={false}
                   />
-                  <Tooltip 
-                    contentStyle={{
-                      backgroundColor: '#ffffff',
-                      borderRadius: '12px',
-                      border: '1px solid #e2e8f0',
-                      color: '#0f172a',
-                      boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)',
-                      fontSize: '11px',
-                      fontWeight: 'bold',
-                      padding: '8px 12px'
-                    }}
-                    itemStyle={{ color: '#0f172a', fontWeight: 'bold' }}
-                    labelStyle={{ color: '#0284c7', marginBottom: '2px', fontWeight: 'bold', textTransform: 'uppercase' }}
-                  />
+                  <Tooltip content={<CustomVolumeTooltip />} />
                   <Legend 
                     wrapperStyle={{ fontSize: '10px', fontWeight: 'bold', paddingTop: '10px' }}
                   />
-                  <Area 
-                    type="monotone" 
-                    dataKey="total" 
-                    name="Total Procedures" 
-                    stroke="#0d9488" 
-                    strokeWidth={3}
-                    fillOpacity={1} 
-                    fill="url(#colorTotal)" 
-                  />
-                  <Area 
-                    type="monotone" 
+                  <Bar 
                     dataKey="upperGI" 
                     name="Upper GI (EGD)" 
-                    stroke="#6366f1" 
-                    strokeWidth={2}
-                    fillOpacity={1} 
-                    fill="url(#colorUpper)" 
+                    fill="#6366f1" 
+                    radius={[4, 4, 0, 0]} 
                   />
-                  <Area 
-                    type="monotone" 
+                  <Bar 
                     dataKey="lowerGI" 
                     name="Lower GI (Colonoscopy)" 
-                    stroke="#f59e0b" 
-                    strokeWidth={2}
-                    fillOpacity={1} 
-                    fill="url(#colorLower)" 
+                    fill="#f59e0b" 
+                    radius={[4, 4, 0, 0]} 
                   />
-                  <Area 
-                    type="monotone" 
+                  <Bar 
                     dataKey="bronchoscopy" 
                     name="Flexible Bronchoscopy" 
-                    stroke="#06b6d4" 
-                    strokeWidth={2}
-                    fillOpacity={1} 
-                    fill="url(#colorBroncho)" 
+                    fill="#ec4899" 
+                    radius={[4, 4, 0, 0]} 
                   />
-                </AreaChart>
+                  <Bar 
+                    dataKey="total" 
+                    name="Total Procedures" 
+                    fill="#f97316" 
+                    radius={[4, 4, 0, 0]} 
+                  />
+                </BarChart>
               </ResponsiveContainer>
             </div>
           ) : (
@@ -851,7 +1009,7 @@ export const EndoscopyAnalyticsDashboard: React.FC<EndoscopyAnalyticsDashboardPr
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Chart 3: Common Diagnostic Findings (2 Columns) */}
         <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2">
             <div>
               <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight">
                 Common Diagnostic Findings & Pathologies
@@ -860,9 +1018,17 @@ export const EndoscopyAnalyticsDashboard: React.FC<EndoscopyAnalyticsDashboardPr
                 Frequency of clinical diagnoses (Varices, Ulcers, Polyps, Bleeding, Normal, etc.)
               </p>
             </div>
-            <span className="px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg text-[9px] font-black uppercase">
-              Clinical Findings
-            </span>
+            <div className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider shrink-0">
+              <span className="flex items-center gap-1 text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Top
+              </span>
+              <span className="flex items-center gap-1 text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+                <span className="w-2 h-2 rounded-full bg-indigo-500"></span> Middle
+              </span>
+              <span className="flex items-center gap-1 text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                <span className="w-2 h-2 rounded-full bg-amber-500"></span> Lowest
+              </span>
+            </div>
           </div>
 
           {commonFindingsData.length > 0 ? (
@@ -902,9 +1068,15 @@ export const EndoscopyAnalyticsDashboard: React.FC<EndoscopyAnalyticsDashboardPr
                     labelStyle={{ color: '#0f172a', fontWeight: 'bold' }}
                   />
                   <Bar dataKey="count" name="Case Count" radius={[0, 8, 8, 0]}>
-                    {commonFindingsData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
+                    {commonFindingsData.map((entry, index) => {
+                      let fill = '#6366f1';
+                      if (maxFindingCount > minFindingCount) {
+                        if (entry.count === maxFindingCount) fill = '#10b981'; // Top Peak (Emerald Green)
+                        else if (entry.count === minFindingCount) fill = '#f59e0b'; // Lowest (Amber)
+                        else fill = '#6366f1'; // Middle (Indigo)
+                      }
+                      return <Cell key={`cell-finding-${index}`} fill={fill} />;
+                    })}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -921,7 +1093,7 @@ export const EndoscopyAnalyticsDashboard: React.FC<EndoscopyAnalyticsDashboardPr
 
         {/* Chart 4: Physician Workload Distribution */}
         <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2">
             <div>
               <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight">
                 Physician Workload
@@ -930,9 +1102,17 @@ export const EndoscopyAnalyticsDashboard: React.FC<EndoscopyAnalyticsDashboardPr
                 Procedures performed per doctor
               </p>
             </div>
-            <span className="px-2 py-0.5 bg-purple-50 text-purple-700 border border-purple-200 rounded text-[9px] font-black uppercase">
-              Endoscopists
-            </span>
+            <div className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider shrink-0">
+              <span className="flex items-center gap-1 text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Top
+              </span>
+              <span className="flex items-center gap-1 text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+                <span className="w-2 h-2 rounded-full bg-indigo-500"></span> Middle
+              </span>
+              <span className="flex items-center gap-1 text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                <span className="w-2 h-2 rounded-full bg-amber-500"></span> Lowest
+              </span>
+            </div>
           </div>
 
           {doctorWorkloadData.length > 0 ? (
@@ -965,7 +1145,17 @@ export const EndoscopyAnalyticsDashboard: React.FC<EndoscopyAnalyticsDashboardPr
                     itemStyle={{ color: '#0f172a', fontWeight: 'bold' }}
                     labelStyle={{ color: '#0f172a', fontWeight: 'bold' }}
                   />
-                  <Bar dataKey="count" name="Procedures" fill="#8b5cf6" radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="count" name="Procedures" radius={[6, 6, 0, 0]}>
+                    {doctorWorkloadData.map((entry, index) => {
+                      let fill = '#6366f1';
+                      if (maxDoctorWorkload > minDoctorWorkload) {
+                        if (entry.count === maxDoctorWorkload) fill = '#10b981'; // Top Performer (Emerald Green)
+                        else if (entry.count === minDoctorWorkload) fill = '#f59e0b'; // Lowest (Amber)
+                        else fill = '#6366f1'; // Middle (Indigo)
+                      }
+                      return <Cell key={`cell-doc-${index}`} fill={fill} />;
+                    })}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -1041,6 +1231,8 @@ export const EndoscopyAnalyticsDashboard: React.FC<EndoscopyAnalyticsDashboardPr
           </table>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 };
