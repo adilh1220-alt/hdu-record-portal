@@ -33,15 +33,18 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
   const [isShortcutsOpen, setShortcutsOpen] = useState(false);
   const [isHeaderLogoOpen, setHeaderLogoOpen] = useState(false);
   const [sidebarLogo, setSidebarLogo] = useState<string>('');
+  const [sidebarLogoWidth, setSidebarLogoWidth] = useState<number>(() => getLogoSettings().sidebarLogoWidthPx || 40);
 
   React.useEffect(() => {
     setSidebarLogo(getEffectiveLogoBase64());
+    setSidebarLogoWidth(getLogoSettings().sidebarLogoWidthPx || 40);
 
     let previousLogo = getEffectiveLogoBase64();
 
     const handleLogoChange = () => {
       const currentLogo = getEffectiveLogoBase64();
       setSidebarLogo(currentLogo);
+      setSidebarLogoWidth(getLogoSettings().sidebarLogoWidthPx || 40);
 
       if (currentLogo !== previousLogo) {
         previousLogo = currentLogo;
@@ -354,7 +357,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
                   key={getLogoSettings().updatedAt || Date.now()}
                   src={getLogoUrlWithCacheBust(sidebarLogo)} 
                   alt="Hospital Logo" 
-                  style={{ width: '40px', height: 'auto', maxHeight: '40px' }}
+                  style={{ width: `${sidebarLogoWidth}px`, height: 'auto', maxHeight: `${sidebarLogoWidth}px` }}
                   className="object-contain drop-shadow-sm group-hover:scale-105 transition-all"
                 />
               ) : (
@@ -379,7 +382,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
                     key={getLogoSettings().updatedAt || Date.now()}
                     src={getLogoUrlWithCacheBust(sidebarLogo)} 
                     alt="Hospital Logo" 
-                    style={{ width: '36px', height: 'auto', maxHeight: '36px' }}
+                    style={{ width: `${Math.round(sidebarLogoWidth * 0.9)}px`, height: 'auto', maxHeight: `${Math.round(sidebarLogoWidth * 0.9)}px` }}
                     className="object-contain group-hover:scale-110 transition-all"
                   />
                 ) : (

@@ -192,9 +192,9 @@ export const DEFAULT_LOGO_SETTINGS: LogoSettings = {
   customLogoBase64: '',
   logoUrl: '',
   updatedAt: Date.now(),
-  widthMm: 42,
-  heightMm: 14,
-  scaleHeightMm: 14,
+  widthMm: 68,
+  heightMm: 24,
+  scaleHeightMm: 24,
   sidebarLogoWidthPx: 40,
   scalePercent: 100,
   align: 'left',
@@ -264,8 +264,8 @@ export const getLogoUrlWithCacheBust = (providedUrl?: string | null): string => 
 export const calculateLogoRenderParams = (
   defaultX: number = 14,
   defaultY: number = 7,
-  defaultWidth: number = 42,
-  defaultHeight: number = 14,
+  defaultWidth: number = 68,
+  defaultHeight: number = 24,
   pageWidth: number = 210
 ) => {
   const settings = getLogoSettings();
@@ -274,9 +274,14 @@ export const calculateLogoRenderParams = (
   const timestamp = settings.updatedAt || Date.now();
 
   const align = settings.alignment || settings.align || 'left';
+  const scale = (settings.scalePercent || 100) / 100;
 
-  const targetWidth = defaultWidth;
-  const targetHeight = defaultHeight;
+  // Use customized width/height if set and different from old legacy defaults (42x14)
+  const baseWidth = (settings.widthMm && settings.widthMm !== 42) ? settings.widthMm : defaultWidth;
+  const baseHeight = (settings.heightMm && settings.heightMm !== 14) ? settings.heightMm : defaultHeight;
+
+  const targetWidth = baseWidth * scale;
+  const targetHeight = baseHeight * scale;
 
   let calculatedX = defaultX;
   if (align === 'center') {
@@ -303,7 +308,7 @@ export const exportToPDF = (title: string, headers: string[], rows: any[][], met
   const doc = new jsPDF('landscape'); 
   
   // Header Logo with user adjustments
-  const renderParams = calculateLogoRenderParams(14, 6, 42, 14, 297);
+  const renderParams = calculateLogoRenderParams(14, 6, 68, 24, 297);
   if (renderParams.logoBase64) {
     doc.addImage(renderParams.logoBase64, 'PNG', renderParams.x, renderParams.y, renderParams.width, renderParams.height);
   }
@@ -666,7 +671,7 @@ export const exportPatientSummaryPDF = (patient: Patient, generatedBy: string) =
   const doc = new jsPDF();
   
   // Header Block with Logo
-  const renderParams = calculateLogoRenderParams(14, 8, 42, 14, 210);
+  const renderParams = calculateLogoRenderParams(14, 8, 52, 22.7, 210);
   if (renderParams.logoBase64) {
     doc.addImage(renderParams.logoBase64, 'PNG', renderParams.x, renderParams.y, renderParams.width, renderParams.height);
   }
@@ -930,9 +935,33 @@ export const exportSingleEndoscopyReportPDF = async (record: EndoscopyRecord, ge
   }
 
   // Place the Kidney Centre logo on the left with custom settings
-  const renderParams = calculateLogoRenderParams(14, 12, 42, 14, 210);
+  const renderParams = calculateLogoRenderParams(14, 7, 46, 19.5, 210);
   if (renderParams.logoBase64) {
     doc.addImage(renderParams.logoBase64, 'PNG', renderParams.x, renderParams.y, renderParams.width, renderParams.height);
+  }
+
+  // Institutional Address & Contact Details right next to the logo
+  const logoEndX = renderParams.x + renderParams.width;
+  if (logoEndX < 98) {
+    const sepX = Math.min(61, logoEndX + 1.5);
+    const addressX = sepX + 2;
+
+    // Vertical Divider Line between Logo and Address
+    doc.setDrawColor(203, 213, 225); // Slate-300
+    doc.setLineWidth(0.3);
+    doc.line(sepX, 8, sepX, 24);
+
+    // Address & Contact Information Lines
+    doc.setFontSize(6.5);
+    doc.setTextColor(30, 41, 59); // Slate-800
+    doc.setFont('helvetica', 'bold');
+    doc.text("197/9, Rafiqui Shaheed Road, Karachi-75530", addressX, 11);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6);
+    doc.setTextColor(71, 85, 105); // Slate-600
+    doc.text("Phone: PABX: 3566-1000 (10 Lines)", addressX, 15.5);
+    doc.text("Cell: 0302-8271166, 0347-5661000", addressX, 20);
   }
 
   // Patient / Procedure Metadata on Right (Aligned from x=102 to 196)

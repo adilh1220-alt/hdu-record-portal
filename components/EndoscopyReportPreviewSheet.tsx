@@ -93,19 +93,24 @@ export const EndoscopyReportPreviewSheet: React.FC<EndoscopyReportPreviewSheetPr
             isCompactView ? 'gap-3 pb-3' : 'gap-6 pb-6'
           }`}
         >
-          {/* Left Side: The Kidney Centre logo */}
-          <div className="flex-shrink-0">
+          {/* Left Side: The Kidney Centre logo & Institutional Details */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-shrink-0">
             <img
               key={getLogoSettings().updatedAt || Date.now()}
               src={getLogoUrlWithCacheBust(getEffectiveLogoBase64())}
               alt="The Kidney Centre"
-              className={`w-full h-auto object-contain transition-all ${
+              className={`h-auto object-contain transition-all ${
                 isCompactView
-                  ? 'max-w-[210px]'
-                  : 'max-w-[280px] sm:max-w-[360px] md:max-w-[430px]'
+                  ? 'max-w-[140px]'
+                  : 'max-w-[170px] sm:max-w-[200px]'
               }`}
               referrerPolicy="no-referrer"
             />
+            <div className="border-l-2 border-slate-300 pl-3 text-[9.5px] sm:text-[10.5px] text-slate-700 font-medium leading-tight">
+              <p className="font-bold text-slate-900">197/9, Rafiqui Shaheed Road, Karachi-75530</p>
+              <p className="text-slate-600">Phone: PABX: 3566-1000 (10 Lines)</p>
+              <p className="text-slate-600">Cell: 0302-8271166, 0347-5661000</p>
+            </div>
           </div>
 
           {/* Right Side: Meta Table */}
