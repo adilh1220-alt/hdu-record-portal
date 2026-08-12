@@ -106,11 +106,13 @@ export const EndoscopyReportPreviewSheet: React.FC<EndoscopyReportPreviewSheetPr
               }`}
               referrerPolicy="no-referrer"
             />
-            <div className="border-l-2 border-slate-300 pl-3 text-[9.5px] sm:text-[10.5px] text-slate-700 font-medium leading-tight">
-              <p className="font-bold text-slate-900">197/9, Rafiqui Shaheed Road, Karachi-75530</p>
-              <p className="text-slate-600">Phone: PABX: 3566-1000 (10 Lines)</p>
-              <p className="text-slate-600">Cell: 0302-8271166, 0347-5661000</p>
-            </div>
+            {!getLogoSettings().useCustomLogo && (
+              <div className="border-l-2 border-slate-300 pl-3 text-[9.5px] sm:text-[10.5px] text-slate-700 font-medium leading-tight">
+                <p className="font-bold text-slate-900">197/9, Rafiqui Shaheed Road, Karachi-75530</p>
+                <p className="text-slate-600">Phone: PABX: 3566-1000 (10 Lines)</p>
+                <p className="text-slate-600">Cell: 0302-8271166, 0347-5661000</p>
+              </div>
+            )}
           </div>
 
           {/* Right Side: Meta Table */}
@@ -283,11 +285,11 @@ export const EndoscopyReportPreviewSheet: React.FC<EndoscopyReportPreviewSheetPr
                     Medications / Sedation
                   </span>
                   <span
-                    className={`text-slate-950 font-extrabold transition-all ${
+                    className={`text-slate-950 font-extrabold uppercase transition-all ${
                       isCompactView ? 'text-[11px]' : 'text-xs'
                     }`}
                   >
-                    {formMedications || 'N/A'}
+                    {formMedications ? formMedications.toUpperCase() : 'N/A'}
                   </span>
                 </div>
               </div>

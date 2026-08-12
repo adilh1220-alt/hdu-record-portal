@@ -4,6 +4,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { AuthUser } from '../types';
 import { authService } from '../services/authService';
 import { db } from '../services/firebaseConfig';
+import { syncLogoSettingsFromFirestore } from '../services/pdfService';
 
 interface AuthContextType {
   currentUser: AuthUser | null;
@@ -82,10 +83,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setCurrentUser(sanitizedUser);
         localStorage.setItem('hdu_session', JSON.stringify(sanitizedUser));
         localStorage.setItem(`hdu_role_${user.uid}`, role);
+
+        // Sync branding/logo settings from Firestore database
+        syncLogoSettingsFromFirestore().catch(() => {});
       } else {
         setCurrentUser(null);
         Object.keys(localStorage).forEach(key => {
-          if (key.startsWith('hdu_') || key.startsWith('clinical_')) {
+          if ((key.startsWith('hdu_') || key.startsWith('clinical_')) && key !== 'hdu_logo_settings') {
             localStorage.removeItem(key);
           }
         });
@@ -107,9 +111,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     await authService.logout();
     setCurrentUser(null);
-    // Clear all HDU related session data
+    // Clear all HDU related session data except branding/logo settings
     Object.keys(localStorage).forEach(key => {
-      if (key.startsWith('hdu_') || key.startsWith('clinical_')) {
+      if ((key.startsWith('hdu_') || key.startsWith('clinical_')) && key !== 'hdu_logo_settings') {
         localStorage.removeItem(key);
       }
     });

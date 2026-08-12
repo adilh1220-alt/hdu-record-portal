@@ -3,6 +3,9 @@ import { Patient, InventoryItem, EndoscopyRecord, IncidentRecord } from '../type
 import { formatProcedureDisplay } from '../constants';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+// @ts-ignore
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { db } from './firebaseConfig';
 import kidneyCentreLogoImg from '../src/assets/images/kidney_centre_logo_1785918380698.jpg';
 
 export interface SummaryItem {
@@ -227,10 +230,45 @@ export const saveLogoSettings = (settings: LogoSettings) => {
     };
     localStorage.setItem('hdu_logo_settings', JSON.stringify(updatedSettings));
     window.dispatchEvent(new Event('hdu_logo_settings_changed'));
+
+    // Persist asynchronously to Firestore cloud database
+    try {
+      setDoc(doc(db, 'system_settings', 'branding'), updatedSettings, { merge: true })
+        .catch(err => console.warn('Background branding save to Firestore:', err));
+    } catch (fsErr) {
+      console.warn('Firestore branding doc save init error:', fsErr);
+    }
   } catch (e) {
     console.error('Error saving logo settings:', e);
   }
 };
+
+export const syncLogoSettingsFromFirestore = async (): Promise<LogoSettings> => {
+  if (typeof window === 'undefined') return getLogoSettings();
+  try {
+    const docRef = doc(db, 'system_settings', 'branding');
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      const remoteSettings = snap.data() as LogoSettings;
+      if (remoteSettings && (remoteSettings.customLogoBase64 || remoteSettings.logoUrl || remoteSettings.useCustomLogo !== undefined)) {
+        const merged = { ...DEFAULT_LOGO_SETTINGS, ...remoteSettings };
+        localStorage.setItem('hdu_logo_settings', JSON.stringify(merged));
+        window.dispatchEvent(new Event('hdu_logo_settings_changed'));
+        return merged;
+      }
+    }
+  } catch (e) {
+    console.warn('Sync logo settings from Firestore offline/skipped:', e);
+  }
+  return getLogoSettings();
+};
+
+// Initial background sync on module initialization
+if (typeof window !== 'undefined') {
+  setTimeout(() => {
+    syncLogoSettingsFromFirestore();
+  }, 1000);
+}
 
 export const getEffectiveLogoBase64 = (): string => {
   const settings = getLogoSettings();
@@ -940,10 +978,11 @@ export const exportSingleEndoscopyReportPDF = async (record: EndoscopyRecord, ge
     doc.addImage(renderParams.logoBase64, 'PNG', renderParams.x, renderParams.y, renderParams.width, renderParams.height);
   }
 
-  // Institutional Address & Contact Details right next to the logo
+  // Institutional Address & Contact Details right next to logo if space permits (< 55mm)
   const logoEndX = renderParams.x + renderParams.width;
-  if (logoEndX < 98) {
-    const sepX = Math.min(61, logoEndX + 1.5);
+  const logoSettings = getLogoSettings();
+  if (logoEndX <= 55 && !logoSettings.useCustomLogo) {
+    const sepX = logoEndX + 2;
     const addressX = sepX + 2;
 
     // Vertical Divider Line between Logo and Address
@@ -951,17 +990,17 @@ export const exportSingleEndoscopyReportPDF = async (record: EndoscopyRecord, ge
     doc.setLineWidth(0.3);
     doc.line(sepX, 8, sepX, 24);
 
-    // Address & Contact Information Lines
+    // Address & Contact Information Lines (Bounded before x=100)
     doc.setFontSize(6.5);
     doc.setTextColor(30, 41, 59); // Slate-800
     doc.setFont('helvetica', 'bold');
-    doc.text("197/9, Rafiqui Shaheed Road, Karachi-75530", addressX, 11);
+    doc.text("197/9, Rafiqui Shaheed Road, Karachi-75530", addressX, 11, { maxWidth: 100 - addressX });
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6);
     doc.setTextColor(71, 85, 105); // Slate-600
-    doc.text("Phone: PABX: 3566-1000 (10 Lines)", addressX, 15.5);
-    doc.text("Cell: 0302-8271166, 0347-5661000", addressX, 20);
+    doc.text("Phone: PABX: 3566-1000 (10 Lines)", addressX, 15.5, { maxWidth: 100 - addressX });
+    doc.text("Cell: 0302-8271166, 0347-5661000", addressX, 20, { maxWidth: 100 - addressX });
   }
 
   // Patient / Procedure Metadata on Right (Aligned from x=102 to 196)
@@ -1016,7 +1055,7 @@ export const exportSingleEndoscopyReportPDF = async (record: EndoscopyRecord, ge
   const maxValWidth = boxWidth - (valueX - 14) - 4;
 
   const indicationsText = record.indications || 'N/A';
-  const medicationsText = record.medications || 'N/A';
+  const medicationsText = record.medications ? record.medications.toUpperCase() : 'N/A';
 
   const indLines = doc.splitTextToSize(indicationsText, maxValWidth);
   const medLines = doc.splitTextToSize(medicationsText, maxValWidth);

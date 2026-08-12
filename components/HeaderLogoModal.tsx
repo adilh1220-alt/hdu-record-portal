@@ -59,7 +59,64 @@ export const HeaderLogoModal: React.FC<HeaderLogoModalProps> = ({ isOpen, onClos
     setLogoBase64(getEffectiveLogoBase64());
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const rawUrl = event.target?.result as string;
+        if (!rawUrl) {
+          reject(new Error('Failed to read file'));
+          return;
+        }
+        // If it's an SVG file, keep raw
+        if (file.type.includes('svg')) {
+          resolve(rawUrl);
+          return;
+        }
+
+        const img = new Image();
+        img.onload = () => {
+          let width = img.width;
+          let height = img.height;
+          const maxDim = 800;
+
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(rawUrl);
+            return;
+          }
+
+          // Fill white background for transparent PNGs if converting
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(0, 0, width, height);
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Output compressed JPEG
+          const compressed = canvas.toDataURL('image/jpeg', 0.88);
+          resolve(compressed);
+        };
+        img.onerror = () => resolve(rawUrl);
+        img.src = rawUrl;
+      };
+      reader.onerror = (err) => reject(err);
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -73,9 +130,8 @@ export const HeaderLogoModal: React.FC<HeaderLogoModalProps> = ({ isOpen, onClos
 
     setIsUploading(true);
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const base64 = event.target?.result as string;
+    try {
+      const base64 = await compressImage(file);
       if (base64) {
         const updated: LogoSettings = {
           ...logoSettings,
@@ -88,19 +144,14 @@ export const HeaderLogoModal: React.FC<HeaderLogoModalProps> = ({ isOpen, onClos
         showInternalToast(`✓ ${msg}`);
         toast.success(msg, 'Logo Uploaded & Saved');
       }
-      setIsUploading(false);
-      e.target.value = '';
-    };
-
-    reader.onerror = () => {
-      const errMsg = 'Failed to read image file.';
+    } catch (err) {
+      const errMsg = 'Failed to process image file.';
       showInternalToast(`Error: ${errMsg}`);
       toast.error(errMsg, 'Upload Failed');
+    } finally {
       setIsUploading(false);
       e.target.value = '';
-    };
-
-    reader.readAsDataURL(file);
+    }
   };
 
   const handleResetToDefault = () => {

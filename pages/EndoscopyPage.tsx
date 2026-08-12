@@ -2464,13 +2464,13 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                   </div>
 
                   <div className="col-span-1 md:col-span-2 space-y-2">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Medications Given / Sedation</label>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">MEDICATIONS GIVEN / SEDATION</label>
                     <input
                       type="text"
                       value={formMedications}
-                      onChange={(e) => setFormMedications(e.target.value)}
-                      placeholder="e.g. Midazolam 2mg, Propofol 50mg, Buscopan 20mg or N/A"
-                      className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 hover:border-slate-300 transition-all"
+                      onChange={(e) => setFormMedications(e.target.value.toUpperCase())}
+                      placeholder="E.G. MIDAZOLAM 2MG, PROPOFOL 50MG, BUSCOPAN 20MG OR N/A"
+                      className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 hover:border-slate-300 transition-all uppercase"
                     />
                   </div>
                 </div>
