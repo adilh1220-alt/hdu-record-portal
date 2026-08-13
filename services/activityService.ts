@@ -1,5 +1,5 @@
 import { collection, addDoc, getDocs, query, orderBy, limit, deleteDoc, doc } from 'firebase/firestore';
-import { db } from './firebaseConfig';
+import { db, safeFirestoreWrite } from './firebaseConfig';
 
 export interface UserActivity {
   id?: string;
@@ -14,16 +14,18 @@ export interface UserActivity {
 export const activityService = {
   logActivity: async (action: 'CREATE' | 'MODIFY' | 'DELETE', recordType: string, details: string, performedBy: string, unit?: string) => {
     try {
-      await addDoc(collection(db, 'user_activities'), {
-        action,
-        recordType,
-        details,
-        performedBy,
-        timestamp: new Date().toISOString(),
-        unit: unit || 'Global'
-      });
+      await safeFirestoreWrite(async () => {
+        await addDoc(collection(db, 'user_activities'), {
+          action,
+          recordType,
+          details,
+          performedBy,
+          timestamp: new Date().toISOString(),
+          unit: unit || 'Global'
+        });
+      }, 5000);
     } catch (error) {
-      console.error("Error logging user activity:", error);
+      console.warn("Could not persist user activity log to Firestore (Offline or Stream busy):", error);
     }
   },
 

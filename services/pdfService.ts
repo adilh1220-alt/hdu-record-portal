@@ -3,10 +3,40 @@ import { Patient, InventoryItem, EndoscopyRecord, IncidentRecord } from '../type
 import { formatProcedureDisplay } from '../constants';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import QRCode from 'qrcode';
 // @ts-ignore
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { db } from './firebaseConfig';
+import { db, safeFirestoreWrite } from './firebaseConfig';
 import kidneyCentreLogoImg from '../src/assets/images/kidney_centre_logo_1785918380698.jpg';
+
+export const getVerificationUrl = (type: string, id: string | number, extra?: Record<string, string>): string => {
+  const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : 'https://kidneycentre.com';
+  const url = new URL(origin);
+  url.searchParams.set('verify', type);
+  url.searchParams.set('id', String(id));
+  if (extra) {
+    Object.entries(extra).forEach(([k, v]) => {
+      if (v) url.searchParams.set(k, String(v));
+    });
+  }
+  return url.toString();
+};
+
+export const generateQRCodeDataUrl = async (verificationUrl: string): Promise<string> => {
+  try {
+    return await QRCode.toDataURL(verificationUrl, {
+      margin: 1,
+      width: 180,
+      color: {
+        dark: '#0f172a',
+        light: '#ffffff'
+      }
+    });
+  } catch (err) {
+    console.warn('QR Code generation error:', err);
+    return '';
+  }
+};
 
 export interface SummaryItem {
   label: string;
@@ -233,8 +263,9 @@ export const saveLogoSettings = (settings: LogoSettings) => {
 
     // Persist asynchronously to Firestore cloud database
     try {
-      setDoc(doc(db, 'system_settings', 'branding'), updatedSettings, { merge: true })
-        .catch(err => console.warn('Background branding save to Firestore:', err));
+      safeFirestoreWrite(async () => {
+        await setDoc(doc(db, 'system_settings', 'branding'), updatedSettings, { merge: true });
+      }, 5000).catch(err => console.warn('Background branding save to Firestore:', err));
     } catch (fsErr) {
       console.warn('Firestore branding doc save init error:', fsErr);
     }
@@ -342,13 +373,41 @@ export const calculateLogoRenderParams = (
   };
 };
 
-export const exportToPDF = (title: string, headers: string[], rows: any[][], metadata: ReportMetadata) => {
+export const exportToPDF = async (title: string, headers: string[], rows: any[][], metadata: ReportMetadata) => {
   const doc = new jsPDF('landscape'); 
+  const pageWidth = doc.internal.pageSize.width;
   
+  const verificationUrl = getVerificationUrl('report', title.toLowerCase().replace(/\s+/g, '-'), {
+    filters: metadata.filters,
+    period: metadata.period || ''
+  });
+  const qrDataUrl = await generateQRCodeDataUrl(verificationUrl);
+
   // Header Logo with user adjustments
   const renderParams = calculateLogoRenderParams(14, 6, 68, 24, 297);
   if (renderParams.logoBase64) {
     doc.addImage(renderParams.logoBase64, 'PNG', renderParams.x, renderParams.y, renderParams.width, renderParams.height);
+  }
+
+  // Right Top Header: Embedded QR Verification Badge
+  if (qrDataUrl) {
+    const qrX = pageWidth - 14 - 44;
+    doc.setDrawColor(226, 232, 240);
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(qrX, 6, 44, 23, 2, 2, 'FD');
+    doc.addImage(qrDataUrl, 'PNG', qrX + 1.5, 7.5, 20, 20);
+
+    doc.setFontSize(6);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text("SCAN TO VERIFY", qrX + 23, 12);
+
+    doc.setFontSize(5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text("Official Medical Record", qrX + 23, 16);
+    doc.text("The Kidney Centre", qrX + 23, 20);
+    doc.text("Digital Verification", qrX + 23, 24);
   }
 
   // Report Title & Metadata
@@ -468,7 +527,7 @@ export const exportAccessSlipPDF = (userData: { name: string; email: string; pas
   doc.setFontSize(22);
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.text("MEDILOG RECORD MANAGEMENT SYSTEM", 105, 20, { align: 'center' });
+  doc.text("THE KIDNEY CENTRE MEDICAL RECORD SYSTEM", 105, 20, { align: 'center' });
   
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
@@ -514,7 +573,7 @@ export const exportAccessSlipPDF = (userData: { name: string; email: string; pas
   doc.save(`access_slip_${userData.name.toLowerCase().replace(/\s+/g, '_')}.pdf`);
 };
 
-export const exportPatientsPDF = (patients: Patient[], metadata: ReportMetadata) => {
+export const exportPatientsPDF = async (patients: Patient[], metadata: ReportMetadata) => {
   const headers = ['Reg No', 'Patient Name', 'Gender', 'Category', 'Triage', 'Location', 'Code', 'Consultant', 'In-Date', 'Out-Date', 'LOS'];
   const rows = patients.map(p => [
     p.regNo, 
@@ -539,13 +598,13 @@ export const exportPatientsPDF = (patients: Patient[], metadata: ReportMetadata)
     }
   ];
 
-  exportToPDF("Clinical Patient Record", headers, rows, {
+  await exportToPDF("Clinical Patient Record", headers, rows, {
     ...metadata,
     customSummarySections: metadata.customSummarySections || summarySections
   });
 };
 
-export const exportInventoryPDF = (inventory: InventoryItem[], metadata: ReportMetadata) => {
+export const exportInventoryPDF = async (inventory: InventoryItem[], metadata: ReportMetadata) => {
   const headers = ['Item Name', 'Category', 'Stock', 'Min', 'Unit', 'Last Updated'];
   const rows = inventory.map(i => [i.name, i.category, i.quantity, i.minThreshold, i.measurementUnit, i.lastUpdated]);
 
@@ -563,13 +622,13 @@ export const exportInventoryPDF = (inventory: InventoryItem[], metadata: ReportM
     }
   ];
 
-  exportToPDF("Inventory Audit Report", headers, rows, {
+  await exportToPDF("Inventory Audit Report", headers, rows, {
     ...metadata,
     customSummarySections: metadata.customSummarySections || summarySections
   });
 };
 
-export const exportEndoscopyPDF = (records: EndoscopyRecord[], metadata: ReportMetadata) => {
+export const exportEndoscopyPDF = async (records: EndoscopyRecord[], metadata: ReportMetadata) => {
   const headers = ['S.No', 'Reg No', 'Patient Name', 'Doctor / Physician', 'Procedure', 'Date'];
   const rows = records.map((r, idx) => [
     r.serialNo || (idx + 1).toString().padStart(3, '0'),
@@ -657,14 +716,14 @@ export const exportEndoscopyPDF = (records: EndoscopyRecord[], metadata: ReportM
     }
   ];
 
-  exportToPDF("Endoscopy Procedure Log Report", headers, rows, {
+  await exportToPDF("Endoscopy Procedure Log Report", headers, rows, {
     ...metadata,
     period: detectedPeriod,
     customSummarySections: summarySections
   });
 };
 
-export const exportIncidentsPDF = (incidents: IncidentRecord[], metadata: ReportMetadata) => {
+export const exportIncidentsPDF = async (incidents: IncidentRecord[], metadata: ReportMetadata) => {
   const headers = ['Date', 'Patient Name', 'Reg No', 'Category', 'Unit', 'Reported By', 'Description'];
   const rows = incidents.map(i => [
     i.incidentDate,
@@ -699,33 +758,48 @@ export const exportIncidentsPDF = (incidents: IncidentRecord[], metadata: Report
     }
   ];
 
-  exportToPDF("Clinical Incident Report", headers, rows, {
+  await exportToPDF("Clinical Incident Report", headers, rows, {
     ...metadata,
     customSummarySections: metadata.customSummarySections || summarySections
   });
 };
 
-export const exportPatientSummaryPDF = (patient: Patient, generatedBy: string) => {
+export const exportPatientSummaryPDF = async (patient: Patient, generatedBy: string) => {
   const doc = new jsPDF();
   
+  const verificationUrl = getVerificationUrl('patient', patient.regNo || patient.id, {
+    name: patient.name,
+    unit: patient.unit
+  });
+  const qrDataUrl = await generateQRCodeDataUrl(verificationUrl);
+
   // Header Block with Logo
-  const renderParams = calculateLogoRenderParams(14, 8, 52, 22.7, 210);
+  const renderParams = calculateLogoRenderParams(14, 8, 48, 22.7, 210);
   if (renderParams.logoBase64) {
     doc.addImage(renderParams.logoBase64, 'PNG', renderParams.x, renderParams.y, renderParams.width, renderParams.height);
   }
 
+  // Header Title Box
   doc.setFillColor(15, 23, 42); // Slate-900
-  doc.roundedRect(72, 8, 124, 22.7, 2, 2, 'F');
+  doc.roundedRect(64, 8, 102, 22.7, 2, 2, 'F');
   
-  doc.setFontSize(11);
+  doc.setFontSize(10);
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.text("CLINICAL INPATIENT & PROCEDURE SUMMARY", 134, 16, { align: 'center' });
+  doc.text("CLINICAL INPATIENT & PROCEDURE SUMMARY", 115, 16, { align: 'center' });
 
   // Timestamp
-  doc.setFontSize(7);
+  doc.setFontSize(6.5);
   doc.setTextColor(186, 200, 218); // Soft slate color
-  doc.text(`Generated On: ${new Date().toLocaleString()}  |  By: ${generatedBy.toUpperCase()}`, 134, 23, { align: 'center' });
+  doc.text(`Generated On: ${new Date().toLocaleString()}  |  By: ${generatedBy.toUpperCase()}`, 115, 23, { align: 'center' });
+
+  // Verification QR Code Box on Header Right
+  if (qrDataUrl) {
+    doc.setDrawColor(226, 232, 240);
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(168, 8, 28, 22.7, 2, 2, 'FD');
+    doc.addImage(qrDataUrl, 'PNG', 172, 9, 20, 20);
+  }
 
   // 1. Patient Demographics & Profile Panel
   doc.setDrawColor(226, 232, 240); // Slate-200
@@ -957,6 +1031,13 @@ export const exportSingleEndoscopyReportPDF = async (record: EndoscopyRecord, ge
   const pageHeight = doc.internal.pageSize.height;
   const pageWidth = doc.internal.pageSize.width;
 
+  const verificationUrl = getVerificationUrl('endoscopy', record.id || record.serialNo || record.regNo || '1', {
+    mrn: record.regNo,
+    name: record.name,
+    date: record.date
+  });
+  const qrDataUrl = await generateQRCodeDataUrl(verificationUrl);
+
   // Pre-load all remote images asynchronously to avoid cross-origin canvas errors in jsPDF
   const preloadedList: { id: string; url: string; title: string }[] = [];
   const hasImages = record.images && record.images.length > 0;
@@ -973,35 +1054,32 @@ export const exportSingleEndoscopyReportPDF = async (record: EndoscopyRecord, ge
   }
 
   // Place the Kidney Centre logo on the left with custom settings
-  const renderParams = calculateLogoRenderParams(14, 7, 46, 19.5, 210);
+  const renderParams = calculateLogoRenderParams(14, 6.5, 36, 21, 210);
   if (renderParams.logoBase64) {
     doc.addImage(renderParams.logoBase64, 'PNG', renderParams.x, renderParams.y, renderParams.width, renderParams.height);
   }
 
-  // Institutional Address & Contact Details right next to logo if space permits (< 55mm)
+  // Institutional Address & Contact Details unconditionally rendered tight right next to logo
   const logoEndX = renderParams.x + renderParams.width;
-  const logoSettings = getLogoSettings();
-  if (logoEndX <= 55 && !logoSettings.useCustomLogo) {
-    const sepX = logoEndX + 2;
-    const addressX = sepX + 2;
+  const sepX = logoEndX + 2;
+  const addressX = sepX + 2;
 
-    // Vertical Divider Line between Logo and Address
-    doc.setDrawColor(203, 213, 225); // Slate-300
-    doc.setLineWidth(0.3);
-    doc.line(sepX, 8, sepX, 24);
+  // Vertical Divider Line between Logo and Address
+  doc.setDrawColor(203, 213, 225); // Slate-300
+  doc.setLineWidth(0.3);
+  doc.line(sepX, 7, sepX, 26);
 
-    // Address & Contact Information Lines (Bounded before x=100)
-    doc.setFontSize(6.5);
-    doc.setTextColor(30, 41, 59); // Slate-800
-    doc.setFont('helvetica', 'bold');
-    doc.text("197/9, Rafiqui Shaheed Road, Karachi-75530", addressX, 11, { maxWidth: 100 - addressX });
+  // Address & Contact Information Lines (Bounded before patient info box at x=102)
+  doc.setFontSize(6.4);
+  doc.setTextColor(30, 41, 59); // Slate-800
+  doc.setFont('helvetica', 'bold');
+  doc.text("197/9, Rafiqui Shaheed Road, Karachi-75530.", addressX, 11, { maxWidth: 101 - addressX });
 
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(6);
-    doc.setTextColor(71, 85, 105); // Slate-600
-    doc.text("Phone: PABX: 3566-1000 (10 Lines)", addressX, 15.5, { maxWidth: 100 - addressX });
-    doc.text("Cell: 0302-8271166, 0347-5661000", addressX, 20, { maxWidth: 100 - addressX });
-  }
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(5.8);
+  doc.setTextColor(71, 85, 105); // Slate-600
+  doc.text("Phone: PABX 35661000 (10 Lines)", addressX, 16, { maxWidth: 101 - addressX });
+  doc.text("Cell: 0302-8271166, 0347-5661000", addressX, 21, { maxWidth: 101 - addressX });
 
   // Patient / Procedure Metadata on Right (Aligned from x=102 to 196)
   doc.setLineWidth(0.5);
@@ -1420,6 +1498,31 @@ export const exportSingleEndoscopyReportPDF = async (record: EndoscopyRecord, ge
   doc.setTextColor(100);
   doc.setFont('helvetica', 'normal');
   doc.text("Performing Physician Signature", 44, signY + 4, { align: 'center' });
+
+  // Verification QR Code Box on the Right
+  if (qrDataUrl) {
+    const qrX = pageWidth - 14 - 60;
+    const qrY = signY - 10;
+    doc.setDrawColor(226, 232, 240);
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(qrX, qrY, 60, 22, 2, 2, 'FD');
+
+    doc.addImage(qrDataUrl, 'PNG', qrX + 2, qrY + 2, 18, 18);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.5);
+    doc.setTextColor(15, 23, 42);
+    doc.text("SCAN TO VERIFY RECORD", qrX + 22, qrY + 6);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(5.5);
+    doc.setTextColor(71, 85, 105);
+    doc.text("The Kidney Centre Verified", qrX + 22, qrY + 10.5);
+    doc.text(`MRN: ${record.regNo || 'N/A'}`, qrX + 22, qrY + 14.5);
+    doc.setFontSize(5);
+    doc.setTextColor(100, 116, 139);
+    doc.text("Official Clinical Verification", qrX + 22, qrY + 18.5);
+  }
 
   doc.save(`endoscopy_procedure_report_${record.regNo}_${record.serialNo}.pdf`);
 };

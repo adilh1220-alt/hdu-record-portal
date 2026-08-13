@@ -1,5 +1,7 @@
 import React from 'react';
-import { getEffectiveLogoBase64, getLogoUrlWithCacheBust, getLogoSettings } from '../services/pdfService';
+import { QRCodeSVG } from 'qrcode.react';
+import { CheckCircle2 } from 'lucide-react';
+import { getEffectiveLogoBase64, getLogoUrlWithCacheBust, getLogoSettings, getVerificationUrl } from '../services/pdfService';
 import { GastroScopeIcon } from './GastroScopeIcon';
 
 export interface EndoscopyReportPreviewSheetProps {
@@ -94,25 +96,23 @@ export const EndoscopyReportPreviewSheet: React.FC<EndoscopyReportPreviewSheetPr
           }`}
         >
           {/* Left Side: The Kidney Centre logo & Institutional Details */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-shrink-0">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-shrink-0">
             <img
               key={getLogoSettings().updatedAt || Date.now()}
               src={getLogoUrlWithCacheBust(getEffectiveLogoBase64())}
               alt="The Kidney Centre"
               className={`h-auto object-contain transition-all ${
                 isCompactView
-                  ? 'max-w-[140px]'
-                  : 'max-w-[170px] sm:max-w-[200px]'
+                  ? 'max-w-[130px]'
+                  : 'max-w-[150px] sm:max-w-[180px]'
               }`}
               referrerPolicy="no-referrer"
             />
-            {!getLogoSettings().useCustomLogo && (
-              <div className="border-l-2 border-slate-300 pl-3 text-[9.5px] sm:text-[10.5px] text-slate-700 font-medium leading-tight">
-                <p className="font-bold text-slate-900">197/9, Rafiqui Shaheed Road, Karachi-75530</p>
-                <p className="text-slate-600">Phone: PABX: 3566-1000 (10 Lines)</p>
-                <p className="text-slate-600">Cell: 0302-8271166, 0347-5661000</p>
-              </div>
-            )}
+            <div className="border-l-2 border-slate-300 pl-2 text-[8.5px] sm:text-[9.5px] text-slate-700 font-medium leading-tight">
+              <p className="font-bold text-slate-900">197/9, Rafiqui Shaheed Road, Karachi-75530.</p>
+              <p className="text-slate-600">Phone: PABX 35661000 (10 Lines)</p>
+              <p className="text-slate-600">Cell: 0302-8271166, 0347-5661000</p>
+            </div>
           </div>
 
           {/* Right Side: Meta Table */}
@@ -957,12 +957,32 @@ export const EndoscopyReportPreviewSheet: React.FC<EndoscopyReportPreviewSheetPr
 
       {/* Signatures & Footer sticking to the bottom */}
       <div className={`border-t border-slate-300 transition-all ${isCompactView ? 'mt-6 pt-4' : 'mt-10 pt-6'}`}>
-        <div className="flex flex-col sm:flex-row justify-start items-center text-center gap-6">
+        <div className="flex flex-col sm:flex-row justify-between items-end gap-6">
           <div className="w-full sm:w-1/3 max-w-xs space-y-1.5">
             <div className="h-0.5 bg-slate-400 w-full" />
             <p className={`font-black text-slate-600 uppercase tracking-widest ${isCompactView ? 'text-[8px]' : 'text-[9px]'}`}>
               Performing Physician / Endoscopist Signature
             </p>
+          </div>
+
+          {/* Embedded Digital Verification QR Code Card */}
+          <div className="flex items-center gap-2.5 bg-slate-50 border border-slate-200 rounded-lg p-2 shadow-2xs">
+            <div className="bg-white p-1 rounded border border-slate-200">
+              <QRCodeSVG 
+                value={getVerificationUrl('endoscopy', formRegNo || '1', { mrn: formRegNo, name: formName, date: formDate })} 
+                size={isCompactView ? 46 : 54} 
+                level="M" 
+              />
+            </div>
+            <div className="text-left space-y-0.5">
+              <div className="flex items-center gap-1 text-emerald-700">
+                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                <span className="font-extrabold text-[8.5px] uppercase tracking-wider">Verified Clinical Record</span>
+              </div>
+              <p className="text-[8px] font-mono font-bold text-slate-800">MRN: {formRegNo || 'N/A'}</p>
+              <p className="text-[7.5px] text-slate-500">Scan QR code for authentic verification</p>
+              <p className="text-[7px] text-slate-400 font-medium">The Kidney Centre Medical Records</p>
+            </div>
           </div>
         </div>
 

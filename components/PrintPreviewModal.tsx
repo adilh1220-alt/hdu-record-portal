@@ -18,6 +18,7 @@ import {
   EndoscopyRecord,
   ClinicalUnit
 } from '../types';
+import { QRCodeSVG } from 'qrcode.react';
 import { 
   generateKidneyCentreLogoBase64,
   getLogoSettings,
@@ -25,7 +26,8 @@ import {
   getEffectiveLogoBase64,
   getLogoUrlWithCacheBust,
   DEFAULT_LOGO_SETTINGS,
-  LogoSettings
+  LogoSettings,
+  getVerificationUrl
 } from '../services/pdfService';
 import { downloadCSV, downloadExcel } from '../services/exportService';
 import { 
@@ -1692,7 +1694,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
               logoSettings.alignment === 'center' ? 'text-center md:items-center' :
               logoSettings.alignment === 'right' ? 'flex-row-reverse md:items-end' : ''
             }`}>
-              <div className={`flex items-center gap-3 ${
+              <div className={`flex items-center gap-2 ${
                 logoSettings.alignment === 'center' ? 'mx-auto' : ''
               }`}>
                 <img 
@@ -1702,6 +1704,11 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
                   style={{ height: `${(logoSettings.scaleHeightMm || 14) * 2.8}px` }}
                   className="w-auto object-contain transition-all"
                 />
+                <div className="border-l-2 border-slate-300 pl-2 text-[8.5px] text-slate-700 font-medium leading-tight text-left">
+                  <p className="font-bold text-slate-900">197/9, Rafiqui Shaheed Road, Karachi-75530.</p>
+                  <p className="text-slate-600">Phone: PABX 35661000 (10 Lines)</p>
+                  <p className="text-slate-600">Cell: 0302-8271166, 0347-5661000</p>
+                </div>
               </div>
 
               <div className={`text-left text-[9px] text-slate-500 font-mono space-y-0.5 ${
@@ -1734,7 +1741,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
               {getReportTitle()}
             </h2>
             <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">
-              This clinical summary compiles verified entries recorded in MediLog for {selectedUnit === 'ALL' ? 'all operational units' : `the ${UNIT_DETAILS[selectedUnit].label} unit`}. This is a privileged medical report for clinical auditing, inpatient handovers, and physician reviews.
+              This clinical summary compiles verified entries recorded in The Kidney Centre Medical Records for {selectedUnit === 'ALL' ? 'all operational units' : `the ${UNIT_DETAILS[selectedUnit].label} unit`}. This is a privileged medical report for clinical auditing, inpatient handovers, and physician reviews.
             </p>
           </div>
 
@@ -2681,7 +2688,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
 
           {/* Signature & Verification Block */}
           {includeSignatures && (
-            <div className="mt-12 pt-8 border-t border-slate-200 grid grid-cols-2 gap-8 text-[10px] text-slate-500 uppercase tracking-wider">
+            <div className="mt-12 pt-8 border-t border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-6 text-[10px] text-slate-500 uppercase tracking-wider items-end">
               <div className="space-y-12">
                 <p className="font-bold">Prepared & Signed By:</p>
                 <div className="border-t border-slate-300 pt-1.5">
@@ -2698,6 +2705,20 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
                 </div>
               </div>
 
+              {/* Digital Record QR Verification */}
+              <div className="flex flex-col items-center justify-center p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-center normal-case">
+                <div className="bg-white p-1.5 rounded border border-slate-200 shadow-2xs mb-1">
+                  <QRCodeSVG 
+                    value={getVerificationUrl('census', selectedUnit || 'ALL', { unit: selectedUnit, date: new Date().toISOString() })} 
+                    size={52} 
+                    level="M" 
+                  />
+                </div>
+                <span className="font-extrabold text-[8.5px] uppercase text-slate-900 tracking-wider">Verified Clinical Report</span>
+                <span className="text-[7.5px] text-slate-500">Scan QR Code to Verify Authenticity</span>
+                <span className="text-[7px] text-slate-400 font-mono mt-0.5">TKC Digital Records System</span>
+              </div>
+
               <div className="space-y-12">
                 <p className="font-bold text-right">Counter-Signed / Verified By:</p>
                 <div className="border-t border-slate-300 pt-1.5 text-right">
@@ -2708,7 +2729,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
                     High Dependency Unit Clinical Board
                   </p>
                   <p className="text-[8px] text-slate-400">
-                    MediLog Clinical Healthcare Alliance
+                    The Kidney Centre Post Graduate Training Institute
                   </p>
                 </div>
               </div>
@@ -2717,7 +2738,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
           
           {/* Print Footer Page Numbering Guideline */}
           <div className="mt-10 text-center text-[8px] text-slate-400 border-t border-slate-100 pt-3">
-            MEDILOG MEDICAL RECORD SYSTEM • PRIVILEGED AND CONFIDENTIAL CLINICAL INFORMATION • DO NOT DUPLICATE WITHOUT AUTHORIZATION
+            THE KIDNEY CENTRE MEDICAL RECORD SYSTEM • PRIVILEGED AND CONFIDENTIAL CLINICAL INFORMATION • DO NOT DUPLICATE WITHOUT AUTHORIZATION
           </div>
         </div>
       </div>

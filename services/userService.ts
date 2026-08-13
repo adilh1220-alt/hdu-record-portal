@@ -4,7 +4,7 @@ import { collection, getDocs, doc, updateDoc, query, orderBy, setDoc, addDoc, li
 import { initializeApp } from 'firebase/app';
 // @ts-ignore
 import { getAuth, createUserWithEmailAndPassword, updateProfile, signOut } from 'firebase/auth';
-import { db, firebaseConfig } from './firebaseConfig';
+import { db, firebaseConfig, safeFirestoreWrite } from './firebaseConfig';
 import { AuthUser, AuditLog } from '../types';
 
 export const userService = {
@@ -38,7 +38,9 @@ export const userService = {
   updateUserRole: async (uid: string, role: 'Admin' | 'Consultant' | 'Staff'): Promise<void> => {
     try {
       const userRef = doc(db, 'users', uid);
-      await updateDoc(userRef, { role });
+      await safeFirestoreWrite(async () => {
+        await updateDoc(userRef, { role });
+      });
       localStorage.setItem(`hdu_role_${uid}`, role);
     } catch (error) {
       console.error("Error updating user role:", error);
@@ -49,7 +51,9 @@ export const userService = {
   updateUserRoleAndUnit: async (uid: string, role: 'Admin' | 'Consultant' | 'Staff', assignedUnit?: string | null): Promise<void> => {
     try {
       const userRef = doc(db, 'users', uid);
-      await updateDoc(userRef, { role, assignedUnit: assignedUnit || null });
+      await safeFirestoreWrite(async () => {
+        await updateDoc(userRef, { role, assignedUnit: assignedUnit || null });
+      });
       localStorage.setItem(`hdu_role_${uid}`, role);
     } catch (error) {
       console.error("Error updating user role and unit:", error);
@@ -60,7 +64,9 @@ export const userService = {
   deactivateUser: async (uid: string): Promise<void> => {
     try {
       const userRef = doc(db, 'users', uid);
-      await updateDoc(userRef, { status: 'Left' });
+      await safeFirestoreWrite(async () => {
+        await updateDoc(userRef, { status: 'Left' });
+      });
     } catch (error) {
       console.error("Error deactivating user:", error);
       throw error;
@@ -71,7 +77,9 @@ export const userService = {
     try {
       const userRef = doc(db, 'users', uid);
       // Restore to Active status to re-enable clinical database access
-      await updateDoc(userRef, { status: 'Active' });
+      await safeFirestoreWrite(async () => {
+        await updateDoc(userRef, { status: 'Active' });
+      });
     } catch (error) {
       console.error("Error activating user:", error);
       throw error;
@@ -89,14 +97,16 @@ export const userService = {
 
       await updateProfile(newUser, { displayName: name });
 
-      await setDoc(doc(db, 'users', newUser.uid), {
-        uid: newUser.uid,
-        email: newUser.email,
-        displayName: name,
-        role: role,
-        assignedUnit: assignedUnit || null,
-        status: 'Active',
-        createdAt: new Date().toISOString()
+      await safeFirestoreWrite(async () => {
+        await setDoc(doc(db, 'users', newUser.uid), {
+          uid: newUser.uid,
+          email: newUser.email,
+          displayName: name,
+          role: role,
+          assignedUnit: assignedUnit || null,
+          status: 'Active',
+          createdAt: new Date().toISOString()
+        });
       });
 
       await signOut(tempAuth);
@@ -107,12 +117,14 @@ export const userService = {
 
   addAuditLog: async (log: Omit<AuditLog, 'id' | 'timestamp'>) => {
     try {
-      await addDoc(collection(db, 'audit_logs'), {
-        ...log,
-        timestamp: new Date().toISOString()
-      });
+      await safeFirestoreWrite(async () => {
+        await addDoc(collection(db, 'audit_logs'), {
+          ...log,
+          timestamp: new Date().toISOString()
+        });
+      }, 4000);
     } catch (error) {
-      console.error("Error adding audit log:", error);
+      console.warn("Could not write audit log (offline fallback):", error);
     }
   },
 

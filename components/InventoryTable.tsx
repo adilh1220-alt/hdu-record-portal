@@ -577,10 +577,10 @@ const InventoryTable: React.FC = () => {
                   return (
                     <tr 
                       key={item.id} 
-                      className={`transition-all group cursor-pointer ${
+                      className={`transition-all duration-150 group cursor-pointer border-l-4 border-l-transparent ${
                         newlyAddedId === item.id 
-                          ? 'bg-amber-50/70 border-l-4 border-l-amber-500 animate-in fade-in duration-1000' 
-                          : 'hover:bg-slate-50'
+                          ? 'bg-amber-50/70 border-l-amber-500 animate-in fade-in duration-1000' 
+                          : 'even:bg-slate-50/50 hover:bg-sky-50/80 hover:border-l-sky-500 hover:shadow-xs'
                       }`}
                       onClick={() => handleView(item)}
                     >

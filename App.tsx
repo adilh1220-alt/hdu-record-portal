@@ -19,13 +19,41 @@ import { ToastProvider } from './contexts/ToastContext';
 import { AdvancedSearchModal } from './components/AdvancedSearchModal';
 import { UNIT_DETAILS } from './constants';
 import { PrintPreviewModal } from './components/PrintPreviewModal';
+import { RecordVerificationModal } from './components/RecordVerificationModal';
 import { IdleTimer } from './components/IdleTimer';
 
 const MainAppContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isPrintPreviewOpen, setPrintPreviewOpen] = useState(false);
+  const [isVerifyModalOpen, setVerifyModalOpen] = useState(false);
+  const [verifyParams, setVerifyParams] = useState<{
+    type: string;
+    id?: string;
+    mrn?: string;
+    name?: string;
+    date?: string;
+  } | null>(null);
+
   const { currentUser, isAdmin } = useAuth();
   const { activeUnit } = useUnit();
+
+  // Check URL params for QR verification deep links
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const verifyType = params.get('verify');
+      if (verifyType) {
+        setVerifyParams({
+          type: verifyType,
+          id: params.get('id') || undefined,
+          mrn: params.get('mrn') || undefined,
+          name: params.get('name') || undefined,
+          date: params.get('date') || undefined,
+        });
+        setVerifyModalOpen(true);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -150,6 +178,12 @@ const MainAppContent: React.FC = () => {
       <AdvancedSearchModal 
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
+      />
+      <RecordVerificationModal
+        isOpen={isVerifyModalOpen}
+        onClose={() => setVerifyModalOpen(false)}
+        verifyParams={verifyParams}
+        onNavigateToTab={(tab) => setActiveTab(tab)}
       />
     </>
   );

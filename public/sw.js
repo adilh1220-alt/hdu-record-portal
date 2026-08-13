@@ -1,9 +1,9 @@
-// MediLog Clinical Systems - Progressive Web App Service Worker
+// The Kidney Centre - Progressive Web App Service Worker
 // Enables offline viewing of critical patient records & draft persistence under unstable network conditions.
 
-const CACHE_NAME = 'medilog-clinical-v1';
-const DATA_CACHE_NAME = 'medilog-patient-data-v1';
-const DRAFT_CACHE_NAME = 'medilog-drafts-v1';
+const CACHE_NAME = 'kidney-centre-v1';
+const DATA_CACHE_NAME = 'kidney-centre-data-v1';
+const DRAFT_CACHE_NAME = 'kidney-centre-drafts-v1';
 
 // Essential App Shell resources to precache
 const STATIC_ASSETS = [

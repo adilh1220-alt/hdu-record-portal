@@ -29,11 +29,12 @@ const firebaseConfig = {
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 
-// Use initializeFirestore with experimentalAutoDetectLongPolling to handle both WebSocket and long-polling environments smoothly
-let db;
+// Use initializeFirestore with experimentalAutoDetectLongPolling and timeout bounds
+let db: any;
 try {
   db = initializeFirestore(app, {
-    experimentalAutoDetectLongPolling: true
+    experimentalAutoDetectLongPolling: true,
+    experimentalLongPollingOptions: { timeoutSeconds: 30 }
   });
 } catch (e) {
   db = getFirestore(app);
@@ -41,6 +42,39 @@ try {
 
 const storage = getStorage(app);
 
+/**
+ * Safely executes a Firestore write operation with a timeout promise to prevent
+ * write stream exhaustion (code=resource-exhausted) during network instability.
+ */
+export async function safeFirestoreWrite<T>(writeFn: () => Promise<T>, timeoutMs = 8000): Promise<T> {
+  let timer: any;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error('Firestore write request timed out'));
+    }, timeoutMs);
+  });
+
+  try {
+    const result = await Promise.race([writeFn(), timeoutPromise]);
+    clearTimeout(timer);
+    return result;
+  } catch (err: any) {
+    clearTimeout(timer);
+    const errCode = err?.code || '';
+    const errMessage = String(err?.message || '');
+    if (
+      errCode === 'resource-exhausted' || 
+      errCode === 'unavailable' ||
+      errMessage.includes('exhausted') || 
+      errMessage.includes('backoff')
+    ) {
+      console.warn('[Firestore] Stream write exhausted or offline. Circuit breaker engaged:', errMessage);
+    }
+    throw err;
+  }
+}
+
 export { auth, db, storage, firebaseConfig };
+
 
 

@@ -5,7 +5,7 @@
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, signOut, onAuthStateChanged, updatePassword, reauthenticateWithCredential, EmailAuthProvider, User, sendPasswordResetEmail } from 'firebase/auth';
 // @ts-ignore
 import { doc, setDoc } from 'firebase/firestore';
-import { auth, db } from './firebaseConfig';
+import { auth, db, safeFirestoreWrite } from './firebaseConfig';
 
 export const authService = {
   login: async (email: string, pass: string) => {
@@ -28,13 +28,15 @@ export const authService = {
         await updateProfile(user, { displayName: name });
         
         // Create Firestore record for the user
-        await setDoc(doc(db, 'users', user.uid), {
-          uid: user.uid,
-          email: user.email,
-          displayName: name,
-          role: role,
-          assignedUnit: assignedUnit || null,
-          createdAt: new Date().toISOString()
+        await safeFirestoreWrite(async () => {
+          await setDoc(doc(db, 'users', user.uid), {
+            uid: user.uid,
+            email: user.email,
+            displayName: name,
+            role: role,
+            assignedUnit: assignedUnit || null,
+            createdAt: new Date().toISOString()
+          });
         });
       }
     } catch (error: any) {

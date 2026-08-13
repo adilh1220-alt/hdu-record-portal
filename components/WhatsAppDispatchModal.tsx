@@ -173,7 +173,7 @@ export const WhatsAppDispatchModal: React.FC<WhatsAppDispatchModalProps> = ({
   const fullWhatsAppNumber = `${activePrefix}${sanitizedLocalNumber}`;
   const digitsOnly = fullWhatsAppNumber.replace(/[^\d]/g, '');
 
-  const generatedTemplateMessage = `🏥 *MEDILOG CLINICAL ENDOSCOPY REPORT*
+  const generatedTemplateMessage = `🏥 *THE KIDNEY CENTRE ENDOSCOPY REPORT*
 
 Dear *${record.name.toUpperCase()}*,
 Your endoscopy procedure report is compiled and ready.
@@ -186,7 +186,7 @@ Your endoscopy procedure report is compiled and ready.
 
 📄 *Recommendations:* ${record.recommendations || 'Please follow up with your consulting clinician.'}
 
-_This automated message was sent via MediLog Serverless Cloud Gateway._`;
+_This automated message was sent via The Kidney Centre Gateway._`;
 
   const directWhatsAppApiUrl = digitsOnly
     ? `https://api.whatsapp.com/send?phone=${digitsOnly}&text=${encodeURIComponent(generatedTemplateMessage)}`

@@ -169,3 +169,35 @@ export interface IncidentRecord {
   reportedBy: string;
   createdAt: string;
 }
+
+export interface DailyEmailReportSettings {
+  enabled: boolean;
+  scheduleTime: string; // "HH:MM" e.g., "08:00"
+  recipients: string[];
+  unitScope: ClinicalUnit | 'ALL';
+  includeCensus: boolean;
+  includeInventory: boolean;
+  includeMortality: boolean;
+  includeIncidents: boolean;
+  lastSentAt?: string | null;
+  lastStatus?: string | null;
+  smtpConfig?: {
+    host: string;
+    port: number;
+    user: string;
+    senderEmail: string;
+    isConfigured: boolean;
+  };
+}
+
+export interface DailyReportLog {
+  id: string;
+  timestamp: string;
+  recipients: string[];
+  triggerType: 'AUTOMATED_SCHEDULE' | 'MANUAL_TEST' | 'ON_DEMAND';
+  status: 'DELIVERED' | 'SIMULATED' | 'FAILED';
+  activeCensusCount: number;
+  lowStockAlertCount: number;
+  details: string;
+}
+

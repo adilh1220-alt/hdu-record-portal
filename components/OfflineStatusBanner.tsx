@@ -9,7 +9,7 @@ export const OfflineStatusBanner: React.FC = () => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [showDraftModal, setShowDraftModal] = useState(false);
   const [selectedDraft, setSelectedDraft] = useState<OfflineDraft | null>(null);
-  const toast = useToast();
+  const { toast } = useToast();
 
   useEffect(() => {
     // Register status and draft listeners

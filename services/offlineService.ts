@@ -1,5 +1,5 @@
 // MediLog Clinical Systems - Offline Sync & Service Worker Bridge
-import { db } from './firebaseConfig';
+import { db, safeFirestoreWrite } from './firebaseConfig';
 import { doc, setDoc, addDoc, collection } from 'firebase/firestore';
 
 export type NetworkStatus = 'online' | 'unstable' | 'offline';
@@ -383,61 +383,88 @@ class OfflineService {
     } catch (e) {}
   }
 
+  private isSyncingDrafts = false;
+
   // --- 5. Auto-Synchronization Engine ---
 
   public async syncPendingDrafts(): Promise<{ successCount: number; failCount: number }> {
+    if (this.isSyncingDrafts) {
+      return { successCount: 0, failCount: 0 };
+    }
+
+    // Only attempt sync if connection is online
+    if (this.networkStatus === 'offline') {
+      return { successCount: 0, failCount: 0 };
+    }
+
     const drafts = this.getOfflineDrafts();
-    const pending = drafts.filter(d => d.syncStatus === 'PENDING_SYNC' || d.syncStatus === 'DRAFT' || d.syncStatus === 'FAILED');
+    const pending = drafts.filter(d => d.syncStatus === 'PENDING_SYNC' || d.syncStatus === 'DRAFT');
 
     if (pending.length === 0) {
       return { successCount: 0, failCount: 0 };
     }
 
+    this.isSyncingDrafts = true;
     console.log(`[OfflineService] Synchronizing ${pending.length} pending offline drafts with Firestore...`);
 
     let successCount = 0;
     let failCount = 0;
 
-    for (const draft of pending) {
-      try {
-        let collectionName = '';
-        if (draft.type === 'endoscopy') collectionName = 'endoscopy_records';
-        else if (draft.type === 'patient') collectionName = 'patients';
-        else if (draft.type === 'mortality') collectionName = 'mortality_records';
-        else if (draft.type === 'incident') collectionName = 'safety_incidents';
-        else if (draft.type === 'task') collectionName = 'clinical_tasks';
-        else if (draft.type === 'inventory') collectionName = 'inventory';
+    try {
+      for (const draft of pending) {
+        try {
+          let collectionName = '';
+          if (draft.type === 'endoscopy') collectionName = 'endoscopy_records';
+          else if (draft.type === 'patient') collectionName = 'patients';
+          else if (draft.type === 'mortality') collectionName = 'mortality_records';
+          else if (draft.type === 'incident') collectionName = 'safety_incidents';
+          else if (draft.type === 'task') collectionName = 'clinical_tasks';
+          else if (draft.type === 'inventory') collectionName = 'inventory';
 
-        if (collectionName && draft.data) {
-          const docId = draft.data.id || draft.id;
-          const ref = doc(db, collectionName, docId);
-          await setDoc(ref, {
-            ...draft.data,
-            syncedFromOfflineAt: new Date().toISOString(),
-            offlineDraftId: draft.id
-          }, { merge: true });
+          if (collectionName && draft.data) {
+            const docId = draft.data.id || draft.id;
+            const ref = doc(db, collectionName, docId);
 
-          // Update status
-          draft.syncStatus = 'SYNCED';
-          draft.updatedAt = new Date().toISOString();
-          successCount++;
+            await safeFirestoreWrite(async () => {
+              await setDoc(ref, {
+                ...draft.data,
+                syncedFromOfflineAt: new Date().toISOString(),
+                offlineDraftId: draft.id
+              }, { merge: true });
+            }, 6000);
+
+            // Update status
+            draft.syncStatus = 'SYNCED';
+            draft.updatedAt = new Date().toISOString();
+            successCount++;
+          }
+        } catch (err: any) {
+          console.error(`[OfflineService] Failed to sync draft ${draft.id}:`, err);
+          draft.syncStatus = 'FAILED';
+          draft.errorMessage = err.message || 'Sync failed';
+          failCount++;
+
+          const errCode = err?.code || '';
+          const errMsg = String(err?.message || '');
+          // If write stream is exhausted or backoff active, halt remaining syncs in this batch
+          if (errCode === 'resource-exhausted' || errMsg.includes('exhausted') || errMsg.includes('backoff')) {
+            console.warn('[OfflineService] Firestore write stream exhausted. Pausing sync queue.');
+            break;
+          }
         }
-      } catch (err: any) {
-        console.error(`[OfflineService] Failed to sync draft ${draft.id}:`, err);
-        draft.syncStatus = 'FAILED';
-        draft.errorMessage = err.message || 'Sync failed';
-        failCount++;
       }
-    }
 
-    // Update storage
-    localStorage.setItem(STORAGE_KEYS.DRAFTS, JSON.stringify(drafts));
-    this.notifyDraftListeners();
+      // Update storage
+      localStorage.setItem(STORAGE_KEYS.DRAFTS, JSON.stringify(drafts));
+      this.notifyDraftListeners();
 
-    if (successCount > 0 && typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('medilog_drafts_synced', {
-        detail: { successCount, failCount }
-      }));
+      if (successCount > 0 && typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('medilog_drafts_synced', {
+          detail: { successCount, failCount }
+        }));
+      }
+    } finally {
+      this.isSyncingDrafts = false;
     }
 
     return { successCount, failCount };

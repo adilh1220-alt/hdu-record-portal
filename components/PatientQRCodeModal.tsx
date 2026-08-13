@@ -46,7 +46,7 @@ export const PatientQRCodeModal: React.FC<PatientQRCodeModalProps> = ({
 
   // Construct structured QR payload
   const qrPayloadData = {
-    app: 'MediLog-HDU',
+    app: 'TheKidneyCentre-HDU',
     recordType: type,
     id: patient.id,
     regNo: regNo,

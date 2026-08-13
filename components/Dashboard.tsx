@@ -86,6 +86,9 @@ const Dashboard: React.FC = () => {
         });
         setMonthlyAdmissions(MONTHS.map((m, i) => ({ month: m, count: counts[i] })));
         setLoading(false);
+    }, (err) => {
+        console.warn("Dashboard active patients sync error:", err);
+        setLoading(false);
     });
 
     const qMortality = query(
@@ -109,6 +112,8 @@ const Dashboard: React.FC = () => {
           }
         });
         setMonthlyMortality(MONTHS.map((m, i) => ({ month: m, count: mCounts[i] })));
+    }, (err) => {
+        console.warn("Dashboard mortality sync error:", err);
     });
 
     const qInventory = query(
@@ -120,6 +125,8 @@ const Dashboard: React.FC = () => {
         .map((doc: any) => doc.data() as InventoryItem);
       const lowStock = items.filter((i: any) => i.quantity <= i.minThreshold).length;
       setLowStockCount(lowStock);
+    }, (err) => {
+      console.warn("Dashboard inventory sync error:", err);
     });
 
     const qEndoscopy = query(
@@ -143,6 +150,8 @@ const Dashboard: React.FC = () => {
         .slice(0, 5);
       
       setFrequentProcedures(sorted);
+    }, (err) => {
+      console.warn("Dashboard endoscopy sync error:", err);
     });
 
     return () => {

@@ -8,7 +8,7 @@ import ConfirmModal from './ConfirmModal';
 import SettingsModal from './SettingsModal';
 import ShortcutsModal from './ShortcutsModal';
 import HeaderLogoModal from './HeaderLogoModal';
-import { ShortcutsOverlay } from './ShortcutsOverlay';
+import { DailyEmailReportModal } from './DailyEmailReportModal';
 import { db } from '../services/firebaseConfig';
 import { onSnapshotsInSync } from 'firebase/firestore';
 import { getEffectiveLogoBase64, getLogoSettings, saveLogoSettings, getLogoUrlWithCacheBust } from '../services/pdfService';
@@ -32,6 +32,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
   const [isSettingsOpen, setSettingsOpen] = useState(false);
   const [isShortcutsOpen, setShortcutsOpen] = useState(false);
   const [isHeaderLogoOpen, setHeaderLogoOpen] = useState(false);
+  const [isDailyEmailOpen, setIsDailyEmailOpen] = useState(false);
   const [sidebarLogo, setSidebarLogo] = useState<string>('');
   const [sidebarLogoWidth, setSidebarLogoWidth] = useState<number>(() => getLogoSettings().sidebarLogoWidthPx || 40);
 
@@ -366,8 +367,8 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
                 </div>
               )}
               <div className="flex flex-col min-w-0">
-                <span className="text-slate-900 dark:text-slate-100 font-black text-base tracking-tight leading-none truncate">MediLog</span>
-                <span className="text-[9px] font-black uppercase text-red-600 dark:text-red-400 tracking-wider truncate mt-0.5">The Kidney Centre</span>
+                <span className="text-slate-900 dark:text-slate-100 font-black text-base tracking-tight leading-none truncate">The Kidney Centre</span>
+                <span className="text-[9px] font-black uppercase text-red-600 dark:text-red-400 tracking-wider truncate mt-0.5">PGTI Hospital Portal</span>
               </div>
             </div>
 
@@ -533,6 +534,23 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
               <span className={`${!isSidebarOpen && 'hidden'} font-medium`}>Header Logo Settings</span>
             </button>
 
+            {/* Automated Daily Email Report Button */}
+            <button
+              onClick={() => {
+                setIsDailyEmailOpen(true);
+                if (typeof window !== 'undefined' && window.innerWidth < 768) {
+                  setSidebarOpen(false);
+                }
+              }}
+              title="Automated Daily Email Reports"
+              className="w-full flex items-center space-x-3 p-3 rounded-lg transition-all text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-950/30 hover:text-sky-700 font-semibold"
+            >
+              <svg className="w-6 h-6 shrink-0 text-sky-600 dark:text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+              <span className={`${!isSidebarOpen && 'hidden'} font-medium`}>Daily Email Reports</span>
+            </button>
+
             <button
               onClick={() => {
                 setSettingsOpen(true);
@@ -648,7 +666,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
               <div className="w-6 h-6 bg-red-600 rounded flex items-center justify-center text-white font-bold text-sm">
                 +
               </div>
-              <span className="text-slate-900 font-bold text-base tracking-tight">MediLog</span>
+              <span className="text-slate-900 font-bold text-base tracking-tight">The Kidney Centre</span>
             </div>
           </div>
           <div className="flex items-center space-x-2">
@@ -665,7 +683,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
           <div className="hidden print:block border-b-2 border-red-600 pb-4 mb-6">
             <div className="flex justify-between items-end">
               <div>
-                <h1 className="text-xl font-black text-red-600 uppercase tracking-tight">MediLog</h1>
+                <h1 className="text-xl font-black text-red-600 uppercase tracking-tight">The Kidney Centre</h1>
                 <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Clinical Recording & Reporting Portal</p>
               </div>
               <div className="text-right text-[10px] text-slate-400 font-mono font-bold uppercase">
@@ -778,7 +796,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
               <div className="flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0" />
                 <span className="font-semibold text-slate-500 dark:text-slate-400">
-                  MediLog Clinical Portal • {UNIT_DETAILS[activeUnit]?.label || activeUnit}
+                  The Kidney Centre Portal • {UNIT_DETAILS[activeUnit]?.label || activeUnit}
                 </span>
               </div>
               <div className="flex items-center gap-3">
@@ -816,6 +834,11 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
         onClose={() => setSettingsOpen(false)}
       />
 
+      <DailyEmailReportModal
+        isOpen={isDailyEmailOpen}
+        onClose={() => setIsDailyEmailOpen(false)}
+      />
+
       <HeaderLogoModal
         isOpen={isHeaderLogoOpen}
         onClose={() => setHeaderLogoOpen(false)}
@@ -825,8 +848,6 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
         isOpen={isShortcutsOpen}
         onClose={() => setShortcutsOpen(false)}
       />
-
-      <ShortcutsOverlay />
     </div>
   );
 };

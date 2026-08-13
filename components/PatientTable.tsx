@@ -1032,7 +1032,7 @@ const PrintSummaryModal: React.FC<PrintSummaryModalProps> = ({ isOpen, onClose, 
           </div>
 
           <div className="pt-8 border-t border-slate-100 text-center text-[7px] text-slate-400 uppercase tracking-widest font-bold leading-relaxed">
-            Clinical report compiled officially by MediLog Record Systems.
+            Clinical report compiled officially by The Kidney Centre Medical Records.
             <br />
             Confidential medical information. For authorized healthcare provider use only.
           </div>
@@ -1826,7 +1826,7 @@ const PatientTable: React.FC = () => {
                             ? 'bg-indigo-50/70 border-l-indigo-600 shadow-sm'
                             : newlyAddedId === p.id 
                             ? 'bg-blue-50/80 border-l-blue-500 shadow-sm' 
-                            : 'even:bg-slate-50/40 hover:bg-slate-100/90 hover:border-l-red-500 hover:shadow-sm'
+                            : 'even:bg-slate-50/50 hover:bg-sky-50/80 hover:border-l-red-500 hover:shadow-xs'
                         }`}
                         onClick={() => { setEditingPatient(p); setIsModalOpen(true); }}
                       >

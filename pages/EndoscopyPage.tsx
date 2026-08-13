@@ -355,7 +355,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
   const [isCompactView, setIsCompactView] = useState(false);
 
   const isBronchoscopy = formProcedure.toLowerCase().includes('bronchoscopy') || formProcedure.toLowerCase().includes('bronch');
-  const isColonoscopy = formProcedure.toLowerCase().includes('colonoscopy') || formProcedure.toLowerCase().includes('colon');
+  const isColonoscopy = formProcedure.toLowerCase().includes('colonoscopy') || formProcedure.toLowerCase().includes('colon') || formProcedure.toLowerCase().includes('sigmoidoscopy') || formProcedure.toLowerCase().includes('sigmoid');
 
   interface Toast {
     id: string;
@@ -811,6 +811,66 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
       icd = "K51.912";
       cpt = "45380";
       instrumentsText = "Olympus CF-H190L";
+    } else if (type === 'normal_sigmoidoscopy') {
+      name = 'Normal Flexible Sigmoidoscopy';
+      procedureName = "Flexible Sigmoidoscopy";
+      indicationsText = "Routine screening, mild hematochezia, surveillance.";
+      esophagusText = "N/A (Lower Gastrointestinal Endoscopy)";
+      stomachText = "N/A (Lower Gastrointestinal Endoscopy)";
+      duodenumText = "N/A (Lower Gastrointestinal Endoscopy)";
+      colonText = "Flexible sigmoidoscope advanced under direct visualization to the distal descending colon (~60cm from anal verge). Adequate bowel preparation. Mucosa of the rectum and sigmoid colon appears normal with smooth surface and preserved vascular pattern. No inflammation, polyps, ulcers, strictures, or vascular malformations noted.";
+      rectumText = "Normal rectal mucosa. Preserved vascular network. Anorectal junction intact.";
+      sigmoidColonText = "Normal sigmoid colon mucosa. Patent lumen, regular haustral folds.";
+      descendingColonText = "Visualized up to distal descending colon (~60cm). Normal mucosa.";
+      transverseColonText = "N/A (Exam limited to Rectum & Sigmoid Colon)";
+      ascendingColonText = "N/A (Exam limited to Rectum & Sigmoid Colon)";
+      caecumText = "N/A (Exam limited to Rectum & Sigmoid Colon)";
+      generalFindings = "Uncomplicated flexible sigmoidoscopy to 60cm. Normal rectal and sigmoid colonic mucosa.";
+      diagnosisText = "Normal Flexible Sigmoidoscopy (to 60cm)";
+      recommendationsText = "No active endoscopic intervention required. Routine follow-up as clinically indicated.";
+      icd = "Z12.12";
+      cpt = "45330";
+      instrumentsText = "Olympus OSF-3 / CF-HQ190L";
+    } else if (type === 'proctitis_sigmoidoscopy') {
+      name = 'Sigmoidoscopy - Active Proctosigmoiditis';
+      procedureName = "Flexible Sigmoidoscopy";
+      indicationsText = "Fresh rectal bleeding, tenesmus, increased stool frequency, mucus discharge.";
+      esophagusText = "N/A (Lower Gastrointestinal Endoscopy)";
+      stomachText = "N/A (Lower Gastrointestinal Endoscopy)";
+      duodenumText = "N/A (Lower Gastrointestinal Endoscopy)";
+      colonText = "Flexible sigmoidoscope inserted up to 50cm into the mid-sigmoid colon. The mucosa from the anorectal junction through the rectum and distal sigmoid colon demonstrates continuous diffuse erythema, loss of normal vascular pattern, granular texture, friability with contact bleeding, and superficial erosions (Mayo Score 2). Proximal mucosa at 50-60cm transitions to normal mucosa. Cold forcep biopsies obtained.";
+      rectumText = "Diffuse erythema, loss of vascular pattern, granular mucosa with contact bleeding.";
+      sigmoidColonText = "Erythematous, friable mucosa with superficial erosions transitioning to normal at 50cm.";
+      descendingColonText = "Visualized distal descending colon shows normal mucosa.";
+      transverseColonText = "N/A (Exam limited to Rectum & Sigmoid Colon)";
+      ascendingColonText = "N/A (Exam limited to Rectum & Sigmoid Colon)";
+      caecumText = "N/A (Exam limited to Rectum & Sigmoid Colon)";
+      generalFindings = "Flexible sigmoidoscopy showed active proctosigmoiditis extending from rectum to mid-sigmoid colon (Mayo Grade 2). Biopsies performed.";
+      diagnosisText = "Active Proctosigmoiditis (Mayo Grade 2), consistent with Ulcerative Proctosigmoiditis.";
+      recommendationsText = "Await biopsy results. Initiate 5-ASA (Mesalamine) rectal suppository/enema 1g nightly and oral Mesalamine 2.4g daily. Follow up in gastroenterology clinic.";
+      icd = "K51.20";
+      cpt = "45331";
+      instrumentsText = "Olympus OSF-3 / CF-HQ190L";
+    } else if (type === 'polyp_sigmoidoscopy') {
+      name = 'Sigmoidoscopy - Sigmoid Polyp & Hemorrhoids';
+      procedureName = "Flexible Sigmoidoscopy";
+      indicationsText = "Intermittent painless bright red blood per rectum (BRBPR).";
+      esophagusText = "N/A (Lower Gastrointestinal Endoscopy)";
+      stomachText = "N/A (Lower Gastrointestinal Endoscopy)";
+      duodenumText = "N/A (Lower Gastrointestinal Endoscopy)";
+      colonText = "Flexible sigmoidoscope advanced to 60cm. A 6mm sessile polyp was identified in the mid-sigmoid colon at 35cm from anal verge. Complete cold snare polypectomy was performed and specimen retrieved with net for histopathology. No post-polypectomy bleeding or perforation. Retroflexion in the rectum revealed prominent, non-bleeding Grade II internal hemorrhoids.";
+      rectumText = "Normal rectal mucosa. Retroflexion demonstrates Grade II internal hemorrhoids.";
+      sigmoidColonText = "6mm sessile polyp at 35cm, completely resected via cold snare polypectomy.";
+      descendingColonText = "Normal mucosa visualized up to distal descending colon.";
+      transverseColonText = "N/A (Exam limited to Rectum & Sigmoid Colon)";
+      ascendingColonText = "N/A (Exam limited to Rectum & Sigmoid Colon)";
+      caecumText = "N/A (Exam limited to Rectum & Sigmoid Colon)";
+      generalFindings = "Flexible sigmoidoscopy to 60cm. Successful cold snare polypectomy of 6mm sigmoid polyp. Grade II internal hemorrhoids.";
+      diagnosisText = "Sigmoid Colon Polyp (S/P Cold Snare Polypectomy), Grade II Internal Hemorrhoids.";
+      recommendationsText = "Await histopathology of retrieved polyp. High fiber diet and stool softeners for hemorrhoids. Schedule full screening colonoscopy if histology reveals adenoma.";
+      icd = "K63.5, I84.2";
+      cpt = "45338";
+      instrumentsText = "Olympus OSF-3 / CF-HQ190L";
     } else if (type === 'normal_bronchoscopy') {
       name = 'Normal Flexible Bronchoscopy';
       procedureName = "Flexible Bronchoscopy";
@@ -1892,33 +1952,8 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
 
           {/* Workspace Top Header Bar */}
           <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-slate-300 pb-4 gap-4 relative z-10">
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                onClick={() => {
-                  if (!isSaving) {
-                    const hasContent = !!(
-                      formName || formRegNo || formDoctor || formProcedure || 
-                      formFindings || formEsophagusFindings || formStomachFindings || formAntrumFindings || 
-                      formDuodenumFindings || formDuodenum2ndPartFindings || formColonFindings || formDiagnosis || 
-                      formIndications || formRecommendations
-                    );
-                    if (hasContent) {
-                      setIsExitConfirmOpen(true);
-                    } else {
-                      setIsWorkspaceOpen(false);
-                      setEditingRecord(null);
-                      if (onExit) onExit();
-                    }
-                  }
-                }}
-                className="flex items-center space-x-2 text-slate-600 hover:text-rose-600 transition-all bg-white hover:bg-rose-50 border border-slate-300 hover:border-rose-400 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider cursor-pointer active:scale-95 shadow-sm shrink-0"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
-                <span className="whitespace-nowrap">Exit Workspace</span>
-              </button>
-              <div className="h-6 w-px bg-slate-300 hidden sm:block shrink-0" />
+            <div className="flex flex-col gap-2.5">
+              {/* TOP: Headings & Icon */}
               <div className="flex items-center space-x-3 shrink-0">
                 <div className="p-2.5 bg-gradient-to-br from-red-600 via-rose-600 to-pink-600 text-white rounded-xl shadow-md shadow-red-500/20 ring-2 ring-red-100 flex items-center justify-center shrink-0">
                   <GastroScopeIcon className="w-5 h-5 text-white" glow />
@@ -1932,6 +1967,35 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                     Clinical Procedure Reports
                   </p>
                 </div>
+              </div>
+
+              {/* BOTTOM: Exit Workspace Button */}
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={() => {
+                    if (!isSaving) {
+                      const hasContent = !!(
+                        formName || formRegNo || formDoctor || formProcedure || 
+                        formFindings || formEsophagusFindings || formStomachFindings || formAntrumFindings || 
+                        formDuodenumFindings || formDuodenum2ndPartFindings || formColonFindings || formDiagnosis || 
+                        formIndications || formRecommendations
+                      );
+                      if (hasContent) {
+                        setIsExitConfirmOpen(true);
+                      } else {
+                        setIsWorkspaceOpen(false);
+                        setEditingRecord(null);
+                        if (onExit) onExit();
+                      }
+                    }
+                  }}
+                  className="flex items-center space-x-2 text-slate-600 hover:text-rose-600 transition-all bg-white hover:bg-rose-50 border border-slate-300 hover:border-rose-400 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider cursor-pointer active:scale-95 shadow-sm shrink-0"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                  </svg>
+                  <span className="whitespace-nowrap">Exit Workspace</span>
+                </button>
               </div>
             </div>
 
@@ -1962,6 +2026,11 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                     <option value="divertic_colonoscopy" className="bg-white text-slate-800 font-medium">Colonoscopy - Diverticulosis</option>
                     <option value="polypectomy_colonoscopy" className="bg-white text-slate-800 font-medium">Colonoscopy - Polypectomy</option>
                     <option value="colitis_colonoscopy" className="bg-white text-slate-800 font-medium">Colonoscopy - Active Colitis (UC)</option>
+                  </optgroup>
+                  <optgroup label="Flexible Sigmoidoscopy" className="font-bold text-slate-900 bg-slate-100">
+                    <option value="normal_sigmoidoscopy" className="bg-white text-slate-800 font-medium">Normal Flexible Sigmoidoscopy</option>
+                    <option value="proctitis_sigmoidoscopy" className="bg-white text-slate-800 font-medium">Sigmoidoscopy - Active Proctosigmoiditis</option>
+                    <option value="polyp_sigmoidoscopy" className="bg-white text-slate-800 font-medium">Sigmoidoscopy - Sigmoid Polyp & Hemorrhoids</option>
                   </optgroup>
                   <optgroup label="Pulmonary Bronchoscopy" className="font-bold text-slate-900 bg-slate-100">
                     <option value="normal_bronchoscopy" className="bg-white text-slate-800 font-medium">Normal Flexible Bronchoscopy</option>
