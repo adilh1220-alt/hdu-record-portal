@@ -263,8 +263,8 @@ export const HeaderLogoModal: React.FC<HeaderLogoModalProps> = ({ isOpen, onClos
                   className="object-contain shrink-0 transition-all duration-200 drop-shadow"
                 />
                 <div className="flex flex-col min-w-0">
-                  <span className="text-white font-black text-sm tracking-tight leading-none truncate">The Kidney Centre</span>
-                  <span className="text-[9px] font-black uppercase text-red-400 tracking-wider truncate mt-0.5">PGTI Hospital Portal</span>
+                  <span className="text-white font-bold text-[11px] tracking-tight leading-tight whitespace-nowrap">Record Management Portal</span>
+                  <span className="text-[7.5px] font-bold uppercase text-red-400 tracking-tight leading-tight mt-0.5 whitespace-nowrap">Endoscopy & HDU Clinical System</span>
                 </div>
               </div>
             </div>

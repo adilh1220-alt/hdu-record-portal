@@ -9,6 +9,7 @@ import SettingsModal from './SettingsModal';
 import ShortcutsModal from './ShortcutsModal';
 import HeaderLogoModal from './HeaderLogoModal';
 import { DailyEmailReportModal } from './DailyEmailReportModal';
+import { MonthlyDepartmentReportSchedulerModal } from './MonthlyDepartmentReportSchedulerModal';
 import { db } from '../services/firebaseConfig';
 import { onSnapshotsInSync } from 'firebase/firestore';
 import { getEffectiveLogoBase64, getLogoSettings, saveLogoSettings, getLogoUrlWithCacheBust } from '../services/pdfService';
@@ -33,6 +34,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
   const [isShortcutsOpen, setShortcutsOpen] = useState(false);
   const [isHeaderLogoOpen, setHeaderLogoOpen] = useState(false);
   const [isDailyEmailOpen, setIsDailyEmailOpen] = useState(false);
+  const [isMonthlyEmailOpen, setIsMonthlyEmailOpen] = useState(false);
   const [sidebarLogo, setSidebarLogo] = useState<string>('');
   const [sidebarLogoWidth, setSidebarLogoWidth] = useState<number>(() => getLogoSettings().sidebarLogoWidthPx || 40);
 
@@ -315,14 +317,21 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
           setSidebarOpen(false);
         }
       }}
-      className={`w-full flex items-center space-x-3 p-3 rounded-lg transition-all ${
+      title={label}
+      className={`transition-all duration-200 ${
+        isSidebarOpen 
+          ? 'w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl' 
+          : 'w-12 h-12 mx-auto flex items-center justify-center rounded-xl p-0 shrink-0'
+      } ${
         activeTab === id 
-          ? 'bg-red-600 text-white shadow-lg border border-red-700' 
-          : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-red-600 dark:hover:text-red-500'
+          ? 'bg-red-600 text-white shadow-md shadow-red-600/30 border border-red-700' 
+          : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-red-600 dark:hover:text-red-500'
       }`}
     >
-      {icon}
-      <span className={`${!isSidebarOpen && 'hidden'} font-medium`}>{label}</span>
+      <div className="shrink-0 flex items-center justify-center w-6 h-6">
+        {icon}
+      </div>
+      {isSidebarOpen && <span className="font-semibold text-xs tracking-tight whitespace-nowrap">{label}</span>}
     </button>
   );
 
@@ -338,20 +347,18 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
 
       {/* Sidebar */}
       <aside 
-        className={`bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-all duration-300 flex flex-col z-50
+        className={`bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-all duration-300 flex flex-col z-50 shrink-0
           fixed inset-y-0 left-0 md:relative
           ${isSidebarOpen 
             ? 'w-64 translate-x-0' 
-            : 'w-0 -translate-x-full md:w-20 md:translate-x-0 overflow-hidden'
+            : 'w-0 -translate-x-full md:w-20 md:translate-x-0'
           }
         `}
       >
         <div className={`p-4 flex flex-col border-b border-slate-100 dark:border-slate-800 gap-2.5`}>
           <div className={`flex items-center ${isSidebarOpen ? 'justify-between' : 'justify-center'}`}>
             <div 
-              onClick={() => setHeaderLogoOpen(true)}
-              title="Click to manage institution logo & branding"
-              className={`flex items-center space-x-2.5 overflow-hidden cursor-pointer group hover:opacity-90 transition-all ${!isSidebarOpen && 'hidden'}`}
+              className={`flex items-center space-x-2.5 overflow-hidden ${!isSidebarOpen && 'hidden'}`}
             >
               {sidebarLogo ? (
                 <img 
@@ -359,36 +366,28 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
                   src={getLogoUrlWithCacheBust(sidebarLogo)} 
                   alt="Hospital Logo" 
                   style={{ width: `${sidebarLogoWidth}px`, height: 'auto', maxHeight: `${sidebarLogoWidth}px` }}
-                  className="object-contain drop-shadow-sm group-hover:scale-105 transition-all"
+                  className="object-contain drop-shadow-sm transition-all"
                 />
-              ) : (
-                <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center shrink-0">
-                  <span className="text-white font-bold text-xl">+</span>
-                </div>
-              )}
+              ) : null}
               <div className="flex flex-col min-w-0">
-                <span className="text-slate-900 dark:text-slate-100 font-black text-base tracking-tight leading-none truncate">The Kidney Centre</span>
-                <span className="text-[9px] font-black uppercase text-red-600 dark:text-red-400 tracking-wider truncate mt-0.5">PGTI Hospital Portal</span>
+                <span className="text-slate-900 dark:text-slate-100 font-bold text-[11px] tracking-tight leading-tight whitespace-nowrap">Record Management Portal</span>
+                <span className="text-[7.5px] font-bold uppercase text-red-600 dark:text-red-400 tracking-tight leading-tight mt-0.5 whitespace-nowrap">Endoscopy & HDU Clinical System</span>
               </div>
             </div>
 
             {!isSidebarOpen && (
-              <div 
-                onClick={() => setHeaderLogoOpen(true)}
-                title="Click to manage institution logo & branding"
-                className="cursor-pointer group p-1"
-              >
+              <div className="p-1">
                 {sidebarLogo ? (
                   <img 
                     key={getLogoSettings().updatedAt || Date.now()}
                     src={getLogoUrlWithCacheBust(sidebarLogo)} 
                     alt="Hospital Logo" 
                     style={{ width: `${Math.round(sidebarLogoWidth * 0.9)}px`, height: 'auto', maxHeight: `${Math.round(sidebarLogoWidth * 0.9)}px` }}
-                    className="object-contain group-hover:scale-110 transition-all"
+                    className="object-contain transition-all"
                   />
                 ) : (
-                  <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center shrink-0">
-                    <span className="text-white font-bold text-xl">+</span>
+                  <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 text-red-600 flex items-center justify-center font-black text-xs shrink-0 tracking-tighter">
+                    TKC
                   </div>
                 )}
               </div>
@@ -399,8 +398,8 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
               className="text-slate-400 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-all shrink-0"
               title={isSidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />
+              <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16m-7 6h7" />
               </svg>
             </button>
           </div>
@@ -416,7 +415,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
           <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-3 ml-1">Select Unit</label>
           <div className="flex flex-col gap-2">
             <div className="grid grid-cols-2 gap-2">
-              {CLINICAL_UNITS.slice(0, 4).map(unit => (
+              {CLINICAL_UNITS.map(unit => (
                 <button
                   key={unit}
                   onClick={() => setActiveUnit(unit)}
@@ -430,45 +429,33 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
                 </button>
               ))}
             </div>
-            {CLINICAL_UNITS.length > 4 && (
-              <button
-                onClick={() => setActiveUnit(CLINICAL_UNITS[4])}
-                className={`w-full py-2 rounded-lg text-[9px] font-black transition-all border leading-tight ${
-                  activeUnit === CLINICAL_UNITS[4] 
-                    ? `${UNIT_DETAILS[CLINICAL_UNITS[4]].color} text-white border-transparent shadow-lg scale-[1.02]` 
-                    : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
-                }`}
-              >
-                {UNIT_DETAILS[CLINICAL_UNITS[4]].label}
-              </button>
-            )}
           </div>
         </div>
 
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+        <nav className={`flex-1 overflow-y-auto ${isSidebarOpen ? 'p-4 space-y-2' : 'p-2 space-y-2 overflow-x-hidden'}`}>
           <NavItem id="dashboard" label="Facility Dashboard" icon={
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+            <svg className="w-6 h-6 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
           } />
           <NavItem id="active" label="Unit Census" icon={
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+            <svg className="w-6 h-6 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
           } />
           <NavItem id="tasks" label="Clinical Tasks" icon={
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+            <svg className="w-6 h-6 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
           } />
           <NavItem id="inventory" label="Unit Stock" icon={
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+            <svg className="w-6 h-6 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
           } />
           <NavItem id="mortality" label="Unit Mortality" icon={
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            <svg className="w-6 h-6 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
           } />
           <NavItem id="safety" label="Clinical Incident" icon={
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+            <svg className="w-6 h-6 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
           } />
           <NavItem id="endoscopy-report" label="Endoscopy Reporting" icon={
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+            <svg className="w-6 h-6 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
           } />
           <NavItem id="endoscopy-logs" label="Endoscopy Logs" icon={
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+            <svg className="w-6 h-6 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
           } />
           {isAdmin && (
             <>
@@ -488,7 +475,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
                   </p>
                 </div>
                 <NavItem id="users" label="User Access" icon={
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                  <svg className="w-6 h-6 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
                 } />
               </div>
             </>
@@ -498,23 +485,25 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
             {/* Theme Toggle Button */}
             <button
               onClick={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')}
-              className="w-full flex items-center space-x-3 p-3 rounded-lg transition-all text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-red-600 dark:hover:text-red-500"
+              title={theme === 'light' ? 'Light Mode' : 'Dark Mode'}
+              className={`transition-all duration-200 ${
+                isSidebarOpen 
+                  ? 'w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl' 
+                  : 'w-12 h-12 mx-auto flex items-center justify-center rounded-xl p-0 shrink-0'
+              } text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-red-600 dark:hover:text-red-500`}
             >
-              {theme === 'light' ? (
-                <>
+              <div className="shrink-0 flex items-center justify-center w-6 h-6">
+                {theme === 'light' ? (
                   <svg className="w-6 h-6 text-amber-500 transition-transform duration-300 hover:rotate-45" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707m12.728 12.728A9 9 0 115.636 5.636a9 9 0 0112.728 12.728z" />
                   </svg>
-                  <span className={`${!isSidebarOpen && 'hidden'} font-medium`}>Light Mode</span>
-                </>
-              ) : (
-                <>
+                ) : (
                   <svg className="w-6 h-6 text-indigo-400 transition-transform duration-300 hover:-rotate-12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
                   </svg>
-                  <span className={`${!isSidebarOpen && 'hidden'} font-medium`}>Dark Mode</span>
-                </>
-              )}
+                )}
+              </div>
+              {isSidebarOpen && <span className="font-semibold text-xs tracking-tight whitespace-nowrap">{theme === 'light' ? 'Light Mode' : 'Dark Mode'}</span>}
             </button>
 
             {/* Header Logo Settings */}
@@ -526,12 +515,18 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
                 }
               }}
               title="Header Logo Settings"
-              className="w-full flex items-center space-x-3 p-3 rounded-lg transition-all text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-red-600 dark:hover:text-red-500"
+              className={`transition-all duration-200 ${
+                isSidebarOpen 
+                  ? 'w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl' 
+                  : 'w-12 h-12 mx-auto flex items-center justify-center rounded-xl p-0 shrink-0'
+              } text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-red-600 dark:hover:text-red-500`}
             >
-              <svg className="w-6 h-6 text-red-600 dark:text-red-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              <span className={`${!isSidebarOpen && 'hidden'} font-medium`}>Header Logo Settings</span>
+              <div className="shrink-0 flex items-center justify-center w-6 h-6">
+                <svg className="w-6 h-6 text-red-600 dark:text-red-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </div>
+              {isSidebarOpen && <span className="font-semibold text-xs tracking-tight whitespace-nowrap">Header Logo Settings</span>}
             </button>
 
             {/* Automated Daily Email Report Button */}
@@ -543,12 +538,41 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
                 }
               }}
               title="Automated Daily Email Reports"
-              className="w-full flex items-center space-x-3 p-3 rounded-lg transition-all text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-950/30 hover:text-sky-700 font-semibold"
+              className={`transition-all duration-200 ${
+                isSidebarOpen 
+                  ? 'w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl' 
+                  : 'w-12 h-12 mx-auto flex items-center justify-center rounded-xl p-0 shrink-0'
+              } text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-950/30 hover:text-sky-700 font-semibold`}
             >
-              <svg className="w-6 h-6 shrink-0 text-sky-600 dark:text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-              </svg>
-              <span className={`${!isSidebarOpen && 'hidden'} font-medium`}>Daily Email Reports</span>
+              <div className="shrink-0 flex items-center justify-center w-6 h-6">
+                <svg className="w-6 h-6 shrink-0 text-sky-600 dark:text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+              </div>
+              {isSidebarOpen && <span className="font-semibold text-xs tracking-tight whitespace-nowrap">Daily Email Reports</span>}
+            </button>
+
+            {/* Automated Monthly Department Report Scheduler Button */}
+            <button
+              onClick={() => {
+                setIsMonthlyEmailOpen(true);
+                if (typeof window !== 'undefined' && window.innerWidth < 768) {
+                  setSidebarOpen(false);
+                }
+              }}
+              title="Monthly Department Report Scheduler (Cloud Cron)"
+              className={`transition-all duration-200 ${
+                isSidebarOpen 
+                  ? 'w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl' 
+                  : 'w-12 h-12 mx-auto flex items-center justify-center rounded-xl p-0 shrink-0'
+              } text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-700 font-semibold`}
+            >
+              <div className="shrink-0 flex items-center justify-center w-6 h-6">
+                <svg className="w-6 h-6 shrink-0 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </div>
+              {isSidebarOpen && <span className="font-semibold text-xs tracking-tight whitespace-nowrap">Monthly Dept Scheduler</span>}
             </button>
 
             <button
@@ -558,14 +582,22 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
                   setSidebarOpen(false);
                 }
               }}
-              className="w-full flex items-center space-x-3 p-3 rounded-lg transition-all text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-red-600 dark:hover:text-red-500"
+              title="Security"
+              className={`transition-all duration-200 ${
+                isSidebarOpen 
+                  ? 'w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl' 
+                  : 'w-12 h-12 mx-auto flex items-center justify-center rounded-xl p-0 shrink-0'
+              } text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-red-600 dark:hover:text-red-500`}
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              <span className={`${!isSidebarOpen && 'hidden'} font-medium`}>Security</span>
+              <div className="shrink-0 flex items-center justify-center w-6 h-6">
+                <svg className="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </div>
+              {isSidebarOpen && <span className="font-semibold text-xs tracking-tight whitespace-nowrap">Security</span>}
             </button>
+
             <button
               onClick={() => {
                 setLogoutConfirmOpen(true);
@@ -573,11 +605,19 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
                   setSidebarOpen(false);
                 }
               }}
-              className="w-full flex items-center space-x-3 p-3 rounded-lg transition-all text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 hover:text-red-700"
+              title="Sign Out"
+              className={`transition-all duration-200 ${
+                isSidebarOpen 
+                  ? 'w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl' 
+                  : 'w-12 h-12 mx-auto flex items-center justify-center rounded-xl p-0 shrink-0'
+              } text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 hover:text-red-700`}
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-              <span className={`${!isSidebarOpen && 'hidden'} font-medium`}>Sign Out</span>
+              <div className="shrink-0 flex items-center justify-center w-6 h-6">
+                <svg className="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+              </div>
+              {isSidebarOpen && <span className="font-semibold text-xs tracking-tight whitespace-nowrap">Sign Out</span>}
             </button>
+
             {onPrintClick && (
               <div className="relative group/print mt-2">
                 <button
@@ -588,13 +628,19 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
                     }
                   }}
                   title="Print Report (Alt + P)"
-                  className="w-full flex items-center justify-between p-3 rounded-lg transition-all text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-red-600 dark:hover:text-red-500 cursor-pointer"
+                  className={`transition-all duration-200 ${
+                    isSidebarOpen 
+                      ? 'w-full flex items-center justify-between px-3 py-2.5 rounded-xl' 
+                      : 'w-12 h-12 mx-auto flex items-center justify-center rounded-xl p-0 shrink-0'
+                  } text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-red-600 dark:hover:text-red-500 cursor-pointer`}
                 >
                   <div className="flex items-center space-x-3">
-                    <svg className="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                    </svg>
-                    <span className={`${!isSidebarOpen && 'hidden'} font-medium whitespace-nowrap`}>Print Report</span>
+                    <div className="shrink-0 flex items-center justify-center w-6 h-6">
+                      <svg className="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                      </svg>
+                    </div>
+                    {isSidebarOpen && <span className="font-semibold text-xs tracking-tight whitespace-nowrap">Print Report</span>}
                   </div>
                   {isSidebarOpen && (
                     <kbd className="px-1.5 py-0.5 text-[9px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 rounded group-hover/print:border-red-300 dark:group-hover/print:border-red-900 group-hover/print:text-red-600 dark:group-hover/print:text-red-400 transition-colors">
@@ -613,6 +659,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
                 </div>
               </div>
             )}
+
             <button
               onClick={() => {
                 setShortcutsOpen(true);
@@ -620,17 +667,24 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
                   setSidebarOpen(false);
                 }
               }}
-              className="w-full flex items-center space-x-3 p-3 rounded-lg transition-all text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-200 mt-2"
+              title="Keyboard Help"
+              className={`transition-all duration-200 ${
+                isSidebarOpen 
+                  ? 'w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl' 
+                  : 'w-12 h-12 mx-auto flex items-center justify-center rounded-xl p-0 shrink-0'
+              } text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-200 mt-2`}
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              <span className={`${!isSidebarOpen && 'hidden'} font-medium`}>Keyboard Help</span>
+              <div className="shrink-0 flex items-center justify-center w-6 h-6">
+                <svg className="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              </div>
+              {isSidebarOpen && <span className="font-semibold text-xs tracking-tight whitespace-nowrap">Keyboard Help</span>}
             </button>
           </div>
         </nav>
 
-        <div className="p-4 border-t border-slate-100 dark:border-slate-800">
-          <div className="flex items-center space-x-3 p-2 text-slate-600 dark:text-slate-400">
-             <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 font-bold text-xs shrink-0 border border-slate-200 dark:border-slate-700">
+        <div className={`border-t border-slate-100 dark:border-slate-800 ${isSidebarOpen ? 'p-4' : 'p-2 flex justify-center'}`}>
+          <div className={`flex items-center ${isSidebarOpen ? 'space-x-3 p-2' : 'justify-center'} text-slate-600 dark:text-slate-400`}>
+             <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-700 dark:text-slate-200 font-bold text-xs shrink-0 border border-slate-200 dark:border-slate-700 shadow-sm">
                {currentUser?.displayName?.[0] || 'U'}
              </div>
              {isSidebarOpen && <div className="overflow-hidden">
@@ -663,10 +717,15 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
               </svg>
             </button>
             <div className="flex items-center space-x-2">
-              <div className="w-6 h-6 bg-red-600 rounded flex items-center justify-center text-white font-bold text-sm">
-                +
-              </div>
-              <span className="text-slate-900 font-bold text-base tracking-tight">The Kidney Centre</span>
+              {sidebarLogo ? (
+                <img 
+                  key={getLogoSettings().updatedAt || Date.now()}
+                  src={getLogoUrlWithCacheBust(sidebarLogo)} 
+                  alt="Hospital Logo" 
+                  className="h-6 w-auto object-contain"
+                />
+              ) : null}
+              <span className="text-slate-900 dark:text-slate-100 font-bold text-sm tracking-tight truncate">Record Management Portal</span>
             </div>
           </div>
           <div className="flex items-center space-x-2">
@@ -837,6 +896,11 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
       <DailyEmailReportModal
         isOpen={isDailyEmailOpen}
         onClose={() => setIsDailyEmailOpen(false)}
+      />
+
+      <MonthlyDepartmentReportSchedulerModal
+        isOpen={isMonthlyEmailOpen}
+        onClose={() => setIsMonthlyEmailOpen(false)}
       />
 
       <HeaderLogoModal

@@ -10,6 +10,18 @@ export enum PatientStatus {
 export type PatientCategory = 'Medicine' | 'Surgery' | 'Urology' | 'Nephrology' | 'Cardiology' | 'Others';
 export type CodeStatus = 'Full Code' | 'DNR' | 'DNI';
 export type TriagePriority = 'Critical' | 'Urgent' | 'Stable';
+export type TransferDischargeStatus = 
+  | 'Active (In-Unit)'
+  | 'Ward Transfer'
+  | 'ICU Transfer'
+  | 'Discharge Home'
+  | 'Mortality'
+  | 'OT Transfer'
+  | 'Pvt Ward Transfer'
+  | 'Transplant Bay Transfer'
+  | 'Emergency (ER) Transfer'
+  | 'Other Hospital Transfer'
+  | 'LAMA';
 
 export interface TransferLog {
   timestamp: string;
@@ -43,6 +55,8 @@ export interface Patient {
   category: PatientCategory;
   location: string;
   codeStatus: CodeStatus;
+  transferStatus?: TransferDischargeStatus | string;
+  shiftTo?: string;
   triagePriority?: TriagePriority;
   consultant: string;
   status?: PatientStatus;
@@ -198,6 +212,63 @@ export interface DailyReportLog {
   status: 'DELIVERED' | 'SIMULATED' | 'FAILED';
   activeCensusCount: number;
   lowStockAlertCount: number;
+  details: string;
+}
+
+export type CronFrequency = 'MONTHLY' | 'WEEKLY' | 'DAILY';
+export type MonthTriggerDay = 'LAST_DAY' | 'FIRST_DAY' | 'CUSTOM_DAY';
+
+export interface CronJobDefinition {
+  id: string;
+  name: string;
+  cronExpression: string; // e.g. "0 8 L * *" for Last Day of Month at 08:00 AM
+  frequency: CronFrequency;
+  monthTriggerDay: MonthTriggerDay;
+  customDayOfMonth?: number; // 1-31
+  time: string; // "HH:MM" e.g., "08:00"
+  timezone: string; // e.g. "Asia/Karachi"
+  enabled: boolean;
+}
+
+export interface DepartmentMetricSummary {
+  unit: ClinicalUnit;
+  unitName: string;
+  activeCensus: number;
+  totalAdmissionsThisMonth: number;
+  dischargesThisMonth: number;
+  mortalityCount: number;
+  criticalIncidentsCount: number;
+  lowStockItemCount: number;
+  totalInventoryItems: number;
+  criticalPatientsCount: number;
+}
+
+export interface MonthlyReportScheduleSettings {
+  enabled: boolean;
+  cronDefinition: CronJobDefinition;
+  recipients: string[];
+  departmentScopes: (ClinicalUnit | 'ALL')[];
+  includeExecutiveSummary: boolean;
+  includeDepartmentBreakdown: boolean;
+  includeInventoryAlerts: boolean;
+  includeMortalityRegistry: boolean;
+  includeIncidentReports: boolean;
+  lastSentAt?: string | null;
+  lastStatus?: 'DELIVERED' | 'SIMULATED' | 'FAILED' | null;
+  nextScheduledRun?: string | null;
+}
+
+export interface MonthlyReportDispatchLog {
+  id: string;
+  timestamp: string;
+  recipients: string[];
+  triggerType: 'CRON_AUTOMATION' | 'MANUAL_RUN' | 'TEST_SIMULATION';
+  status: 'DELIVERED' | 'SIMULATED' | 'FAILED';
+  totalHospitalCensus: number;
+  totalDepartmentsIncluded: number;
+  totalMortalityCount: number;
+  totalLowStockCount: number;
+  cronExpression: string;
   details: string;
 }
 

@@ -11,8 +11,9 @@ import { useUnit } from '../contexts/UnitContext';
 import { useSearch } from '../contexts/SearchContext';
 import { useConfirm } from '../contexts/ConfirmContext';
 import { useToast } from '../contexts/ToastContext';
+import { useLoading } from '../contexts/LoadingContext';
 import { activityService } from '../services/activityService';
-import { ENDOSCOPY_DOCTORS, ENDOSCOPY_PROCEDURES, UNIT_DETAILS, CONSULTANTS, CATEGORIES, CODE_STATUSES, TRIAGE_PRIORITIES, formatProcedureDisplay } from '../constants';
+import { ENDOSCOPY_DOCTORS, ENDOSCOPY_PROCEDURES, UNIT_DETAILS, CONSULTANTS, CATEGORIES, CODE_STATUSES, TRIAGE_PRIORITIES, TRANSFER_DISCHARGE_STATUSES, formatProcedureDisplay } from '../constants';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
 import ExportModal from '../components/ExportModal';
@@ -23,6 +24,7 @@ import { EndoscopyReportPreviewSheet } from '../components/EndoscopyReportPrevie
 import WhatsAppDispatchModal, { COUNTRY_CODES, sanitizeLocalNumber } from '../components/WhatsAppDispatchModal';
 import { ActiveFiltersBar } from '../components/ActiveFiltersBar';
 import { EndoscopyAnalyticsDashboard } from '../components/EndoscopyAnalyticsDashboard';
+import { TableSkeleton, ButtonSpinner, DynamicRoundedLoader } from '../components/LoadingSpinner';
 import { GastroScopeIcon } from '../components/GastroScopeIcon';
 
 type SortKey = keyof EndoscopyRecord;
@@ -88,7 +90,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
   const [admCategory, setAdmCategory] = useState<any>('Medicine');
   const [admLocation, setAdmLocation] = useState('');
   const [admCodeStatus, setAdmCodeStatus] = useState<any>('Full Code');
-  const [admTriage, setAdmTriage] = useState<any>('Stable');
+  const [admTransferStatus, setAdmTransferStatus] = useState<any>('Active (In-Unit)');
   const [admConsultant, setAdmConsultant] = useState('');
   const [admDate, setAdmDate] = useState(new Date().toISOString().split('T')[0]);
   const [admIsSaving, setAdmIsSaving] = useState(false);
@@ -145,7 +147,8 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
         category: admCategory,
         location: admLocation,
         codeStatus: admCodeStatus,
-        triagePriority: admTriage,
+        transferStatus: admTransferStatus,
+        shiftTo: admTransferStatus,
         consultant: admConsultant,
         status: PatientStatus.ACTIVE,
         lengthOfStay: 0,
@@ -165,7 +168,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
       setAdmCategory('Medicine');
       setAdmLocation('');
       setAdmCodeStatus('Full Code');
-      setAdmTriage('Stable');
+      setAdmTransferStatus('Active (In-Unit)');
       setAdmConsultant('');
       setAdmDate(new Date().toISOString().split('T')[0]);
 
@@ -196,6 +199,8 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
     openAdvancedSearch
   } = useSearch();
 
+  const { startLoading, stopLoading } = useLoading();
+
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -204,6 +209,8 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
   // Input states (unapplied)
   const [startDateInput, setStartDateInput] = useState('');
   const [endDateInput, setEndDateInput] = useState('');
+  const [monthPreset, setMonthPreset] = useState('');
+  const [isFetchingFilter, setIsFetchingFilter] = useState(false);
   
   // Applied states (the actual filters)
   const [appliedStartDate, setAppliedStartDate] = useState('');
@@ -1202,25 +1209,84 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
   };
 
   const handleApplyDateFilter = () => {
+    setIsFetchingFilter(true);
+    startLoading('Fetching Endoscopy Records...', 'Applying Date Filter');
     if (startDateInput && endDateInput) {
       const start = new Date(startDateInput);
       const end = new Date(endDateInput);
       if (end < start) {
         setAppliedStartDate(endDateInput);
         setAppliedEndDate(startDateInput);
+        setTimeout(() => {
+          setIsFetchingFilter(false);
+          stopLoading();
+        }, 450);
         return;
       }
     }
     setAppliedStartDate(startDateInput);
     setAppliedEndDate(endDateInput);
+    setTimeout(() => {
+      setIsFetchingFilter(false);
+      stopLoading();
+    }, 450);
+  };
+
+  const handleMonthPresetChange = (preset: string) => {
+    setMonthPreset(preset);
+    if (!preset) return;
+
+    const now = new Date();
+    let startStr = '';
+    let endStr = now.toISOString().split('T')[0];
+
+    if (preset === 'THIS_MONTH') {
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+      startStr = firstDay.toISOString().split('T')[0];
+    } else if (preset === 'LAST_MONTH') {
+      const firstDay = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const lastDay = new Date(now.getFullYear(), now.getMonth(), 0);
+      startStr = firstDay.toISOString().split('T')[0];
+      endStr = lastDay.toISOString().split('T')[0];
+    } else if (preset === 'LAST_3_MONTHS') {
+      const firstDay = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+      startStr = firstDay.toISOString().split('T')[0];
+    } else if (preset === 'LAST_6_MONTHS') {
+      const firstDay = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+      startStr = firstDay.toISOString().split('T')[0];
+    } else if (preset === 'THIS_YEAR') {
+      const firstDay = new Date(now.getFullYear(), 0, 1);
+      startStr = firstDay.toISOString().split('T')[0];
+    }
+
+    setStartDateInput(startStr);
+    setEndDateInput(endStr);
+
+    if (startStr && endStr) {
+      setIsFetchingFilter(true);
+      startLoading('Fetching Endoscopy Records...', `Preset: ${preset.replace(/_/g, ' ')}`);
+      setAppliedStartDate(startStr);
+      setAppliedEndDate(endStr);
+      setTimeout(() => {
+        setIsFetchingFilter(false);
+        stopLoading();
+      }, 450);
+    }
   };
 
   const resetFilters = () => {
+    setIsFetchingFilter(true);
+    startLoading('Clearing Filters...', 'Resetting Endoscopy Archive');
     setSearchTerm('');
     setStartDateInput('');
     setEndDateInput('');
     setAppliedStartDate('');
     setAppliedEndDate('');
+    setMonthPreset('');
+    setTimeout(() => {
+      setIsFetchingFilter(false);
+      stopLoading();
+    }, 300);
   };
 
   const sortedAndFiltered = useMemo(() => {
@@ -2285,10 +2351,10 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                         }
                       }}
                       placeholder="Enter MRN/Reg No (Max 8 digits)"
-                      className={`w-full px-4 py-3 bg-white border rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:border-indigo-500/50 hover:border-slate-350 transition-all ${
+                      className={`w-full px-4 py-3 bg-white border rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:border-indigo-500/50 hover:border-slate-400 transition-all ${
                         showValidationErrors && !formRegNo.trim()
                           ? 'border-rose-500 ring-2 ring-rose-500/10 shadow-[0_0_8px_rgba(244,63,94,0.15)]' 
-                          : 'border-slate-200 focus:ring-indigo-500/10'
+                          : 'border-slate-300 focus:ring-indigo-500/10'
                       }`}
                     />
                     {showValidationErrors && !formRegNo.trim() && (
@@ -2305,10 +2371,10 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                       value={formName}
                       onChange={(e) => setFormName(e.target.value.toUpperCase())}
                       placeholder="Enter patient complete name"
-                      className={`w-full px-4 py-3 bg-white border rounded-xl text-xs font-bold text-slate-800 uppercase outline-none focus:ring-2 focus:border-indigo-500/50 hover:border-slate-350 transition-all ${
+                      className={`w-full px-4 py-3 bg-white border rounded-xl text-xs font-bold text-slate-800 uppercase outline-none focus:ring-2 focus:border-indigo-500/50 hover:border-slate-400 transition-all ${
                         showValidationErrors && !formName.trim()
                           ? 'border-rose-500 ring-2 ring-rose-500/10 shadow-[0_0_8px_rgba(244,63,94,0.15)]' 
-                          : 'border-slate-200 focus:ring-indigo-500/10'
+                          : 'border-slate-300 focus:ring-indigo-500/10'
                       }`}
                     />
                     {showValidationErrors && !formName.trim() && (
@@ -2324,7 +2390,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                       value={formAge}
                       onChange={(e) => setFormAge(e.target.value)}
                       placeholder="e.g. 52"
-                      className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 hover:border-slate-300 transition-all"
+                      className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 hover:border-slate-400 transition-all"
                     />
                   </div>
                   <div className="space-y-2">
@@ -2332,7 +2398,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                     <select
                       value={formGender}
                       onChange={(e) => setFormGender(e.target.value)}
-                      className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 hover:border-slate-300 transition-all cursor-pointer"
+                      className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 hover:border-slate-400 transition-all cursor-pointer"
                     >
                       <option value="Male" className="bg-white text-slate-800">Male</option>
                       <option value="Female" className="bg-white text-slate-800">Female</option>
@@ -2346,7 +2412,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                       value={formReferringPhysician}
                       onChange={(e) => setFormReferringPhysician(e.target.value.toUpperCase())}
                       placeholder="Referrer clinician name"
-                      className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 uppercase outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 hover:border-slate-300 transition-all"
+                      className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 uppercase outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 hover:border-slate-400 transition-all"
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
@@ -2357,10 +2423,10 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                         type="date"
                         value={formDate}
                         onChange={(e) => setFormDate(e.target.value)}
-                        className={`w-full px-4 py-3 bg-white border rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:border-indigo-500/50 hover:border-slate-350 transition-all ${
+                        className={`w-full px-4 py-3 bg-white border rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:border-indigo-500/50 hover:border-slate-400 transition-all ${
                           showValidationErrors && (!formDate || isDateInFuture)
                             ? 'border-rose-500 ring-2 ring-rose-500/10 shadow-[0_0_8px_rgba(244,63,94,0.15)]' 
-                            : 'border-slate-200 focus:ring-indigo-500/10'
+                            : 'border-slate-300 focus:ring-indigo-500/10'
                         }`}
                       />
                       {showValidationErrors && !formDate && (
@@ -2380,7 +2446,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                         type="time"
                         value={formTime}
                         onChange={(e) => setFormTime(e.target.value)}
-                        className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 hover:border-slate-300 transition-all"
+                        className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 hover:border-slate-400 transition-all"
                       />
                     </div>
                   </div>
@@ -2406,7 +2472,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                       <select
                         value={formWhatsappCountryCode}
                         onChange={(e) => setFormWhatsappCountryCode(e.target.value)}
-                        className="sm:w-48 px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 hover:border-slate-300 transition-all cursor-pointer shadow-2xs"
+                        className="sm:w-48 px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 hover:border-slate-400 transition-all cursor-pointer shadow-2xs"
                       >
                         {COUNTRY_CODES.map((c) => (
                           <option key={c.code} value={c.code}>
@@ -2422,7 +2488,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                           placeholder="+91"
                           value={formWhatsappCustomCode}
                           onChange={(e) => setFormWhatsappCustomCode(e.target.value)}
-                          className="w-24 px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 shadow-2xs"
+                          className="w-24 px-3 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 hover:border-slate-400 shadow-2xs"
                         />
                       )}
 
@@ -2438,7 +2504,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                             setFormWhatsappLocalNumber(cleanNum);
                           }}
                           placeholder="e.g. 3001234567 or 9876543210 (exclude initial 0)"
-                          className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 hover:border-slate-300 transition-all font-mono tracking-wide"
+                          className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 hover:border-slate-400 transition-all font-mono tracking-wide"
                         />
                         {formWhatsappLocalNumber && (
                           <button
@@ -2478,10 +2544,10 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                         if (procedureSuggestions.length > 0) setIsProcedureListOpen(true);
                       }}
                       placeholder="Type to search e.g. Colonoscopy..."
-                      className={`w-full px-4 py-3 bg-white border rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:border-indigo-500/50 hover:border-slate-350 transition-all ${
+                      className={`w-full px-4 py-3 bg-white border rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:border-indigo-500/50 hover:border-slate-400 transition-all ${
                         showValidationErrors && !formProcedure
                           ? 'border-rose-500 ring-2 ring-rose-500/10 shadow-[0_0_8px_rgba(244,63,94,0.15)]' 
-                          : 'border-slate-200 focus:ring-indigo-500/10'
+                          : 'border-slate-300 focus:ring-indigo-500/10'
                       }`}
                     />
                     {showValidationErrors && !formProcedure && (
@@ -2490,7 +2556,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                       </p>
                     )}
                     {isProcedureListOpen && procedureSuggestions.length > 0 && (
-                      <ul className="absolute z-50 w-full bg-white border border-slate-200 rounded-xl mt-1 max-h-48 overflow-y-auto shadow-2xl divide-y divide-slate-100 text-[10px] font-bold text-slate-700">
+                      <ul className="absolute z-50 w-full bg-white border border-slate-300 rounded-xl mt-1 max-h-48 overflow-y-auto shadow-2xl divide-y divide-slate-100 text-[10px] font-bold text-slate-700">
                         {procedureSuggestions.map((p, idx) => (
                           <li
                             key={p}
@@ -2514,10 +2580,10 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                       required
                       value={formDoctor}
                       onChange={(e) => setFormDoctor(e.target.value)}
-                      className={`w-full px-4 py-3 bg-white border rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:border-indigo-500/50 hover:border-slate-350 transition-all cursor-pointer ${
+                      className={`w-full px-4 py-3 bg-white border rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:border-indigo-500/50 hover:border-slate-400 transition-all cursor-pointer ${
                         showValidationErrors && !formDoctor
                           ? 'border-rose-500 ring-2 ring-rose-500/10 shadow-[0_0_8px_rgba(244,63,94,0.15)]' 
-                          : 'border-slate-200 focus:ring-indigo-500/10'
+                          : 'border-slate-300 focus:ring-indigo-500/10'
                       }`}
                     >
                       <option value="" className="bg-white text-slate-800">Select Doctor</option>
@@ -2539,7 +2605,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                       value={formMedications}
                       onChange={(e) => setFormMedications(e.target.value.toUpperCase())}
                       placeholder="E.G. MIDAZOLAM 2MG, PROPOFOL 50MG, BUSCOPAN 20MG OR N/A"
-                      className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 hover:border-slate-300 transition-all uppercase"
+                      className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 hover:border-slate-400 transition-all uppercase"
                     />
                   </div>
                 </div>
@@ -2547,26 +2613,35 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
 
               {activeFormTab === 'narrative' && (
                 <div className="space-y-6">
-                  {/* Indications */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Clinical Indications for Examination</label>
-                      <VoiceDictationButton context="dictation" onTranscript={(text) => setFormIndications(prev => prev ? `${prev} ${text}` : text)} />
-                    </div>
-                    <textarea
-                      rows={2}
-                      value={formIndications}
-                      onChange={(e) => setFormIndications(e.target.value)}
-                      placeholder="e.g. Dysphagia, dyspepsia, screening for esophageal varices..."
-                      className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 hover:border-slate-300 transition-all"
-                    />
-                  </div>
-
-
-
                   {/* ANATOMICAL FINDINGS BLOCK - HIGHLIGHTED CLINICAL FIELDS */}
                   {isColonoscopy ? (
                     <div className="border border-slate-200 rounded-2xl p-5 bg-slate-50 space-y-6 animate-fadeIn">
+                      {/* Clinical Indications for Colonoscopy */}
+                      <div className="space-y-3 pb-5 border-b border-slate-200">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <span className="text-[11px] font-bold uppercase text-slate-700 tracking-wider">
+                            Clinical Indications for Examination
+                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setFormIndications("")}
+                              className="text-[8px] bg-rose-50 text-rose-600 px-2.5 py-1 rounded font-bold uppercase tracking-wider hover:bg-rose-100 transition-all border border-rose-200 shadow-sm cursor-pointer"
+                            >
+                              × Clear
+                            </button>
+                            <VoiceDictationButton context="dictation" onTranscript={(text) => setFormIndications(prev => prev ? `${prev} ${text}` : text)} />
+                          </div>
+                        </div>
+                        <textarea
+                          rows={2}
+                          value={formIndications}
+                          onChange={(e) => setFormIndications(e.target.value)}
+                          placeholder="e.g. Lower GI bleed, altered bowel habits, screening colonoscopy, abdominal pain..."
+                          className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 hover:border-slate-400 transition-all"
+                        />
+                      </div>
+
                       <div className="flex items-center space-x-2 border-b border-slate-200 pb-3">
                         <svg className="w-5 h-5 text-red-500 animate-pulse" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -2591,14 +2666,14 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                               <button
                                 type="button"
                                 onClick={() => field.setter("Normal Mucosa")}
-                                className="text-[8px] bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
+                                className="text-[8px] bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
                               >
                                 ✓ Normal Mucosa
                               </button>
                               <button
                                 type="button"
                                 onClick={() => field.setter("Not Examined")}
-                                className="text-[8px] bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
+                                className="text-[8px] bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
                               >
                                 ⚠ Not Examined
                               </button>
@@ -2617,13 +2692,39 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                             value={field.value}
                             onChange={(e) => field.setter(e.target.value)}
                             placeholder={field.placeholder}
-                            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 hover:border-slate-300 transition-all"
+                            className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 hover:border-slate-400 transition-all"
                           />
                         </div>
                       ))}
                     </div>
                   ) : (
                     <div className="border border-slate-200 rounded-2xl p-5 bg-slate-50 space-y-6 animate-fadeIn">
+                      {/* Clinical Indications for Upper GI / Bronchoscopy */}
+                      <div className="space-y-3 pb-5 border-b border-slate-200">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <span className="text-[11px] font-bold uppercase text-slate-700 tracking-wider">
+                            Clinical Indications for Examination
+                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setFormIndications("")}
+                              className="text-[8px] bg-rose-50 text-rose-600 px-2.5 py-1 rounded font-bold uppercase tracking-wider hover:bg-rose-100 transition-all border border-rose-200 shadow-sm cursor-pointer"
+                            >
+                              × Clear
+                            </button>
+                            <VoiceDictationButton context="dictation" onTranscript={(text) => setFormIndications(prev => prev ? `${prev} ${text}` : text)} />
+                          </div>
+                        </div>
+                        <textarea
+                          rows={2}
+                          value={formIndications}
+                          onChange={(e) => setFormIndications(e.target.value)}
+                          placeholder="e.g. Dysphagia, dyspepsia, screening for esophageal varices, hematemesis..."
+                          className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 hover:border-slate-400 transition-all"
+                        />
+                      </div>
+
                       <div className="flex items-center space-x-2 border-b border-slate-200 pb-3">
                         <svg className="w-5 h-5 text-red-500 animate-pulse" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -2645,14 +2746,14 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => setFormEsophagusFindings("Normal vocal cords with preserved bilateral mobility. Laryngeal anatomy is intact and normal. No mass or erythema.")}
-                                  className="text-[8px] bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
+                                  className="text-[8px] bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
                                 >
                                   ✓ Normal Cords
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => setFormEsophagusFindings("Laryngeal mucosa is mildly hyperemic. Vocal cords are symmetric but show mildly restricted abduction on the left side. No vocal cord lesions.")}
-                                  className="text-[8px] bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
+                                  className="text-[8px] bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
                                 >
                                   ⚠ Restricted Mobility
                                 </button>
@@ -2662,14 +2763,14 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => setFormEsophagusFindings("Normal esophageal mucosa. Z-line is distinct and at normal level (~40cm). No varices, ulceration, stricture, or masses seen.")}
-                                  className="text-[8px] bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
+                                  className="text-[8px] bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
                                 >
                                   ✓ Normal Template
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => setFormEsophagusFindings("Grade I esophageal varices noted in lower third of esophagus without red color signs. Rest of esophageal mucosa normal.")}
-                                  className="text-[8px] bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
+                                  className="text-[8px] bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
                                 >
                                   ⚠ Varices Template
                                 </button>
@@ -2690,7 +2791,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                           value={formEsophagusFindings}
                           onChange={(e) => setFormEsophagusFindings(e.target.value)}
                           placeholder={isBronchoscopy ? "Describe laryngeal mucosa, vocal cord appearance, mobility..." : "Describe Esophagus mucosa, varices, Z-line, lumen, motility..."}
-                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 hover:border-slate-300 transition-all"
+                          className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 hover:border-slate-400 transition-all"
                         />
                       </div>
 
@@ -2706,14 +2807,14 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => setFormStomachFindings("Trachea is patent without stenosis, compression, or tracheomalacia. Tracheal rings are well-defined. Main Carina is sharp, mobile, and normal.")}
-                                  className="text-[8px] bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
+                                  className="text-[8px] bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
                                 >
                                   ✓ Normal Trachea
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => setFormStomachFindings("Tracheal mucosa is mildly congested with secretions. Main Carina is blunted and widened, suggesting extrinsic subcarinal adenopathy/compression.")}
-                                  className="text-[8px] bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
+                                  className="text-[8px] bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
                                 >
                                   ⚠ Blunted Carina
                                 </button>
@@ -2723,14 +2824,14 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => setFormStomachFindings("Normal gastric mucosa with regular rugal folds. Body and fundus clear.")}
-                                  className="text-[8px] bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
+                                  className="text-[8px] bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
                                 >
                                   ✓ Normal Stomach
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => setFormStomachFindings("Moderate mucosal erythema, congestion, and subepithelial petechial hemorrhages seen in the gastric body and fundus.")}
-                                  className="text-[8px] bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
+                                  className="text-[8px] bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
                                 >
                                   Gastritis Template
                                 </button>
@@ -2751,7 +2852,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                           value={formStomachFindings}
                           onChange={(e) => setFormStomachFindings(e.target.value)}
                           placeholder={isBronchoscopy ? "Describe tracheal patency, rings, stenosis, and carinal sharpness/mobility..." : "Describe Gastric Fundus, Body, mucosal congestion, ulcers..."}
-                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 hover:border-slate-300 transition-all"
+                          className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 hover:border-slate-400 transition-all"
                         />
                       </div>
 
@@ -2766,21 +2867,21 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                               <button
                                 type="button"
                                 onClick={() => setFormAntrumFindings("Normal gastric antrum. Pylorus is patent and easily traversed. No ulcerations, erosions, or masses noted.")}
-                                className="text-[8px] bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
+                                className="text-[8px] bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
                               >
                                 ✓ Normal Antrum
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setFormAntrumFindings("Moderate mucosal erythema, congestion, and subepithelial petechial hemorrhages seen in the gastric antrum. Biopsies taken for H. Pylori.")}
-                                className="text-[8px] bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
+                                className="text-[8px] bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
                               >
                                 Antritis Template
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setFormAntrumFindings("A clean-based, punched-out ulcer of approximately 8mm size noted on the lesser curvature of the gastric antrum. No active bleeding (Forrest Class III). Biopsies obtained from ulcer margin to rule out malignancy.")}
-                                className="text-[8px] bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
+                                className="text-[8px] bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
                               >
                                 Antral Ulcer
                               </button>
@@ -2799,7 +2900,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                             value={formAntrumFindings}
                             onChange={(e) => setFormAntrumFindings(e.target.value)}
                             placeholder="Describe gastric antrum, pylorus, mucosal congestion, ulcers, biopsies taken..."
-                            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 hover:border-slate-300 transition-all"
+                            className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 hover:border-slate-400 transition-all"
                           />
                         </div>
                       )}
@@ -2816,14 +2917,14 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => setFormDuodenumFindings("Left and right bronchial trees visualized up to subsegmental levels. Mucosa is normal. No endobronchial lesions, active bleeding, or purulent secretions noted.")}
-                                  className="text-[8px] bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
+                                  className="text-[8px] bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
                                 >
                                   ✓ Normal Bronchi
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => setFormDuodenumFindings("Bilateral bronchial trees show diffuse mucosal erythema with thick mucopurulent secretions originating from the right middle and lower lobes. Cleared with suction.")}
-                                  className="text-[8px] bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
+                                  className="text-[8px] bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
                                 >
                                   ⚠ Secretions Template
                                 </button>
@@ -2833,14 +2934,14 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => setFormDuodenumFindings("Duodenal bulb visualized. Mucosa is normal throughout. No active bleeding, ulceration, or duodenitis seen.")}
-                                  className="text-[8px] bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
+                                  className="text-[8px] bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
                                 >
                                   ✓ Normal Bulb
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => setFormDuodenumFindings("An active, well-circumscribed ulcer (~6mm) with a clean base (Forrest Class III) seen on the anterior wall of the duodenal bulb with surrounding mucosal congestion.")}
-                                  className="text-[8px] bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
+                                  className="text-[8px] bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
                                 >
                                   Bulb Ulcer
                                 </button>
@@ -2861,7 +2962,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                           value={formDuodenumFindings}
                           onChange={(e) => setFormDuodenumFindings(e.target.value)}
                           placeholder={isBronchoscopy ? "Describe left and right main bronchi, lobar divisions, segmental openings, secretions..." : "Describe duodenal bulb mucosa, ulcers, bleeding, deformity..."}
-                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 hover:border-slate-300 transition-all"
+                          className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 hover:border-slate-400 transition-all"
                         />
                       </div>
 
@@ -2876,14 +2977,14 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                               <button
                                 type="button"
                                 onClick={() => setFormDuodenum2ndPartFindings("Second part of duodenum (D2) visualized. Mucosa is normal with regular villous patterns. No ulcerations, erosions, or masses noted.")}
-                                className="text-[8px] bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
+                                className="text-[8px] bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
                               >
                                 ✓ Normal D2
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setFormDuodenum2ndPartFindings("Moderate mucosal erythema, congestion, and fine granular appearance in the second part of duodenum (D2) suggesting mild duodenitis. Biopsies taken.")}
-                                className="text-[8px] bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
+                                className="text-[8px] bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
                               >
                                 Duodenitis
                               </button>
@@ -2902,7 +3003,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                             value={formDuodenum2ndPartFindings}
                             onChange={(e) => setFormDuodenum2ndPartFindings(e.target.value)}
                             placeholder="Describe D2 mucosa, villous patterns, ulcers, bleeding, duodenitis, biopsies..."
-                            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 hover:border-slate-300 transition-all"
+                            className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 hover:border-slate-400 transition-all"
                           />
                         </div>
                       )}
@@ -2918,14 +3019,14 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                               <button
                                 type="button"
                                 onClick={() => setFormColonFindings("Bronchoalveolar lavage (BAL) performed in the Right Middle Lobe (RML) using 100ml of sterile saline. Return was cloudy but clear of gross blood, with ~60% recovery. Sent for analysis.")}
-                                className="text-[8px] bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
+                                className="text-[8px] bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
                               >
                                 ✓ BAL RML Normal
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setFormColonFindings("Serial Bronchoalveolar lavage (BAL) performed in the Right Lower Lobe (RLL). Return was progressively more bloody across three sequential aliquots, consistent with Diffuse Alveolar Hemorrhage.")}
-                                className="text-[8px] bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
+                                className="text-[8px] bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
                               >
                                 ⚠ Alveolar Hemorrhage
                               </button>
@@ -2944,7 +3045,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                             value={formColonFindings}
                             onChange={(e) => setFormColonFindings(e.target.value)}
                             placeholder="Describe BAL location, volume, appearance of return, or any endobronchial biopsy sites..."
-                            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 hover:border-slate-300 transition-all"
+                            className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 hover:border-slate-400 transition-all"
                           />
                         </div>
                       )}
@@ -2975,7 +3076,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                         value={formDiagnosis}
                         onChange={(e) => setFormDiagnosis(e.target.value)}
                         placeholder="e.g. Mild Antral Gastritis, LA Grade A Reflux Esophagitis"
-                        className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 hover:border-slate-300 transition-all"
+                        className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 hover:border-slate-400 transition-all"
                       />
                     </div>
                     <div className="space-y-2">
@@ -2997,7 +3098,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                         value={formRecommendations}
                         onChange={(e) => setFormRecommendations(e.target.value)}
                         placeholder="e.g. PPI 40mg daily, avoid triggers. Histopathology report follow-up."
-                        className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 hover:border-slate-300 transition-all"
+                        className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 hover:border-slate-400 transition-all"
                       />
                     </div>
                   </div>
@@ -3065,7 +3166,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                         className={`w-full px-2 py-1 bg-white border rounded text-[9px] font-bold text-slate-800 outline-none focus:ring-1 transition-all ${
                           showValidationErrors && isImageTitleInvalid(img.title)
                             ? 'border-rose-500 ring-1 ring-rose-500 focus:ring-rose-500 bg-rose-50'
-                            : 'border-slate-200 focus:ring-indigo-500 hover:border-slate-350'
+                            : 'border-slate-300 focus:ring-indigo-500 hover:border-slate-400'
                         }`}
                       />
                       {showValidationErrors && isImageTitleInvalid(img.title) && (
@@ -3657,14 +3758,14 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                   </select>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Triage Priority</label>
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Shift To</label>
                   <select
                     required
-                    value={admTriage}
-                    onChange={(e) => setAdmTriage(e.target.value)}
+                    value={admTransferStatus}
+                    onChange={(e) => setAdmTransferStatus(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 bg-white"
                   >
-                    {TRIAGE_PRIORITIES.map(tp => (
+                    {TRANSFER_DISCHARGE_STATUSES.map(tp => (
                       <option key={tp} value={tp}>{tp}</option>
                     ))}
                   </select>
@@ -3954,12 +4055,30 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
 
         <div className="flex flex-wrap items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
           <div className="flex items-center gap-2">
+            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Preset:</label>
+            <select 
+              value={monthPreset}
+              onChange={(e) => handleMonthPresetChange(e.target.value)}
+              className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 bg-slate-50 cursor-pointer text-slate-800"
+            >
+              <option value="">Custom Range</option>
+              <option value="THIS_MONTH">This Month</option>
+              <option value="LAST_MONTH">Last Month</option>
+              <option value="LAST_3_MONTHS">Last 3 Months</option>
+              <option value="LAST_6_MONTHS">Last 6 Months</option>
+              <option value="THIS_YEAR">This Year ({new Date().getFullYear()})</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
             <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">From:</label>
             <input 
               type="date" 
               value={startDateInput}
-              onChange={(e) => setStartDateInput(e.target.value)}
-              className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 bg-slate-50"
+              onChange={(e) => {
+                setStartDateInput(e.target.value);
+                if (monthPreset) setMonthPreset('');
+              }}
+              className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 bg-slate-50 text-slate-800"
             />
           </div>
           <div className="flex items-center gap-2">
@@ -3967,16 +4086,29 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
             <input 
               type="date" 
               value={endDateInput}
-              onChange={(e) => setEndDateInput(e.target.value)}
-              className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 bg-slate-50"
+              onChange={(e) => {
+                setEndDateInput(e.target.value);
+                if (monthPreset) setMonthPreset('');
+              }}
+              className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 bg-slate-50 text-slate-800"
             />
           </div>
           <button 
             onClick={handleApplyDateFilter}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-blue-700 transition-colors shadow-md active:scale-95 flex items-center gap-2"
+            disabled={isFetchingFilter}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-blue-700 transition-colors shadow-md flex items-center gap-2 disabled:opacity-60 cursor-pointer"
           >
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-            Fetch Data
+            {isFetchingFilter ? (
+              <>
+                <ButtonSpinner className="w-3 h-3 text-white" />
+                Fetching...
+              </>
+            ) : (
+              <>
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                Fetch Data
+              </>
+            )}
           </button>
           {isFilterActive && (
             <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full border border-blue-200">
@@ -3986,14 +4118,34 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
           )}
           <button 
             onClick={resetFilters}
-            className="ml-auto text-[9px] font-black text-red-600 uppercase tracking-widest hover:text-red-700 transition-colors flex items-center gap-1"
+            className="ml-auto text-[9px] font-black text-red-600 uppercase tracking-widest hover:text-red-700 transition-colors flex items-center gap-1 cursor-pointer"
           >
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12"/></svg>
             Reset
           </button>
         </div>
 
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden relative">
+          {/* Table-level Professional Rounded Spinner Loading Overlay */}
+          {isFetchingFilter && (
+            <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-white/80 dark:bg-slate-900/80 backdrop-blur-[2px] transition-all duration-300 animate-fadeIn select-none">
+              <div className="flex flex-col items-center justify-center p-6 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 max-w-sm text-center space-y-3 transform transition-transform animate-in zoom-in-95 duration-150">
+                <DynamicRoundedLoader size="lg" />
+                <div className="space-y-1">
+                  <h4 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">
+                    Filtering Endoscopy Registry
+                  </h4>
+                  <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                    {appliedStartDate ? `Date Range: ${appliedStartDate} to ${appliedEndDate || 'Present'}` : 'Synchronizing Endoscopy Records...'}
+                  </p>
+                </div>
+                <div className="w-28 h-1 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden relative">
+                  <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 via-teal-400 to-indigo-500 animate-dynamic-shimmer rounded-full" />
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="bg-slate-100 text-slate-800 px-5 py-2.5 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200">
             <div className="flex items-center space-x-2.5">
               <div className="p-1.5 bg-gradient-to-br from-red-600 via-rose-600 to-pink-600 text-white rounded-lg shadow-sm flex items-center justify-center">
@@ -4014,26 +4166,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
           </div>
           <div className="overflow-x-auto whitespace-nowrap max-h-[600px] overflow-y-auto">
             {loading ? (
-              <div className="p-4 space-y-3 animate-pulse min-w-[1000px]">
-                <div className="h-8 bg-slate-100 rounded-lg w-full flex items-center px-4 justify-between">
-                  <div className="h-3 w-12 bg-slate-200 rounded" />
-                  <div className="h-3 w-20 bg-slate-200 rounded" />
-                  <div className="h-3 w-36 bg-slate-200 rounded" />
-                  <div className="h-3 w-28 bg-slate-200 rounded" />
-                  <div className="h-3 w-24 bg-slate-200 rounded" />
-                  <div className="h-3 w-28 bg-slate-200 rounded" />
-                </div>
-                {[1, 2, 3, 4, 5, 6, 7].map((i) => (
-                  <div key={i} className="h-10 bg-slate-50 rounded-lg w-full flex items-center px-4 justify-between border border-slate-100">
-                    <div className="h-3 w-10 bg-slate-200 rounded" />
-                    <div className="h-3 w-20 bg-slate-200 rounded" />
-                    <div className="h-3 w-36 bg-slate-200 rounded" />
-                    <div className="h-3 w-28 bg-slate-200 rounded" />
-                    <div className="h-3 w-24 bg-slate-200 rounded" />
-                    <div className="h-3 w-28 bg-slate-200 rounded" />
-                  </div>
-                ))}
-              </div>
+              <TableSkeleton rows={8} cols={6} />
             ) : (
               <table className="w-full text-left border-separate border-spacing-0">
                 <thead className="bg-slate-100 text-slate-700 sticky top-0 z-10 shadow-xs border-b border-slate-200">
@@ -4232,7 +4365,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                 value={formSerialNo} 
                 onChange={(e) => setFormSerialNo(e.target.value)} 
                 placeholder={editingRecord ? editingRecord.serialNo : autoSerialNo} 
-                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-700 outline-none focus:ring-1 focus:ring-red-200" 
+                className="w-full px-3 py-2 bg-white border border-slate-300 hover:border-slate-400 rounded-lg text-[10px] font-bold text-slate-700 outline-none focus:ring-1 focus:ring-red-200" 
               />
             </div>
             <div className="space-y-1">
@@ -4252,7 +4385,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                 className={`w-full px-3 py-2 border rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 bg-white ${
                   showValidationErrors && !formRegNo.trim()
                     ? 'border-red-500 ring-1 ring-red-200 bg-red-50/20' 
-                    : 'border-slate-200'
+                    : 'border-slate-300 hover:border-slate-400'
                 }`}
                 placeholder="Enter MRN/Reg No (Max 8 digits)" 
               />
@@ -4275,7 +4408,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                 className={`w-full px-3 py-2 border rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 bg-white ${
                   showValidationErrors && !formName.trim()
                     ? 'border-red-500 ring-1 ring-red-200 bg-red-50/20' 
-                    : 'border-slate-200'
+                    : 'border-slate-300 hover:border-slate-400'
                 }`}
                 placeholder="e.g. JOHN DOE" 
               />
@@ -4288,11 +4421,11 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
                 <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Age</label>
-                <input type="text" value={formAge} onChange={(e) => setFormAge(e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 bg-white" placeholder="e.g. 45" />
+                <input type="text" value={formAge} onChange={(e) => setFormAge(e.target.value)} className="w-full px-3 py-2 border border-slate-300 hover:border-slate-400 rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 bg-white" placeholder="e.g. 45" />
               </div>
               <div className="space-y-1">
                 <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Gender</label>
-                <select value={formGender} onChange={(e) => setFormGender(e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 bg-white">
+                <select value={formGender} onChange={(e) => setFormGender(e.target.value)} className="w-full px-3 py-2 border border-slate-300 hover:border-slate-400 rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 bg-white">
                   <option value="Male">Male</option>
                   <option value="Female">Female</option>
                   <option value="Other">Other</option>
@@ -4311,7 +4444,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                 className={`w-full px-3 py-2 border rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 bg-white cursor-pointer ${
                   showValidationErrors && !formDoctor
                     ? 'border-red-500 ring-1 ring-red-200 bg-red-50/20' 
-                    : 'border-slate-200'
+                    : 'border-slate-300 hover:border-slate-400'
                 }`}
               >
                 <option value="">Select Doctor</option>
@@ -4341,7 +4474,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                   className={`w-full px-3 py-2 border rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 bg-white ${
                     showValidationErrors && !formProcedure
                       ? 'border-red-500 ring-1 ring-red-200 bg-red-50/20' 
-                      : 'border-slate-200'
+                      : 'border-slate-300 hover:border-slate-400'
                   }`}
                   placeholder="Search Procedure..."
                 />
@@ -4352,7 +4485,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                 )}
               </div>
               {isProcedureListOpen && procedureSuggestions.length > 0 && (
-                <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-40 overflow-y-auto">
+                <div className="absolute z-50 w-full mt-1 bg-white border border-slate-300 rounded-xl shadow-2xl max-h-40 overflow-y-auto">
                   {procedureSuggestions.map((p, idx) => (
                     <button
                       key={idx}
@@ -4382,7 +4515,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                 className={`w-full px-3 py-2 border rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 bg-white ${
                   showValidationErrors && (!formDate || isDateInFuture)
                     ? 'border-red-500 ring-1 ring-red-200 bg-red-50/20' 
-                    : 'border-slate-200'
+                    : 'border-slate-300 hover:border-slate-400'
                 }`}
               />
               {showValidationErrors && !formDate && (
@@ -4394,7 +4527,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
             </div>
             <div className="space-y-1">
               <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Procedure Time</label>
-              <input type="time" value={formTime} onChange={(e) => setFormTime(e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 bg-white" />
+              <input type="time" value={formTime} onChange={(e) => setFormTime(e.target.value)} className="w-full px-3 py-2 border border-slate-300 hover:border-slate-400 rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 bg-white" />
             </div>
           </div>
 
@@ -4416,7 +4549,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
               value={formDiagnosis} 
               onChange={(e) => setFormDiagnosis(e.target.value)} 
               rows={3} 
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 bg-white" 
+              className="w-full px-3 py-2 border border-slate-300 hover:border-slate-400 rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 bg-white" 
               placeholder="Enter diagnoses, key findings or procedure details..."
             />
           </div>
@@ -4709,14 +4842,14 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                   </select>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Triage Priority</label>
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Shift To</label>
                   <select
                     required
-                    value={admTriage}
-                    onChange={(e) => setAdmTriage(e.target.value)}
+                    value={admTransferStatus}
+                    onChange={(e) => setAdmTransferStatus(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 bg-white"
                   >
-                    {TRIAGE_PRIORITIES.map(tp => (
+                    {TRANSFER_DISCHARGE_STATUSES.map(tp => (
                       <option key={tp} value={tp}>{tp}</option>
                     ))}
                   </select>

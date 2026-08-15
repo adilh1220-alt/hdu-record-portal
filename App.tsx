@@ -16,6 +16,7 @@ import { UnitProvider, useUnit } from './contexts/UnitContext';
 import { SearchProvider } from './contexts/SearchContext';
 import { ConfirmProvider } from './contexts/ConfirmContext';
 import { ToastProvider } from './contexts/ToastContext';
+import { LoadingProvider } from './contexts/LoadingContext';
 import { AdvancedSearchModal } from './components/AdvancedSearchModal';
 import { UNIT_DETAILS } from './constants';
 import { PrintPreviewModal } from './components/PrintPreviewModal';
@@ -34,7 +35,7 @@ const MainAppContent: React.FC = () => {
     date?: string;
   } | null>(null);
 
-  const { currentUser, isAdmin } = useAuth();
+  const { currentUser, isAdmin, loading } = useAuth();
   const { activeUnit } = useUnit();
 
   // Check URL params for QR verification deep links
@@ -104,6 +105,16 @@ const MainAppContent: React.FC = () => {
       }
     }
   }, [currentUser?.uid, currentUser?.assignedUnit]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
+        <div className="w-10 h-10 border-3 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin mb-3" />
+        <div className="text-white font-bold text-base tracking-tight">Initializing HDU Clinical System...</div>
+        <div className="text-slate-400 text-xs mt-0.5">Please wait a moment</div>
+      </div>
+    );
+  }
 
   if (!currentUser) {
     return <AuthForm />;
@@ -191,15 +202,17 @@ const MainAppContent: React.FC = () => {
 
 const App: React.FC = () => (
   <AuthProvider>
-    <UnitProvider>
-      <SearchProvider>
-        <ConfirmProvider>
-          <ToastProvider>
-            <MainAppContent />
-          </ToastProvider>
-        </ConfirmProvider>
-      </SearchProvider>
-    </UnitProvider>
+    <LoadingProvider>
+      <UnitProvider>
+        <SearchProvider>
+          <ConfirmProvider>
+            <ToastProvider>
+              <MainAppContent />
+            </ToastProvider>
+          </ConfirmProvider>
+        </SearchProvider>
+      </UnitProvider>
+    </LoadingProvider>
   </AuthProvider>
 );
 

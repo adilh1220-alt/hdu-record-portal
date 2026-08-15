@@ -66,7 +66,10 @@ import {
   AlignLeft,
   AlignCenter,
   AlignRight,
-  Trash2
+  Trash2,
+  MapPin,
+  Phone,
+  Smartphone
 } from 'lucide-react';
 
 interface PrintPreviewModalProps {
@@ -1704,10 +1707,19 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
                   style={{ height: `${(logoSettings.scaleHeightMm || 14) * 2.8}px` }}
                   className="w-auto object-contain transition-all"
                 />
-                <div className="border-l-2 border-slate-300 pl-2 text-[8.5px] text-slate-700 font-medium leading-tight text-left">
-                  <p className="font-bold text-slate-900">197/9, Rafiqui Shaheed Road, Karachi-75530.</p>
-                  <p className="text-slate-600">Phone: PABX 35661000 (10 Lines)</p>
-                  <p className="text-slate-600">Cell: 0302-8271166, 0347-5661000</p>
+                <div className="border-l-2 border-slate-300 pl-2.5 text-[8.5px] text-slate-700 font-medium leading-tight text-left space-y-1">
+                  <div className="flex items-center gap-1.5 font-bold text-slate-900">
+                    <MapPin className="w-3 h-3 text-red-600 shrink-0" />
+                    <span>197/9, Rafiqui Shaheed Road, Karachi-75530.</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-slate-600">
+                    <Phone className="w-3 h-3 text-slate-500 shrink-0" />
+                    <span>Phone: PABX 35661000 (10 Lines)</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-slate-600">
+                    <Smartphone className="w-3 h-3 text-slate-500 shrink-0" />
+                    <span>Cell: 0302-8271166, 0347-5661000</span>
+                  </div>
                 </div>
               </div>
 

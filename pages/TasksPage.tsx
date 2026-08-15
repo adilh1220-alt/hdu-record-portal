@@ -12,6 +12,7 @@ import { TASK_PRIORITIES, PRIORITY_COLORS, UNIT_DETAILS } from '../constants';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
 import { VoiceDictationButton } from '../components/VoiceDictationButton';
+import { LoadingSpinner } from '../components/LoadingSpinner';
 
 const TasksPage: React.FC = () => {
   const { activeUnit } = useUnit();
@@ -303,24 +304,7 @@ const TasksPage: React.FC = () => {
       </header>
 
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-pulse">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="h-4 w-24 bg-slate-200 rounded" />
-                <div className="h-5 w-16 bg-slate-100 rounded-full" />
-              </div>
-              <div className="space-y-2">
-                <div className="h-5 w-3/4 bg-slate-200 rounded" />
-                <div className="h-3 w-full bg-slate-100 rounded" />
-              </div>
-              <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
-                <div className="h-3 w-20 bg-slate-100 rounded" />
-                <div className="h-3 w-28 bg-slate-200 rounded" />
-              </div>
-            </div>
-          ))}
-        </div>
+        <LoadingSpinner message="Loading Clinical Orders & Tasks..." subMessage={`Connecting to ${activeUnit} task registry`} />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {tasks.map((task) => (

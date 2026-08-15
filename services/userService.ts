@@ -1,7 +1,7 @@
 // @ts-ignore
 import { collection, getDocs, doc, updateDoc, query, orderBy, setDoc, addDoc, limit, getDoc } from 'firebase/firestore';
 // @ts-ignore
-import { initializeApp } from 'firebase/app';
+import { initializeApp, deleteApp } from 'firebase/app';
 // @ts-ignore
 import { getAuth, createUserWithEmailAndPassword, updateProfile, signOut } from 'firebase/auth';
 import { db, firebaseConfig, safeFirestoreWrite } from './firebaseConfig';
@@ -87,8 +87,8 @@ export const userService = {
   },
 
   adminCreateUser: async (email: string, pass: string, name: string, role: 'Admin' | 'Consultant' | 'Staff', assignedUnit?: string) => {
-    // Use the robust config exported from firebaseConfig.ts
-    const tempApp = initializeApp(firebaseConfig, "TempAdminCreateApp");
+    const tempAppName = `TempAdminCreateApp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const tempApp = initializeApp(firebaseConfig, tempAppName);
     const tempAuth = getAuth(tempApp);
 
     try {
@@ -112,6 +112,12 @@ export const userService = {
       await signOut(tempAuth);
     } catch (error: any) {
       throw new Error(error.message || "Failed to create user");
+    } finally {
+      try {
+        await deleteApp(tempApp);
+      } catch (e) {
+        // ignore
+      }
     }
   },
 

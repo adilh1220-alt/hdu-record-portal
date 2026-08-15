@@ -3,7 +3,7 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 // @ts-ignore
 import { getAuth } from 'firebase/auth';
 // @ts-ignore
-import { getFirestore, initializeFirestore, setLogLevel } from 'firebase/firestore';
+import { getFirestore, setLogLevel } from 'firebase/firestore';
 // @ts-ignore
 import { getStorage } from 'firebase/storage';
 
@@ -25,21 +25,10 @@ const firebaseConfig = {
   measurementId: 'G-RFBHLRMCJ9'
 };
 
-// Singleton initialization pattern
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+// Singleton initialization pattern - ensure default app is always resolved
+const app = getApps().find(a => a.name === '[DEFAULT]') || (getApps().length === 0 ? initializeApp(firebaseConfig) : getApp());
 const auth = getAuth(app);
-
-// Use initializeFirestore with experimentalAutoDetectLongPolling and timeout bounds
-let db: any;
-try {
-  db = initializeFirestore(app, {
-    experimentalAutoDetectLongPolling: true,
-    experimentalLongPollingOptions: { timeoutSeconds: 30 }
-  });
-} catch (e) {
-  db = getFirestore(app);
-}
-
+const db = getFirestore(app);
 const storage = getStorage(app);
 
 /**

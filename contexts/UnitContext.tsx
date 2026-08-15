@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { ClinicalUnit } from '../types';
 import { useAuth } from './AuthContext';
+import { useLoading } from './LoadingContext';
 
 interface UnitContextType {
   activeUnit: ClinicalUnit;
@@ -12,6 +13,7 @@ const UnitContext = createContext<UnitContextType | undefined>(undefined);
 
 export const UnitProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { currentUser, isAdmin } = useAuth();
+  const { startLoading, stopLoading } = useLoading();
   const [activeUnit, setActiveUnit] = useState<ClinicalUnit>(() => {
     return (localStorage.getItem('hdu_active_unit') as ClinicalUnit) || 'HDU';
   });
@@ -42,8 +44,14 @@ export const UnitProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!isAdmin && currentUser?.assignedUnit && unit !== currentUser.assignedUnit) {
       return; // Prevent switching if not admin and has assigned unit
     }
-    setActiveUnit(unit);
-    localStorage.setItem('hdu_active_unit', unit);
+    if (unit !== activeUnit) {
+      startLoading(`Switching Clinical Workspace to ${unit}...`, 'Loading Unit Context');
+      setActiveUnit(unit);
+      localStorage.setItem('hdu_active_unit', unit);
+      setTimeout(() => {
+        stopLoading();
+      }, 400);
+    }
   };
 
   return (

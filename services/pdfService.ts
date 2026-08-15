@@ -1069,17 +1069,48 @@ export const exportSingleEndoscopyReportPDF = async (record: EndoscopyRecord, ge
   doc.setLineWidth(0.3);
   doc.line(sepX, 7, sepX, 26);
 
-  // Address & Contact Information Lines (Bounded before patient info box at x=102)
-  doc.setFontSize(6.4);
+  // Address & Contact Information Lines with crisp vector icons (Bounded before patient info box at x=102)
+  const iconOffset = 2.8;
+
+  // 1. Vector Map Pin (Location) Icon
+  const pinX = addressX + 0.8;
+  const pinY = 9.9;
+  doc.setFillColor(220, 38, 38); // Red-600
+  doc.circle(pinX, pinY, 0.75, 'F');
+  doc.setFillColor(255, 255, 255);
+  doc.circle(pinX, pinY, 0.32, 'F');
+  doc.setFillColor(220, 38, 38);
+  doc.triangle(pinX - 0.65, pinY + 0.35, pinX + 0.65, pinY + 0.35, pinX, pinY + 1.25, 'F');
+
+  doc.setFontSize(6.2);
   doc.setTextColor(30, 41, 59); // Slate-800
   doc.setFont('helvetica', 'bold');
-  doc.text("197/9, Rafiqui Shaheed Road, Karachi-75530.", addressX, 11, { maxWidth: 101 - addressX });
+  doc.text("197/9, Rafiqui Shaheed Road, Karachi-75530.", addressX + iconOffset, 11, { maxWidth: 101 - (addressX + iconOffset) });
+
+  // 2. Vector Phone (PABX / Landline) Icon
+  const phX = addressX + 0.1;
+  const phY = 14.6;
+  doc.setFillColor(100, 116, 139); // Slate-500
+  doc.roundedRect(phX, phY, 1.6, 1.6, 0.3, 0.3, 'F');
+  doc.setFillColor(255, 255, 255);
+  doc.circle(phX + 0.8, phY + 0.8, 0.35, 'F');
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(5.8);
+  doc.setFontSize(5.6);
   doc.setTextColor(71, 85, 105); // Slate-600
-  doc.text("Phone: PABX 35661000 (10 Lines)", addressX, 16, { maxWidth: 101 - addressX });
-  doc.text("Cell: 0302-8271166, 0347-5661000", addressX, 21, { maxWidth: 101 - addressX });
+  doc.text("Phone: PABX 35661000 (10 Lines)", addressX + iconOffset, 16, { maxWidth: 101 - (addressX + iconOffset) });
+
+  // 3. Vector Mobile / Smartphone Icon
+  const mobX = addressX + 0.2;
+  const mobY = 19.4;
+  doc.setFillColor(100, 116, 139); // Slate-500
+  doc.roundedRect(mobX, mobY, 1.4, 2.0, 0.25, 0.25, 'F');
+  doc.setFillColor(255, 255, 255);
+  doc.rect(mobX + 0.2, mobY + 0.25, 1.0, 1.2, 'F');
+  doc.setFillColor(100, 116, 139);
+  doc.circle(mobX + 0.7, mobY + 1.7, 0.12, 'F');
+
+  doc.text("Cell: 0302-8271166, 0347-5661000", addressX + iconOffset, 21, { maxWidth: 101 - (addressX + iconOffset) });
 
   // Patient / Procedure Metadata on Right (Aligned from x=102 to 196)
   doc.setLineWidth(0.5);

@@ -9,6 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useUnit } from '../contexts/UnitContext';
 import { useSearch } from '../contexts/SearchContext';
 import { useToast } from '../contexts/ToastContext';
+import { useLoading } from '../contexts/LoadingContext';
 import { activityService } from '../services/activityService';
 import { UNIT_DETAILS, INCIDENT_CATEGORIES, CLINICAL_UNITS } from '../constants';
 import { exportIncidentsPDF } from '../services/pdfService';
@@ -17,6 +18,7 @@ import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
 import ExportModal from '../components/ExportModal';
 import { ActiveFiltersBar } from '../components/ActiveFiltersBar';
+import { TableSkeleton, ButtonSpinner, DynamicRoundedLoader } from '../components/LoadingSpinner';
 
 const InputWrapper = ({ label, field, children, error }: { label: string, field: string, children?: React.ReactNode, error?: string }) => (
   <div className="space-y-1">
@@ -341,12 +343,16 @@ const SafetyIncidentsPage: React.FC = () => {
     openAdvancedSearch
   } = useSearch();
 
+  const { startLoading, stopLoading } = useLoading();
+
   const [incidents, setIncidents] = useState<IncidentRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   
   const [startDateInput, setStartDateInput] = useState('');
   const [endDateInput, setEndDateInput] = useState('');
+  const [monthPreset, setMonthPreset] = useState('');
+  const [isFetchingFilter, setIsFetchingFilter] = useState(false);
   
   const [appliedStartDate, setAppliedStartDate] = useState('');
   const [appliedEndDate, setAppliedEndDate] = useState('');
@@ -435,26 +441,83 @@ const SafetyIncidentsPage: React.FC = () => {
   };
 
   const handleApplyDateFilter = () => {
+    setIsFetchingFilter(true);
     if (!startDateInput || !endDateInput) {
       alert('Please select both FROM and TO dates to filter the records.');
+      setIsFetchingFilter(false);
       return;
     }
     const start = new Date(startDateInput);
     const end = new Date(endDateInput);
     if (end < start) {
       alert('Invalid Date Range: End date cannot be before start date.');
+      setIsFetchingFilter(false);
       return;
     }
+    startLoading('Fetching Safety Incidents...', 'Applying Date Range Filter');
     setAppliedStartDate(startDateInput);
     setAppliedEndDate(endDateInput);
+    setTimeout(() => {
+      setIsFetchingFilter(false);
+      stopLoading();
+    }, 450);
+  };
+
+  const handleMonthPresetChange = (preset: string) => {
+    setMonthPreset(preset);
+    if (!preset) return;
+
+    const now = new Date();
+    let startStr = '';
+    let endStr = now.toISOString().split('T')[0];
+
+    if (preset === 'THIS_MONTH') {
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+      startStr = firstDay.toISOString().split('T')[0];
+    } else if (preset === 'LAST_MONTH') {
+      const firstDay = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const lastDay = new Date(now.getFullYear(), now.getMonth(), 0);
+      startStr = firstDay.toISOString().split('T')[0];
+      endStr = lastDay.toISOString().split('T')[0];
+    } else if (preset === 'LAST_3_MONTHS') {
+      const firstDay = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+      startStr = firstDay.toISOString().split('T')[0];
+    } else if (preset === 'LAST_6_MONTHS') {
+      const firstDay = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+      startStr = firstDay.toISOString().split('T')[0];
+    } else if (preset === 'THIS_YEAR') {
+      const firstDay = new Date(now.getFullYear(), 0, 1);
+      startStr = firstDay.toISOString().split('T')[0];
+    }
+
+    setStartDateInput(startStr);
+    setEndDateInput(endStr);
+
+    if (startStr && endStr) {
+      setIsFetchingFilter(true);
+      startLoading('Fetching Safety Incidents...', `Preset: ${preset.replace(/_/g, ' ')}`);
+      setAppliedStartDate(startStr);
+      setAppliedEndDate(endStr);
+      setTimeout(() => {
+        setIsFetchingFilter(false);
+        stopLoading();
+      }, 450);
+    }
   };
 
   const resetFilters = () => {
+    setIsFetchingFilter(true);
+    startLoading('Clearing Incident Filters...', 'Resetting Incident Register');
     setSearchTerm('');
     setStartDateInput('');
     setEndDateInput('');
     setAppliedStartDate('');
     setAppliedEndDate('');
+    setMonthPreset('');
+    setTimeout(() => {
+      setIsFetchingFilter(false);
+      stopLoading();
+    }, 300);
   };
 
   const sortedAndFiltered = useMemo(() => {
@@ -679,12 +742,30 @@ const SafetyIncidentsPage: React.FC = () => {
 
         <div className="flex flex-wrap items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
           <div className="flex items-center gap-2">
+            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Preset:</label>
+            <select 
+              value={monthPreset}
+              onChange={(e) => handleMonthPresetChange(e.target.value)}
+              className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 bg-slate-50 cursor-pointer text-slate-800"
+            >
+              <option value="">Custom Range</option>
+              <option value="THIS_MONTH">This Month</option>
+              <option value="LAST_MONTH">Last Month</option>
+              <option value="LAST_3_MONTHS">Last 3 Months</option>
+              <option value="LAST_6_MONTHS">Last 6 Months</option>
+              <option value="THIS_YEAR">This Year ({new Date().getFullYear()})</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
             <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">From:</label>
             <input 
               type="date" 
               value={startDateInput}
-              onChange={(e) => setStartDateInput(e.target.value)}
-              className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 bg-slate-50"
+              onChange={(e) => {
+                setStartDateInput(e.target.value);
+                if (monthPreset) setMonthPreset('');
+              }}
+              className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 bg-slate-50 text-slate-800"
             />
           </div>
           <div className="flex items-center gap-2">
@@ -692,16 +773,29 @@ const SafetyIncidentsPage: React.FC = () => {
             <input 
               type="date" 
               value={endDateInput}
-              onChange={(e) => setEndDateInput(e.target.value)}
-              className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 bg-slate-50"
+              onChange={(e) => {
+                setEndDateInput(e.target.value);
+                if (monthPreset) setMonthPreset('');
+              }}
+              className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 bg-slate-50 text-slate-800"
             />
           </div>
           <button 
             onClick={handleApplyDateFilter}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-blue-700 transition-colors shadow-md flex items-center gap-2"
+            disabled={isFetchingFilter}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-blue-700 transition-colors shadow-md flex items-center gap-2 disabled:opacity-60 cursor-pointer"
           >
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-            FETCH DATA
+            {isFetchingFilter ? (
+              <>
+                <ButtonSpinner className="w-3 h-3 text-white" />
+                FETCHING...
+              </>
+            ) : (
+              <>
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                FETCH DATA
+              </>
+            )}
           </button>
           <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-800 rounded-lg border border-emerald-200 text-[9px] font-black uppercase tracking-wider shadow-sm">
             <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -717,7 +811,7 @@ const SafetyIncidentsPage: React.FC = () => {
           )}
           <button 
             onClick={resetFilters}
-            className="ml-auto text-[9px] font-black text-red-600 uppercase tracking-widest hover:text-red-700 transition-colors flex items-center gap-1"
+            className="ml-auto text-[9px] font-black text-red-600 uppercase tracking-widest hover:text-red-700 transition-colors flex items-center gap-1 cursor-pointer"
           >
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12"/></svg>
             RESET
@@ -725,27 +819,30 @@ const SafetyIncidentsPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden relative">
+        {/* Table-level Professional Rounded Spinner Loading Overlay */}
+        {isFetchingFilter && (
+          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-white/80 dark:bg-slate-900/80 backdrop-blur-[2px] transition-all duration-300 animate-fadeIn select-none">
+            <div className="flex flex-col items-center justify-center p-6 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 max-w-sm text-center space-y-3 transform transition-transform animate-in zoom-in-95 duration-150">
+              <DynamicRoundedLoader size="lg" />
+              <div className="space-y-1">
+                <h4 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">
+                  Filtering Incident Registry
+                </h4>
+                <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                  {appliedStartDate ? `Date Range: ${appliedStartDate} to ${appliedEndDate || 'Present'}` : 'Synchronizing Safety Records...'}
+                </p>
+              </div>
+              <div className="w-28 h-1 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden relative">
+                <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 via-teal-400 to-indigo-500 animate-dynamic-shimmer rounded-full" />
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="overflow-auto max-h-[600px] whitespace-nowrap scroll-smooth">
           {loading ? (
-            <div className="p-4 space-y-3 animate-pulse min-w-[1000px]">
-              <div className="h-10 bg-slate-900 rounded-lg w-full flex items-center px-4 justify-between">
-                <div className="h-3 w-12 bg-slate-700 rounded" />
-                <div className="h-3 w-20 bg-slate-700 rounded" />
-                <div className="h-3 w-32 bg-slate-700 rounded" />
-                <div className="h-3 w-28 bg-slate-700 rounded" />
-                <div className="h-3 w-24 bg-slate-700 rounded" />
-              </div>
-              {[1, 2, 3, 4, 5, 6].map((i) => (
-                <div key={i} className="h-12 bg-slate-50 rounded-lg w-full flex items-center px-4 justify-between border border-slate-100">
-                  <div className="h-4 w-10 bg-slate-200 rounded" />
-                  <div className="h-4 w-20 bg-slate-200 rounded" />
-                  <div className="h-4 w-32 bg-slate-200 rounded" />
-                  <div className="h-4 w-28 bg-slate-200 rounded" />
-                  <div className="h-4 w-24 bg-slate-200 rounded" />
-                </div>
-              ))}
-            </div>
+            <TableSkeleton rows={7} cols={5} />
           ) : (
             <table className="w-full text-left min-w-[1200px] border-separate border-spacing-0">
               <thead className="bg-slate-100 text-slate-700 sticky top-0 z-10 shadow-xs border-b border-slate-200">

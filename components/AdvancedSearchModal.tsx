@@ -15,6 +15,7 @@ import {
   Command
 } from 'lucide-react';
 import { useSearch, SeverityLevel, SearchScope } from '../contexts/SearchContext';
+import { useLoading } from '../contexts/LoadingContext';
 
 interface AdvancedSearchModalProps {
   activeTab?: string;
@@ -40,6 +41,8 @@ export const AdvancedSearchModal: React.FC<AdvancedSearchModalProps> = ({ active
     isFilterActive,
     activeFilterCount,
   } = useSearch();
+
+  const { startLoading, stopLoading } = useLoading();
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -67,6 +70,7 @@ export const AdvancedSearchModal: React.FC<AdvancedSearchModalProps> = ({ active
 
   const handleApply = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    startLoading('Executing Advanced Cross-Table Search...', 'Filtering Clinical Records');
     if (scope !== 'ALL' && setActiveTab) {
       const scopeToTabMap: Record<string, string> = {
         patients: 'active',
@@ -81,6 +85,9 @@ export const AdvancedSearchModal: React.FC<AdvancedSearchModalProps> = ({ active
       }
     }
     closeAdvancedSearch();
+    setTimeout(() => {
+      stopLoading();
+    }, 400);
   };
 
   const severityOptions: { id: SeverityLevel; label: string; sub: string; color: string; icon: any }[] = [

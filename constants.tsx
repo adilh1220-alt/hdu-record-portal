@@ -1,7 +1,7 @@
 
 import { Patient, InventoryItem, PatientStatus, ClinicalUnit, TaskPriority } from './types';
 
-export const CLINICAL_UNITS: ClinicalUnit[] = ['HDU', 'ICU', 'TRANSPLANT', '4th-WARD', 'WARD5'];
+export const CLINICAL_UNITS: ClinicalUnit[] = ['HDU', 'ICU', 'TRANSPLANT', '4th-WARD', 'WARD5', 'ENDOSCOPY'];
 
 export const UNIT_DETAILS: Record<ClinicalUnit, { label: string, color: string, capacity: number }> = {
   HDU: { label: 'High Dependency', color: 'bg-red-600', capacity: 12 },
@@ -39,6 +39,49 @@ export const CATEGORIES: string[] = ['Medicine', 'Surgery', 'Urology', 'Nephrolo
 export const LOCATIONS: string[] = ['OT', 'WARD', 'ICU', 'ER', 'Pvt Ward'];
 export const CODE_STATUSES: any[] = ['Full Code', 'DNR', 'DNI'];
 export const TRIAGE_PRIORITIES = ['Critical', 'Urgent', 'Stable'];
+
+export const SHIFT_TO_OPTIONS: string[] = [
+  'In-Unit (Active)',
+  'Discharged (DC)',
+  'Shift to Ward',
+  'Shift to ICU',
+  'Shift to OT',
+  'Shift to Pvt Ward',
+  'Shift to Transplant Bay',
+  'Shift to Emergency (ER)',
+  'Shift to Other Hospital',
+  'LAMA (Left Against Medical Advice)',
+  'Expired / Deceased'
+];
+
+export const TRANSFER_DISCHARGE_STATUSES: string[] = SHIFT_TO_OPTIONS;
+
+export const TRANSFER_DISCHARGE_COLORS: Record<string, string> = {
+  'Active (In-Unit)': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  'In-Unit (Active)': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  'Discharge Home': 'bg-blue-50 text-blue-700 border-blue-200',
+  'Discharged (DC)': 'bg-blue-50 text-blue-700 border-blue-200',
+  'Ward Transfer': 'bg-pink-50 text-pink-700 border-pink-200',
+  'Shift to Ward': 'bg-pink-50 text-pink-700 border-pink-200',
+  'ICU Transfer': 'bg-indigo-50 text-indigo-700 border-indigo-200',
+  'Shift to ICU': 'bg-indigo-50 text-indigo-700 border-indigo-200',
+  'OT Transfer': 'bg-amber-50 text-amber-700 border-amber-200',
+  'Shift to OT': 'bg-amber-50 text-amber-700 border-amber-200',
+  'Pvt Ward Transfer': 'bg-purple-50 text-purple-700 border-purple-200',
+  'Shift to Pvt Ward': 'bg-purple-50 text-purple-700 border-purple-200',
+  'Transplant Bay Transfer': 'bg-teal-50 text-teal-700 border-teal-200',
+  'Shift to Transplant Bay': 'bg-teal-50 text-teal-700 border-teal-200',
+  'Emergency (ER) Transfer': 'bg-orange-50 text-orange-700 border-orange-200',
+  'Shift to Emergency (ER)': 'bg-orange-50 text-orange-700 border-orange-200',
+  'Other Hospital Transfer': 'bg-sky-50 text-sky-700 border-sky-200',
+  'Shift to Other Hospital': 'bg-sky-50 text-sky-700 border-sky-200',
+  'LAMA': 'bg-yellow-50 text-yellow-800 border-yellow-200',
+  'LAMA (Left Against Medical Advice)': 'bg-yellow-50 text-yellow-800 border-yellow-200',
+  'Mortality': 'bg-rose-50 text-rose-800 border-rose-200',
+  'Expired / Deceased': 'bg-rose-50 text-rose-800 border-rose-200',
+};
+
+export const SHIFT_TO_COLORS = TRANSFER_DISCHARGE_COLORS;
 
 export const TRIAGE_COLORS: Record<string, string> = {
   Critical: 'bg-red-100 text-red-800 border-red-200 font-bold',

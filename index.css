@@ -124,7 +124,9 @@ label {
 }
 
 /* Ensure that animated spin classes are not restricted by global transition-duration */
-.animate-spin {
+.animate-spin,
+.animate-dynamic-spin,
+.animate-dynamic-counter-spin {
   transition: none !important;
 }
 
@@ -185,5 +187,68 @@ label {
 .recharts-tooltip-item-separator {
   color: #0f172a !important;
   font-weight: 700 !important;
+}
+
+/* Dynamic Professional Rounded Spinner Keyframes */
+@keyframes dynamicSpinnerRotate {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes dynamicSpinnerDash {
+  0% {
+    stroke-dasharray: 1, 150;
+    stroke-dashoffset: 0;
+  }
+  50% {
+    stroke-dasharray: 90, 150;
+    stroke-dashoffset: -35;
+  }
+  100% {
+    stroke-dasharray: 90, 150;
+    stroke-dashoffset: -124;
+  }
+}
+
+@keyframes dynamicCounterRotate {
+  0% {
+    transform: rotate(360deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+.animate-dynamic-spin {
+  animation: dynamicSpinnerRotate 1.4s linear infinite;
+  transform-origin: center center;
+}
+
+.animate-dynamic-counter-spin {
+  animation: dynamicCounterRotate 2.2s linear infinite;
+  transform-origin: center center;
+}
+
+.animate-dynamic-dash {
+  animation: dynamicSpinnerDash 1.4s ease-in-out infinite;
+}
+
+@keyframes dynamicShimmerBar {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-dynamic-shimmer {
+  background: linear-gradient(90deg, transparent 0%, rgba(99, 102, 241, 0.4) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: dynamicShimmerBar 1.8s ease-in-out infinite;
 }
 

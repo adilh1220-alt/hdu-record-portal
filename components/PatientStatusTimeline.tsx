@@ -145,11 +145,11 @@ export const PatientStatusTimeline: React.FC<PatientStatusTimelineProps> = ({
 
         <div className="bg-white p-3 rounded-xl border border-slate-200/80 shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between text-slate-400 mb-1">
-            <span className="text-[8px] font-black uppercase tracking-wider">Status & Triage</span>
-            <span className={`w-2 h-2 rounded-full ${patient.dischargeDate ? 'bg-slate-400' : 'bg-emerald-500 animate-pulse'}`}></span>
+            <span className="text-[8px] font-black uppercase tracking-wider">Disposition / Shift</span>
+            <span className={`w-2 h-2 rounded-full ${patient.dischargeDate || (patient.shiftTo && patient.shiftTo !== 'In-Unit (Active)') ? 'bg-indigo-500' : 'bg-emerald-500 animate-pulse'}`}></span>
           </div>
-          <p className="text-xs font-black text-slate-900 truncate">{patient.dischargeDate ? 'Discharged' : 'Active In-Patient'}</p>
-          <span className="text-[8.5px] font-bold text-slate-500">{patient.triagePriority || 'Stable'} Priority</span>
+          <p className="text-xs font-black text-slate-900 truncate">{patient.shiftTo || (patient.dischargeDate ? 'Discharged (DC)' : 'Active In-Patient')}</p>
+          <span className="text-[8.5px] font-bold text-slate-500">{patient.dischargeDate ? `DC: ${patient.dischargeDate}` : 'Currently in HDU'}</span>
         </div>
       </div>
 

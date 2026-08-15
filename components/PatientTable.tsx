@@ -12,8 +12,9 @@ import { useUnit } from '../contexts/UnitContext';
 import { useSearch } from '../contexts/SearchContext';
 import { useConfirm } from '../contexts/ConfirmContext';
 import { useToast } from '../contexts/ToastContext';
+import { useLoading } from '../contexts/LoadingContext';
 import { activityService } from '../services/activityService';
-import { CONSULTANTS, CATEGORIES, LOCATIONS, CODE_STATUSES, TRIAGE_PRIORITIES, TRIAGE_COLORS, CLINICAL_UNITS, UNIT_DETAILS } from '../constants';
+import { CONSULTANTS, CATEGORIES, LOCATIONS, CODE_STATUSES, TRIAGE_PRIORITIES, TRIAGE_COLORS, TRANSFER_DISCHARGE_STATUSES, TRANSFER_DISCHARGE_COLORS, SHIFT_TO_OPTIONS, SHIFT_TO_COLORS, CLINICAL_UNITS, UNIT_DETAILS } from '../constants';
 import Modal from './Modal';
 import ConfirmModal from './ConfirmModal';
 import ExportModal from './ExportModal';
@@ -23,6 +24,7 @@ import { PatientStatusTimeline } from './PatientStatusTimeline';
 import PatientQRCodeModal from './PatientQRCodeModal';
 import QRScannerModal from './QRScannerModal';
 import { QrCode } from 'lucide-react';
+import { TableSkeleton, DataSyncBadge, ButtonSpinner, DynamicRoundedLoader } from './LoadingSpinner';
 
 interface FormErrors {
   name?: string;
@@ -97,7 +99,7 @@ const AdmissionForm = React.memo(({ editingPatient, autoSerialNo, onSave, onArch
   const [formCategory, setFormCategory] = useState(() => getDraftValue('category', editingPatient?.category || ''));
   const [formLocation, setFormLocation] = useState(() => getDraftValue('location', editingPatient?.location || ''));
   const [formCodeStatus, setFormCodeStatus] = useState(() => getDraftValue('codeStatus', editingPatient?.codeStatus || ''));
-  const [formTriagePriority, setFormTriagePriority] = useState<TriagePriority>(() => getDraftValue('triagePriority', editingPatient?.triagePriority || 'Stable'));
+  const [formTransferStatus, setFormTransferStatus] = useState<string>(() => getDraftValue('transferStatus', editingPatient?.transferStatus || editingPatient?.shiftTo || 'Active (In-Unit)'));
   const [formConsultant, setFormConsultant] = useState(() => getDraftValue('consultant', editingPatient?.consultant || ''));
   const [formInDate, setFormInDate] = useState(() => getDraftValue('admissionDate', editingPatient?.admissionDate || new Date().toISOString().split('T')[0]));
   const [formOutDate, setFormOutDate] = useState(() => getDraftValue('dischargeDate', editingPatient?.dischargeDate || ''));
@@ -197,7 +199,7 @@ const AdmissionForm = React.memo(({ editingPatient, autoSerialNo, onSave, onArch
       formCategory !== (editingPatient?.category || '') ||
       formLocation !== (editingPatient?.location || '') ||
       formCodeStatus !== (editingPatient?.codeStatus || '') ||
-      formTriagePriority !== (editingPatient?.triagePriority || 'Stable') ||
+      formTransferStatus !== (editingPatient?.transferStatus || editingPatient?.shiftTo || 'Active (In-Unit)') ||
       formConsultant !== (editingPatient?.consultant || '') ||
       formInDate !== (editingPatient?.admissionDate || new Date().toISOString().split('T')[0]) ||
       formOutDate !== (editingPatient?.dischargeDate || '');
@@ -216,7 +218,8 @@ const AdmissionForm = React.memo(({ editingPatient, autoSerialNo, onSave, onArch
           category: formCategory,
           location: formLocation,
           codeStatus: formCodeStatus,
-          triagePriority: formTriagePriority,
+          transferStatus: formTransferStatus,
+          shiftTo: formTransferStatus,
           consultant: formConsultant,
           admissionDate: formInDate,
           dischargeDate: formOutDate,
@@ -231,7 +234,7 @@ const AdmissionForm = React.memo(({ editingPatient, autoSerialNo, onSave, onArch
     }, 1000); // 1s debounce
 
     return () => clearTimeout(timer);
-  }, [formName, formRegNo, formGender, formCategory, formLocation, formCodeStatus, formTriagePriority, formConsultant, formInDate, formOutDate, STORAGE_KEY, editingPatient]);
+  }, [formName, formRegNo, formGender, formCategory, formLocation, formCodeStatus, formTransferStatus, formConsultant, formInDate, formOutDate, STORAGE_KEY, editingPatient]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (!isConsultantListOpen) {
@@ -291,8 +294,12 @@ const AdmissionForm = React.memo(({ editingPatient, autoSerialNo, onSave, onArch
     }
 
     let status = PatientStatus.ACTIVE;
-    if (formOutDate) {
+    if (formOutDate || (formTransferStatus && formTransferStatus !== 'Active (In-Unit)' && formTransferStatus !== 'In-Unit (Active)')) {
+      if (formTransferStatus === 'Mortality' || formTransferStatus === 'Expired / Deceased') {
+        status = PatientStatus.DECEASED;
+      } else {
         status = PatientStatus.DISCHARGED;
+      }
     }
 
     // Remove draft from LocalStorage on successful submit
@@ -312,7 +319,8 @@ const AdmissionForm = React.memo(({ editingPatient, autoSerialNo, onSave, onArch
       category: formCategory as PatientCategory,
       location: formLocation,
       codeStatus: formCodeStatus as CodeStatus,
-      triagePriority: formTriagePriority,
+      transferStatus: formTransferStatus,
+      shiftTo: formTransferStatus,
       consultant: formConsultant,
       lengthOfStay: los,
       dischargeDate: formOutDate || undefined,
@@ -354,7 +362,7 @@ const AdmissionForm = React.memo(({ editingPatient, autoSerialNo, onSave, onArch
                 setFormCategory(editingPatient?.category || '');
                 setFormLocation(editingPatient?.location || '');
                 setFormCodeStatus(editingPatient?.codeStatus || '');
-                setFormTriagePriority(editingPatient?.triagePriority || 'Stable');
+                setFormTransferStatus(editingPatient?.transferStatus || editingPatient?.shiftTo || 'Active (In-Unit)');
                 setFormConsultant(editingPatient?.consultant || '');
                 setConsultantSearch(editingPatient?.consultant || '');
                 setFormInDate(editingPatient?.admissionDate || new Date().toISOString().split('T')[0]);
@@ -455,14 +463,22 @@ const AdmissionForm = React.memo(({ editingPatient, autoSerialNo, onSave, onArch
             {CODE_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </InputWrapper>
-        <InputWrapper label="Triage Priority *" field="triagePriority">
+        <InputWrapper label="Shift To *" field="transferStatus">
           <select 
-            id="hdu-field-triagePriority"
-            value={formTriagePriority} 
-            onChange={(e) => setFormTriagePriority(e.target.value as TriagePriority)} 
-            className={getInputClass('triagePriority')}
+            id="hdu-field-transferStatus"
+            value={formTransferStatus} 
+            onChange={(e) => {
+              const val = e.target.value;
+              setFormTransferStatus(val);
+              if (val !== 'Active (In-Unit)' && val !== 'In-Unit (Active)' && !formOutDate) {
+                setFormOutDate(new Date().toISOString().split('T')[0]);
+              } else if (val === 'Active (In-Unit)' || val === 'In-Unit (Active)') {
+                setFormOutDate('');
+              }
+            }} 
+            className={getInputClass('transferStatus')}
           >
-            {TRIAGE_PRIORITIES.map(tp => <option key={tp} value={tp}>{tp}</option>)}
+            {TRANSFER_DISCHARGE_STATUSES.map(opt => <option key={opt} value={opt}>{opt}</option>)}
           </select>
         </InputWrapper>
       </div>
@@ -935,9 +951,9 @@ const PrintSummaryModal: React.FC<PrintSummaryModalProps> = ({ isOpen, onClose, 
               <h3 className="text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1">III. CLINICAL FLAGS</h3>
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 text-[10px] font-bold text-slate-700 uppercase space-y-2 transition-all duration-300 hover:shadow-md hover:shadow-slate-100 hover:bg-white hover:-translate-y-0.5 cursor-pointer">
                 <div className="flex justify-between items-center border-b border-slate-200/50 pb-2">
-                  <span className="text-slate-400 font-bold uppercase text-[8px] tracking-wider">Triage Status Priority</span>
-                  <span className={`px-2 py-0.5 rounded text-[8px] border ${TRIAGE_COLORS[patient.triagePriority || 'Stable'] || 'bg-slate-100 text-slate-800 border-slate-200'}`}>
-                    {patient.triagePriority || 'Stable'}
+                  <span className="text-slate-400 font-bold uppercase text-[8px] tracking-wider">Shift To</span>
+                  <span className={`px-2 py-0.5 rounded text-[8px] border font-bold ${TRANSFER_DISCHARGE_COLORS[patient.transferStatus || patient.shiftTo || (patient.dischargeDate ? 'Discharged (DC)' : 'In-Unit (Active)')] || 'bg-slate-100 text-slate-800 border-slate-200'}`}>
+                    {patient.transferStatus || patient.shiftTo || (patient.dischargeDate ? 'Discharged (DC)' : 'In-Unit (Active)')}
                   </span>
                 </div>
                 <div className="flex justify-between items-center border-b border-slate-200/50 pb-2">
@@ -1068,6 +1084,7 @@ const PatientTable: React.FC = () => {
     openAdvancedSearch 
   } = useSearch();
   const { toast } = useToast();
+  const { startLoading, stopLoading } = useLoading();
 
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1081,6 +1098,11 @@ const PatientTable: React.FC = () => {
   const [appliedStartDate, setAppliedStartDate] = useState('');
   const [appliedEndDate, setAppliedEndDate] = useState('');
   const [consultantFilter, setConsultantFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [locationFilter, setLocationFilter] = useState('');
+  const [codeStatusFilter, setCodeStatusFilter] = useState('');
+  const [monthPreset, setMonthPreset] = useState('');
+  const [isFetchingFilter, setIsFetchingFilter] = useState(false);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
@@ -1282,14 +1304,14 @@ const PatientTable: React.FC = () => {
 
   const handleExportAction = (opts: any) => {
     const reportTitle = `${activeUnit} Clinical Census`;
-    const headers = ['S.No', 'Reg No', 'Patient Name', 'Gender', 'Category', 'Triage', 'Code', 'Consultant', 'In-Date', 'Out-Date', 'LOS'];
+    const headers = ['S.No', 'Reg No', 'Patient Name', 'Gender', 'Category', 'Shift To', 'Code', 'Consultant', 'In-Date', 'Out-Date', 'LOS'];
     const rows = sortedAndFiltered.map(p => [
       p.serialNo, 
       p.regNo, 
       p.name, 
       p.gender,
       p.category, 
-      p.triagePriority || 'Stable',
+      p.transferStatus || p.shiftTo || (p.dischargeDate ? 'Discharged (DC)' : 'In-Unit (Active)'),
       p.codeStatus, 
       p.consultant, 
       p.admissionDate,
@@ -1350,28 +1372,147 @@ const PatientTable: React.FC = () => {
       return;
     }
 
+    setIsFetchingFilter(true);
+    startLoading('Fetching Patient Records...', 'Applying Date Range Filter');
     setAppliedStartDate(startDateInput);
     setAppliedEndDate(endDateInput);
     toast.searchUpdated(`Date range filter set: ${startDateInput} to ${endDateInput}`);
+    setTimeout(() => {
+      setIsFetchingFilter(false);
+      stopLoading();
+    }, 450);
+  };
+
+  const handleMonthPresetChange = (preset: string) => {
+    setMonthPreset(preset);
+    if (!preset) return;
+
+    const now = new Date();
+    let startStr = '';
+    let endStr = now.toISOString().split('T')[0];
+
+    if (preset === 'THIS_MONTH') {
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+      startStr = firstDay.toISOString().split('T')[0];
+    } else if (preset === 'LAST_MONTH') {
+      const firstDay = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const lastDay = new Date(now.getFullYear(), now.getMonth(), 0);
+      startStr = firstDay.toISOString().split('T')[0];
+      endStr = lastDay.toISOString().split('T')[0];
+    } else if (preset === 'LAST_3_MONTHS') {
+      const firstDay = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+      startStr = firstDay.toISOString().split('T')[0];
+    } else if (preset === 'LAST_6_MONTHS') {
+      const firstDay = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+      startStr = firstDay.toISOString().split('T')[0];
+    } else if (preset === 'THIS_YEAR') {
+      const firstDay = new Date(now.getFullYear(), 0, 1);
+      startStr = firstDay.toISOString().split('T')[0];
+    }
+
+    setStartDateInput(startStr);
+    setEndDateInput(endStr);
+
+    if (startStr && endStr) {
+      setIsFetchingFilter(true);
+      startLoading('Fetching Patient Records...', `Preset: ${preset.replace(/_/g, ' ')}`);
+      setAppliedStartDate(startStr);
+      setAppliedEndDate(endStr);
+      toast.searchUpdated(`Date preset selected: ${preset.replace(/_/g, ' ')} (${startStr} to ${endStr})`);
+      setTimeout(() => {
+        setIsFetchingFilter(false);
+        stopLoading();
+      }, 450);
+    }
+  };
+
+  const availableCategories = useMemo(() => {
+    const list = [...CATEGORIES];
+    patients.forEach(p => {
+      if (p.category && !list.includes(p.category)) {
+        list.push(p.category);
+      }
+    });
+    return list;
+  }, [patients]);
+
+  const availableLocations = useMemo(() => {
+    const list = [...LOCATIONS];
+    patients.forEach(p => {
+      if (p.location && !list.includes(p.location)) {
+        list.push(p.location);
+      }
+    });
+    return list;
+  }, [patients]);
+
+  const handleConsultantFilterChange = (val: string) => {
+    setIsFetchingFilter(true);
+    startLoading('Filtering Patient Records...', val ? `Consultant: ${val}` : 'All Specialists');
+    setConsultantFilter(val);
+    setTimeout(() => {
+      setIsFetchingFilter(false);
+      stopLoading();
+    }, 350);
+  };
+
+  const handleCategoryFilterChange = (val: string) => {
+    setIsFetchingFilter(true);
+    startLoading('Filtering Patient Records...', val ? `Category: ${val}` : 'All Categories');
+    setCategoryFilter(val);
+    setTimeout(() => {
+      setIsFetchingFilter(false);
+      stopLoading();
+    }, 350);
+  };
+
+  const handleLocationFilterChange = (val: string) => {
+    setIsFetchingFilter(true);
+    startLoading('Filtering Patient Records...', val ? `Location: ${val}` : 'All Locations');
+    setLocationFilter(val);
+    setTimeout(() => {
+      setIsFetchingFilter(false);
+      stopLoading();
+    }, 350);
+  };
+
+  const handleCodeStatusFilterChange = (val: string) => {
+    setIsFetchingFilter(true);
+    startLoading('Filtering Patient Records...', val ? `Code: ${val}` : 'All Codes');
+    setCodeStatusFilter(val);
+    setTimeout(() => {
+      setIsFetchingFilter(false);
+      stopLoading();
+    }, 350);
   };
 
   const resetFilters = () => {
+    setIsFetchingFilter(true);
+    startLoading('Clearing Active Filters...', 'Resetting Patient Registry');
     setSearchTerm('');
     setStartDateInput('');
     setEndDateInput('');
     setAppliedStartDate('');
     setAppliedEndDate('');
     setConsultantFilter('');
+    setCategoryFilter('');
+    setLocationFilter('');
+    setCodeStatusFilter('');
     setMrnFilter('');
     setNameFilter('');
+    setMonthPreset('');
     toast.searchUpdated('All search and filter conditions cleared.');
+    setTimeout(() => {
+      setIsFetchingFilter(false);
+      stopLoading();
+    }, 300);
   };
 
-  const isFilterActive = !!(appliedStartDate || appliedEndDate || consultantFilter || mrnFilter || nameFilter || searchTerm);
+  const isFilterActive = !!(appliedStartDate || appliedEndDate || consultantFilter || categoryFilter || locationFilter || codeStatusFilter || mrnFilter || nameFilter || searchTerm);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, advSearchQuery, appliedStartDate, advStartDate, appliedEndDate, advEndDate, advSeverity, consultantFilter, activeUnit, mrnFilter, nameFilter]);
+  }, [searchTerm, advSearchQuery, appliedStartDate, advStartDate, appliedEndDate, advEndDate, advSeverity, consultantFilter, categoryFilter, locationFilter, codeStatusFilter, activeUnit, mrnFilter, nameFilter]);
 
   const sortedAndFiltered = useMemo(() => {
     const combinedQuery = [searchTerm, advSearchQuery].filter(Boolean).join(' ').toLowerCase().trim();
@@ -1424,6 +1565,9 @@ const PatientTable: React.FC = () => {
       }
 
       const matchesConsultant = !consultantFilter || p.consultant === consultantFilter;
+      const matchesCategory = !categoryFilter || p.category === categoryFilter;
+      const matchesLocation = !locationFilter || p.location === locationFilter;
+      const matchesCodeStatus = !codeStatusFilter || p.codeStatus === codeStatusFilter;
 
       let matchesMrn = true;
       if (mrnFilter.trim()) {
@@ -1435,7 +1579,7 @@ const PatientTable: React.FC = () => {
         matchesName = p.name.toLowerCase().includes(nameFilter.toLowerCase().trim());
       }
 
-      return matchesSearch && matchesStartDate && matchesEndDate && matchesSeverity && matchesConsultant && matchesMrn && matchesName;
+      return matchesSearch && matchesStartDate && matchesEndDate && matchesSeverity && matchesConsultant && matchesCategory && matchesLocation && matchesCodeStatus && matchesMrn && matchesName;
     });
 
     return [...filtered].sort((a, b) => {
@@ -1470,7 +1614,7 @@ const PatientTable: React.FC = () => {
       }
       return 0;
     });
-  }, [patients, searchTerm, advSearchQuery, appliedStartDate, advStartDate, appliedEndDate, advEndDate, advSeverity, sortConfig, consultantFilter, mrnFilter, nameFilter]);
+  }, [patients, searchTerm, advSearchQuery, appliedStartDate, advStartDate, appliedEndDate, advEndDate, advSeverity, sortConfig, consultantFilter, categoryFilter, locationFilter, codeStatusFilter, mrnFilter, nameFilter]);
 
   const totalPages = Math.ceil(sortedAndFiltered.length / itemsPerPage);
   const paginatedPatients = useMemo(() => {
@@ -1606,12 +1750,30 @@ const PatientTable: React.FC = () => {
 
         <div className="flex flex-wrap items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
           <div className="flex items-center gap-2">
+            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Preset:</label>
+            <select 
+              value={monthPreset}
+              onChange={(e) => handleMonthPresetChange(e.target.value)}
+              className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 bg-slate-50 cursor-pointer text-slate-800"
+            >
+              <option value="">Custom Range</option>
+              <option value="THIS_MONTH">This Month</option>
+              <option value="LAST_MONTH">Last Month</option>
+              <option value="LAST_3_MONTHS">Last 3 Months</option>
+              <option value="LAST_6_MONTHS">Last 6 Months</option>
+              <option value="THIS_YEAR">This Year ({new Date().getFullYear()})</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
             <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">From:</label>
             <input 
               type="date" 
               value={startDateInput}
-              onChange={(e) => setStartDateInput(e.target.value)}
-              className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 bg-slate-50"
+              onChange={(e) => {
+                setStartDateInput(e.target.value);
+                if (monthPreset) setMonthPreset('');
+              }}
+              className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 bg-slate-50 text-slate-800"
             />
           </div>
           <div className="flex items-center gap-2">
@@ -1619,16 +1781,19 @@ const PatientTable: React.FC = () => {
             <input 
               type="date" 
               value={endDateInput}
-              onChange={(e) => setEndDateInput(e.target.value)}
-              className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 bg-slate-50"
+              onChange={(e) => {
+                setEndDateInput(e.target.value);
+                if (monthPreset) setMonthPreset('');
+              }}
+              className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 bg-slate-50 text-slate-800"
             />
           </div>
           <div className="flex items-center gap-2">
             <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Consultant:</label>
             <select 
               value={consultantFilter}
-              onChange={(e) => setConsultantFilter(e.target.value)}
-              className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 bg-slate-50 cursor-pointer"
+              onChange={(e) => handleConsultantFilterChange(e.target.value)}
+              className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 bg-slate-50 cursor-pointer text-slate-800"
             >
               <option value="">All Specialists</option>
               {CONSULTANTS.map(c => (
@@ -1636,18 +1801,71 @@ const PatientTable: React.FC = () => {
               ))}
             </select>
           </div>
+          <div className="flex items-center gap-2">
+            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Category:</label>
+            <select 
+              value={categoryFilter}
+              onChange={(e) => handleCategoryFilterChange(e.target.value)}
+              className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 bg-slate-50 cursor-pointer text-slate-800"
+            >
+              <option value="">All Categories</option>
+              {availableCategories.map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Location:</label>
+            <select 
+              value={locationFilter}
+              onChange={(e) => handleLocationFilterChange(e.target.value)}
+              className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 bg-slate-50 cursor-pointer text-slate-800"
+            >
+              <option value="">All Locations</option>
+              {availableLocations.map(loc => (
+                <option key={loc} value={loc}>{loc}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Code:</label>
+            <select 
+              value={codeStatusFilter}
+              onChange={(e) => handleCodeStatusFilterChange(e.target.value)}
+              className="px-2 py-1.5 border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:ring-1 focus:ring-red-200 bg-slate-50 cursor-pointer text-slate-800"
+            >
+              <option value="">All Codes</option>
+              {CODE_STATUSES.map(code => (
+                <option key={code} value={code}>{code}</option>
+              ))}
+            </select>
+          </div>
           <button 
             onClick={handleApplyDateFilter}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-blue-700 transition-colors shadow-md flex items-center gap-2"
+            disabled={isFetchingFilter}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-blue-700 transition-colors shadow-md flex items-center gap-2 disabled:opacity-60 cursor-pointer"
           >
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-            Fetch Data
+            {isFetchingFilter ? (
+              <>
+                <ButtonSpinner className="w-3 h-3 text-white" />
+                Fetching...
+              </>
+            ) : (
+              <>
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                Fetch Data
+              </>
+            )}
           </button>
           <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-800 rounded-lg border border-emerald-200 text-[9px] font-black uppercase tracking-wider shadow-sm">
-            <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            Records Fetched: <span className="text-emerald-950 font-black text-[11px] px-1.5 py-0.5 bg-emerald-200/60 rounded ml-0.5">{sortedAndFiltered.length}</span>
+            {isFetchingFilter ? (
+              <ButtonSpinner className="w-3.5 h-3.5 text-emerald-600" />
+            ) : (
+              <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            )}
+            Records Fetched: <span className="text-emerald-950 font-black text-[11px] px-1.5 py-0.5 bg-emerald-200/60 rounded ml-0.5">{isFetchingFilter ? '...' : sortedAndFiltered.length}</span>
           </div>
           {isFilterActive && (
             <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full border border-blue-200">
@@ -1657,7 +1875,7 @@ const PatientTable: React.FC = () => {
           )}
           <button 
             onClick={resetFilters}
-            className="ml-auto text-[9px] font-black text-red-600 uppercase tracking-widest hover:text-red-700 transition-colors flex items-center gap-1"
+            className="ml-auto text-[9px] font-black text-red-600 uppercase tracking-widest hover:text-red-700 transition-colors flex items-center gap-1 cursor-pointer"
           >
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12"/></svg>
             Reset
@@ -1665,29 +1883,40 @@ const PatientTable: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden relative">
+        {/* Table-level Professional Rounded Spinner Loading Overlay */}
+        {isFetchingFilter && (
+          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-white/80 dark:bg-slate-900/80 backdrop-blur-[2px] transition-all duration-300 animate-fadeIn select-none">
+            <div className="flex flex-col items-center justify-center p-6 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 max-w-sm text-center space-y-3 transform transition-transform animate-in zoom-in-95 duration-150">
+              <DynamicRoundedLoader size="lg" />
+              <div className="space-y-1">
+                <h4 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">
+                  Filtering Census Data
+                </h4>
+                <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                  {consultantFilter 
+                    ? `Consultant: ${consultantFilter}` 
+                    : categoryFilter 
+                    ? `Category: ${categoryFilter}` 
+                    : locationFilter 
+                    ? `Location: ${locationFilter}` 
+                    : codeStatusFilter 
+                    ? `Code: ${codeStatusFilter}` 
+                    : appliedStartDate 
+                    ? `Date Range: ${appliedStartDate} to ${appliedEndDate || 'Present'}`
+                    : 'Applying Active Filters...'}
+                </p>
+              </div>
+              <div className="w-28 h-1 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden relative">
+                <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 via-teal-400 to-indigo-500 animate-dynamic-shimmer rounded-full" />
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="overflow-auto max-h-[600px] whitespace-nowrap scroll-smooth">
           {loading ? (
-            <div className="p-4 space-y-3 animate-pulse min-w-[1000px]">
-              <div className="h-10 bg-slate-900 rounded-lg w-full flex items-center px-4 justify-between">
-                <div className="h-3 w-12 bg-slate-700 rounded" />
-                <div className="h-3 w-24 bg-slate-700 rounded" />
-                <div className="h-3 w-36 bg-slate-700 rounded" />
-                <div className="h-3 w-28 bg-slate-700 rounded" />
-                <div className="h-3 w-20 bg-slate-700 rounded" />
-                <div className="h-3 w-28 bg-slate-700 rounded" />
-              </div>
-              {[1, 2, 3, 4, 5, 6, 7].map((i) => (
-                <div key={i} className="h-12 bg-slate-50 dark:bg-slate-800/50 rounded-lg w-full flex items-center px-4 justify-between border border-slate-100 dark:border-slate-800">
-                  <div className="h-4 w-10 bg-slate-200 dark:bg-slate-700 rounded" />
-                  <div className="h-4 w-24 bg-slate-200 dark:bg-slate-700 rounded" />
-                  <div className="h-4 w-36 bg-slate-200 dark:bg-slate-700 rounded" />
-                  <div className="h-4 w-28 bg-slate-200 dark:bg-slate-700 rounded" />
-                  <div className="h-4 w-20 bg-slate-200 dark:bg-slate-700 rounded" />
-                  <div className="h-4 w-24 bg-slate-200 dark:bg-slate-700 rounded" />
-                </div>
-              ))}
-            </div>
+            <TableSkeleton rows={8} cols={7} />
           ) : (
             <table className="w-full text-left min-w-[1200px] border-separate border-spacing-0">
               <thead className="bg-slate-100 text-slate-700 sticky top-0 z-10 shadow-xs border-b border-slate-200">
@@ -1744,9 +1973,9 @@ const PatientTable: React.FC = () => {
                   <th 
                     className={`px-4 py-4 w-32 text-center cursor-pointer transition-all duration-200 group border-b border-slate-200 ${sortConfig.key === 'status' || sortConfig.key === 'dischargeDate' ? 'bg-slate-200 text-red-600' : 'hover:bg-slate-200/80'}`} 
                     onClick={() => handleSort('status')}
-                    title="Click to sort by Patient Status"
+                    title="Click to sort by Out Date"
                   >
-                    <div className="flex items-center justify-center">Out Date / Status <SortIndicator column="status" /></div>
+                    <div className="flex items-center justify-center">Out Date <SortIndicator column="status" /></div>
                   </th>
                   <th 
                     className={`px-4 py-4 w-24 text-center cursor-pointer transition-all duration-200 group border-b border-slate-200 ${sortConfig.key === 'lengthOfStay' ? 'bg-slate-200 text-red-600' : 'hover:bg-slate-200/80'}`} 
@@ -1875,15 +2104,26 @@ const PatientTable: React.FC = () => {
                         <td className="px-4 py-3 truncate font-medium text-slate-800">{p.consultant}</td>
                         <td className="px-4 py-3 text-center text-slate-600 font-mono text-[9px] font-bold">{formatDate(p.admissionDate)}</td>
                         <td className="px-4 py-3 text-center">
-                          {!p.dischargeDate ? (
+                          {!p.dischargeDate && (!p.transferStatus || p.transferStatus === 'Active (In-Unit)' || p.transferStatus === 'In-Unit (Active)') && (!p.shiftTo || p.shiftTo === 'In-Unit (Active)') ? (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8px] font-black uppercase bg-emerald-100/80 text-emerald-800 border border-emerald-300/80">
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
-                              Active
+                              Active (In-Unit)
                             </span>
                           ) : (
-                            <span className="font-mono text-slate-500 text-[9px] font-bold">
-                              {formatDate(p.dischargeDate)}
-                            </span>
+                            <div className="flex flex-col items-center gap-0.5">
+                              {(p.transferStatus && p.transferStatus !== 'Active (In-Unit)' && p.transferStatus !== 'In-Unit (Active)') || (p.shiftTo && p.shiftTo !== 'In-Unit (Active)') ? (
+                                <span className={`px-1.5 py-0.5 rounded text-[7.5px] font-black uppercase border leading-none ${
+                                  TRANSFER_DISCHARGE_COLORS[p.transferStatus || p.shiftTo || ''] || 'bg-slate-100 text-slate-700 border-slate-200'
+                                }`}>
+                                  {p.transferStatus || p.shiftTo}
+                                </span>
+                              ) : null}
+                              {p.dischargeDate ? (
+                                <span className="font-mono text-slate-500 text-[9px] font-bold">
+                                  {formatDate(p.dischargeDate)}
+                                </span>
+                              ) : null}
+                            </div>
                           )}
                         </td>
                         <td className="px-4 py-3 text-center font-mono font-extrabold text-red-600 bg-red-50/30 rounded-md">{calculateDynamicLOS(p.admissionDate, p.dischargeDate)}d</td>

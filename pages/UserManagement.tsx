@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { exportAccessSlipPDF } from '../services/pdfService';
 import ConfirmModal from '../components/ConfirmModal';
 import Modal from '../components/Modal';
+import { TableSkeleton, LoadingSpinner } from '../components/LoadingSpinner';
 
 type SortDirection = 'asc' | 'desc';
 
@@ -412,10 +413,7 @@ const UserManagement: React.FC = () => {
           </div>
           <div className="overflow-x-auto">
             {loading ? (
-               <div className="flex flex-col items-center justify-center py-20 gap-4">
-                 <div className="w-10 h-10 border-4 border-slate-100 border-t-red-600 rounded-full animate-spin"></div>
-                 <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Synchronizing Database...</p>
-               </div>
+              <TableSkeleton rows={6} cols={4} />
             ) : (
               <table className="w-full text-left">
                 <thead>
