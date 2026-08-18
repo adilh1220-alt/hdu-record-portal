@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Send, MessageSquare, Mail, CheckCircle2, AlertCircle, RefreshCw, Smartphone, ExternalLink, ShieldCheck, Cpu } from 'lucide-react';
+import { Send, MessageSquare, Mail, CheckCircle2, AlertCircle, RefreshCw, Smartphone, ExternalLink, ShieldCheck, Cpu, Settings, Copy, Check, Share2, FileText, Tag, Plus } from 'lucide-react';
 import { EndoscopyRecord, DispatchLog } from '../types';
 import Modal from './Modal';
+import { MessageTemplate, messageTemplateService } from '../services/messageTemplateService';
+import MessageTemplateManagerModal from './MessageTemplateManagerModal';
 
 interface WhatsAppDispatchModalProps {
   isOpen: boolean;
@@ -74,6 +76,14 @@ export const WhatsAppDispatchModal: React.FC<WhatsAppDispatchModalProps> = ({
   const [emailAddress, setEmailAddress] = useState('');
   const [activeTab, setActiveTab] = useState<'whatsapp' | 'email' | 'history' | 'status'>('whatsapp');
   
+  // Custom Message Template State
+  const [templates, setTemplates] = useState<MessageTemplate[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+  const [customMessageBody, setCustomMessageBody] = useState<string>('');
+  const [isTemplateManagerOpen, setIsTemplateManagerOpen] = useState(false);
+  const [isEditingMessage, setIsEditingMessage] = useState(false);
+  const [copiedText, setCopiedText] = useState(false);
+
   const [isSending, setIsSending] = useState(false);
   const [dispatchResult, setDispatchResult] = useState<{
     success?: boolean;
@@ -98,6 +108,41 @@ export const WhatsAppDispatchModal: React.FC<WhatsAppDispatchModalProps> = ({
     errorMessage?: string;
     details?: string;
   } | null>(null);
+
+  // Load message templates
+  const loadTemplates = () => {
+    const list = messageTemplateService.getTemplates();
+    setTemplates(list);
+    const defaultTpl = list.find(t => t.category === 'endoscopy_report' && t.isDefault) ||
+                       list.find(t => t.category === 'endoscopy_report') ||
+                       list[0];
+    if (defaultTpl) {
+      setSelectedTemplateId(defaultTpl.id);
+      applyTemplate(defaultTpl);
+    }
+  };
+
+  const applyTemplate = (tpl: MessageTemplate) => {
+    const rendered = messageTemplateService.renderTemplate(tpl.bodyTemplate, {
+      endoscopy: record,
+      generatedBy: 'The Kidney Centre Endoscopy Staff'
+    });
+    setCustomMessageBody(rendered);
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      loadTemplates();
+    }
+  }, [isOpen, record]);
+
+  useEffect(() => {
+    const handleTemplatesUpdated = () => {
+      loadTemplates();
+    };
+    window.addEventListener('medilog_message_templates_updated', handleTemplatesUpdated);
+    return () => window.removeEventListener('medilog_message_templates_updated', handleTemplatesUpdated);
+  }, [record]);
 
   useEffect(() => {
     if (record) {
@@ -173,7 +218,7 @@ export const WhatsAppDispatchModal: React.FC<WhatsAppDispatchModalProps> = ({
   const fullWhatsAppNumber = `${activePrefix}${sanitizedLocalNumber}`;
   const digitsOnly = fullWhatsAppNumber.replace(/[^\d]/g, '');
 
-  const generatedTemplateMessage = `🏥 *THE KIDNEY CENTRE ENDOSCOPY REPORT*
+  const fallbackTemplateMessage = `🏥 *THE KIDNEY CENTRE ENDOSCOPY REPORT*
 
 Dear *${record.name.toUpperCase()}*,
 Your endoscopy procedure report is compiled and ready.
@@ -188,12 +233,14 @@ Your endoscopy procedure report is compiled and ready.
 
 _This automated message was sent via The Kidney Centre Gateway._`;
 
+  const effectiveMessage = customMessageBody || fallbackTemplateMessage;
+
   const directWhatsAppApiUrl = digitsOnly
-    ? `https://api.whatsapp.com/send?phone=${digitsOnly}&text=${encodeURIComponent(generatedTemplateMessage)}`
+    ? `https://api.whatsapp.com/send?phone=${digitsOnly}&text=${encodeURIComponent(effectiveMessage)}`
     : '';
 
   const directWaMeUrl = digitsOnly
-    ? `https://wa.me/${digitsOnly}?text=${encodeURIComponent(generatedTemplateMessage)}`
+    ? `https://wa.me/${digitsOnly}?text=${encodeURIComponent(effectiveMessage)}`
     : '';
 
   const handleSendWhatsApp = async () => {
@@ -216,7 +263,7 @@ _This automated message was sent via The Kidney Centre Gateway._`;
           date: record.date,
           doctor: record.doctor,
           pdfSummary: record.diagnosis || 'Procedure findings completed',
-          customMessage: generatedTemplateMessage
+          customMessage: effectiveMessage
         })
       });
 
@@ -362,12 +409,13 @@ _This automated message was sent via The Kidney Centre Gateway._`;
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Automated Patient Report Dispatch Gateway"
-      maxWidth="max-w-2xl"
-    >
+    <>
+      <Modal
+        isOpen={isOpen}
+        onClose={onClose}
+        title="Automated Patient Report Dispatch Gateway"
+        maxWidth="max-w-2xl"
+      >
       <div className="space-y-5">
         {/* Patient Summary Banner */}
         <div className="p-3 bg-slate-900 text-white rounded-xl flex items-center justify-between shadow-sm">
@@ -492,17 +540,92 @@ _This automated message was sent via The Kidney Centre Gateway._`;
               </p>
             </div>
 
-            {/* Template Message Preview */}
-            <div>
-              <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5 flex justify-between items-center">
-                <span>WhatsApp Message Preview</span>
-                <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
-                  Auto-formatted Medical Template
-                </span>
-              </label>
-              <div className="p-3.5 bg-emerald-950/10 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 rounded-xl text-xs font-sans text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-wrap font-medium">
-                {generatedTemplateMessage}
+            {/* Template Selector & Custom Message Body */}
+            <div className="space-y-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <label className="text-xs font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <Tag className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Pre-filled Template & Message</span>
+                </label>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setIsTemplateManagerOpen(true)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-700 transition-all cursor-pointer"
+                  >
+                    <Settings className="w-3 h-3 text-red-500" />
+                    <span>Configure Templates</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(effectiveMessage);
+                      setCopiedText(true);
+                      setTimeout(() => setCopiedText(false), 2000);
+                    }}
+                    className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all"
+                  >
+                    {copiedText ? (
+                      <>
+                        <Check className="w-3 h-3 text-emerald-600" />
+                        <span className="text-emerald-600">Copied</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3 h-3 text-slate-400" />
+                        <span>Copy</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingMessage(!isEditingMessage)}
+                    className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline px-1"
+                  >
+                    {isEditingMessage ? 'Preview Mode' : 'Edit Text'}
+                  </button>
+                </div>
               </div>
+
+              {/* Template dropdown selector */}
+              <div className="flex items-center gap-2">
+                <select
+                  value={selectedTemplateId}
+                  onChange={(e) => {
+                    const newId = e.target.value;
+                    setSelectedTemplateId(newId);
+                    const found = templates.find(t => t.id === newId);
+                    if (found) {
+                      applyTemplate(found);
+                    }
+                  }}
+                  className="w-full px-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl font-bold text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-emerald-500"
+                >
+                  {templates.map(tpl => (
+                    <option key={tpl.id} value={tpl.id}>
+                      {tpl.name} {tpl.isDefault ? '★ (Default)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Editable Textarea or Formatted Preview */}
+              {isEditingMessage ? (
+                <textarea
+                  rows={8}
+                  value={customMessageBody}
+                  onChange={(e) => setCustomMessageBody(e.target.value)}
+                  className="w-full p-3.5 bg-slate-900 border border-emerald-500/50 rounded-xl text-xs font-mono text-emerald-300 leading-relaxed focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  placeholder="Type or customize your message..."
+                />
+              ) : (
+                <div className="p-3.5 bg-emerald-950/10 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 rounded-xl text-xs font-sans text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-wrap font-medium max-h-[220px] overflow-y-auto">
+                  {effectiveMessage}
+                </div>
+              )}
             </div>
 
             {/* Action Buttons */}
@@ -803,6 +926,22 @@ _This automated message was sent via The Kidney Centre Gateway._`;
         )}
       </div>
     </Modal>
+
+    {/* Custom Message Template Manager Modal */}
+    <MessageTemplateManagerModal
+      isOpen={isTemplateManagerOpen}
+      onClose={() => {
+        setIsTemplateManagerOpen(false);
+        loadTemplates();
+      }}
+      onSelectTemplate={(tpl) => {
+        setSelectedTemplateId(tpl.id);
+        applyTemplate(tpl);
+      }}
+      initialSelectedCategory="endoscopy_report"
+      sampleEndoscopy={record}
+    />
+    </>
   );
 };
 

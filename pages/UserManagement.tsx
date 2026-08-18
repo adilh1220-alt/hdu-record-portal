@@ -7,6 +7,24 @@ import { exportAccessSlipPDF } from '../services/pdfService';
 import ConfirmModal from '../components/ConfirmModal';
 import Modal from '../components/Modal';
 import { TableSkeleton, LoadingSpinner } from '../components/LoadingSpinner';
+import { 
+  Share2, 
+  Download, 
+  Copy, 
+  Check, 
+  CheckCircle2, 
+  MessageSquare, 
+  Mail, 
+  FileText, 
+  ExternalLink, 
+  Eye, 
+  EyeOff, 
+  Send, 
+  Printer, 
+  Sparkles,
+  Lock,
+  Smartphone
+} from 'lucide-react';
 
 type SortDirection = 'asc' | 'desc';
 
@@ -38,8 +56,11 @@ const UserManagement: React.FC = () => {
   const [newRole, setNewRole] = useState<'Admin' | 'Consultant' | 'Staff'>('Staff');
   const [newAssignedUnit, setNewAssignedUnit] = useState<string>('');
 
-  const [lastRegisteredUser, setLastRegisteredUser] = useState<{name: string, email: string, password: string, role: string} | null>(null);
+  const [lastRegisteredUser, setLastRegisteredUser] = useState<{name: string, email: string, password?: string, role: string, assignedUnit?: string} | null>(null);
   const [isSlipModalOpen, setIsSlipModalOpen] = useState(false);
+  const [showPassword, setShowPassword] = useState(true);
+  const [copiedField, setCopiedField] = useState<'password' | 'all' | 'link' | 'txt' | null>(null);
+  const [showDirectShareMenu, setShowDirectShareMenu] = useState(false);
 
   // Confirmation states
   const [isUpdateConfirmOpen, setUpdateConfirmOpen] = useState(false);
@@ -283,12 +304,96 @@ const UserManagement: React.FC = () => {
     }
   };
 
+  const getCredentialsShareText = (user: { name: string; email: string; password?: string; role: string; assignedUnit?: string }) => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://thekidneycentre.portal';
+    return `🏥 THE KIDNEY CENTRE MEDICAL RECORD SYSTEM\nStaff Access Credentials\n\n` +
+      `👤 Staff Name: ${user.name}\n` +
+      `📧 Login Email: ${user.email}\n` +
+      `🔑 Master Key / Password: ${user.password || '******** (Previously Assigned)'}\n` +
+      `🛡️ Access Role: ${user.role}\n` +
+      (user.assignedUnit ? `🏢 Assigned Unit: ${user.assignedUnit}\n` : '') +
+      `🌐 Portal URL: ${origin}\n\n` +
+      `⚠️ Confidential Notice: Please log in and change your password upon first entry. Do not share these credentials with unauthorized staff.`;
+  };
+
+  const handleDownloadTxt = (user: { name: string; email: string; password?: string; role: string; assignedUnit?: string }) => {
+    const text = getCredentialsShareText(user);
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `access_credentials_${user.name.toLowerCase().replace(/\s+/g, '_')}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setCopiedField('txt');
+    setTimeout(() => setCopiedField(null), 2500);
+  };
+
+  const handleShareCredentials = async (user: { name: string; email: string; password?: string; role: string; assignedUnit?: string }) => {
+    const shareText = getCredentialsShareText(user);
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title: `The Kidney Centre Access Credentials - ${user.name}`,
+          text: shareText,
+          url: origin
+        });
+        return;
+      } catch (err: any) {
+        if (err.name !== 'AbortError') {
+          setShowDirectShareMenu(true);
+        }
+      }
+    } else {
+      setShowDirectShareMenu(prev => !prev);
+    }
+  };
+
+  const handleShareWhatsApp = (user: { name: string; email: string; password?: string; role: string; assignedUnit?: string }) => {
+    const text = getCredentialsShareText(user);
+    const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleShareGmail = (user: { name: string; email: string; password?: string; role: string; assignedUnit?: string }) => {
+    const text = getCredentialsShareText(user);
+    const subject = `The Kidney Centre Medical Records - Account Credentials for ${user.name}`;
+    const url = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(user.email)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleShareEmail = (user: { name: string; email: string; password?: string; role: string; assignedUnit?: string }) => {
+    const text = getCredentialsShareText(user);
+    const subject = `The Kidney Centre Medical Records - Account Credentials for ${user.name}`;
+    const mailtoUrl = `mailto:${encodeURIComponent(user.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
+    window.location.href = mailtoUrl;
+  };
+
+  const handleCopyPassword = (password?: string) => {
+    if (!password) return;
+    navigator.clipboard.writeText(password);
+    setCopiedField('password');
+    setTimeout(() => setCopiedField(null), 2500);
+  };
+
+  const handleCopyAll = (user: { name: string; email: string; password?: string; role: string; assignedUnit?: string }) => {
+    const text = getCredentialsShareText(user);
+    navigator.clipboard.writeText(text);
+    setCopiedField('all');
+    setTimeout(() => setCopiedField(null), 2500);
+  };
+
   const generateExistingUserSlip = (user: AuthUser) => {
-    exportAccessSlipPDF({
+    setLastRegisteredUser({
       name: user.displayName || 'STAFF',
       email: user.email || 'N/A',
-      role: user.role || 'Staff'
+      role: user.role || 'Staff',
+      assignedUnit: user.assignedUnit
     });
+    setIsSlipModalOpen(true);
   };
 
   const ACTION_TYPES = ['ALL', 'User Registered', 'Role Updated', 'User Deactivated', 'User Activated'];
@@ -703,37 +808,203 @@ const UserManagement: React.FC = () => {
 
       <Modal 
         isOpen={isSlipModalOpen} 
-        onClose={() => { setIsSlipModalOpen(false); setLastRegisteredUser(null); }} 
+        onClose={() => { 
+          setIsSlipModalOpen(false); 
+          setLastRegisteredUser(null); 
+          setShowDirectShareMenu(false);
+          setCopiedField(null);
+        }} 
         title="Provisioning Complete"
+        maxWidth="max-w-lg"
       >
-        <div className="text-center space-y-6 p-2">
-          <div className="w-16 h-16 bg-green-50 text-green-600 rounded-2xl flex items-center justify-center mx-auto shadow-sm border border-green-100">
-            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+        <div className="text-center space-y-5 p-1">
+          {/* Status Header Badge */}
+          <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto shadow-sm border border-emerald-100/80">
+            <CheckCircle2 className="w-8 h-8 text-emerald-600" />
           </div>
           <div>
-            <h4 className="text-lg font-black text-slate-800 uppercase tracking-tight">Access Ready</h4>
-            <p className="text-[11px] text-slate-500 mt-1 font-bold">Credentials for <span className="font-black text-slate-900">{lastRegisteredUser?.name}</span> have been synchronized.</p>
+            <span className="inline-block px-2.5 py-0.5 mb-1.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-emerald-100/70 text-emerald-800 border border-emerald-200">
+              Account Provisioned
+            </span>
+            <h4 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tight">Access Ready</h4>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 font-bold">
+              Credentials for <span className="font-black text-slate-900 dark:text-slate-100">{lastRegisteredUser?.name}</span> have been synchronized.
+            </p>
           </div>
           
-          <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 text-left space-y-3 shadow-inner">
-            <div className="flex justify-between items-center">
-              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Master Key</span>
-              <span className="text-sm font-mono font-black text-red-600 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">{lastRegisteredUser?.password}</span>
+          {/* Credentials Display Card */}
+          <div className="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-200 dark:border-slate-700/80 text-left space-y-3.5 shadow-inner">
+            {/* Master Key Row with Copy & Visibility Toggle */}
+            <div className="space-y-1.5 bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs">
+              <div className="flex justify-between items-center">
+                <span className="text-[9px] font-black text-slate-400 dark:text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                  <Lock className="w-3 h-3 text-red-500" />
+                  Master Key / Temporary Password
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(prev => !prev)}
+                    className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded transition-colors"
+                    title={showPassword ? "Hide Password" : "Show Password"}
+                  >
+                    {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyPassword(lastRegisteredUser?.password)}
+                    className="inline-flex items-center gap-1 text-[9px] font-bold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 transition-all active:scale-95"
+                    title="Copy Password"
+                  >
+                    {copiedField === 'password' ? (
+                      <>
+                        <Check className="w-3 h-3 text-emerald-600" />
+                        <span className="text-emerald-600 font-black">Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3 h-3 text-slate-500" />
+                        <span>Copy Key</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-base font-mono font-black text-red-600 dark:text-red-400 tracking-wider">
+                  {showPassword ? (lastRegisteredUser?.password || '••••••••') : '••••••••'}
+                </span>
+                <span className="text-[8px] font-mono text-slate-400 uppercase tracking-tight">One-time Secret</span>
+              </div>
             </div>
-            <p className="text-[9px] text-slate-400 font-bold italic leading-tight uppercase tracking-tighter">Hand this physical or digital slip directly to the registered medical officer.</p>
+
+            {/* User Meta Pills */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10px]">
+              <div className="bg-white dark:bg-slate-900/80 p-2 rounded-lg border border-slate-200/80 dark:border-slate-700">
+                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider block">Login Email</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200 truncate block text-[11px]">{lastRegisteredUser?.email}</span>
+              </div>
+              <div className="bg-white dark:bg-slate-900/80 p-2 rounded-lg border border-slate-200/80 dark:border-slate-700">
+                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider block">Access Role</span>
+                <span className="font-black text-slate-900 dark:text-slate-100 uppercase text-[11px] flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                  {lastRegisteredUser?.role}
+                </span>
+              </div>
+            </div>
+
+            <p className="text-[8.5px] text-slate-400 dark:text-slate-400 font-bold italic leading-tight uppercase tracking-tighter">
+              Hand this digital or physical slip directly to the registered medical personnel.
+            </p>
           </div>
 
-          <div className="flex flex-col gap-3">
+          {/* Primary Action Buttons: Share & Downloads */}
+          <div className="space-y-3">
+            {/* Primary Action: Share via Native Sheet / Apps */}
             <button
-              onClick={() => lastRegisteredUser && exportAccessSlipPDF(lastRegisteredUser)}
-              className="w-full bg-slate-900 text-white py-4 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:bg-slate-800 transition-all flex items-center justify-center gap-3 active:scale-95"
+              onClick={() => lastRegisteredUser && handleShareCredentials(lastRegisteredUser)}
+              className="w-full bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-800 text-white py-3.5 px-4 rounded-xl font-black text-[11px] uppercase tracking-widest shadow-lg shadow-emerald-600/20 hover:shadow-emerald-600/30 transition-all flex items-center justify-center gap-2.5 active:scale-[0.98]"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-              Print Access Slip
+              <Share2 className="w-4 h-4" />
+              <span>Share Access Credentials</span>
+              <span className="text-[9px] bg-white/20 px-2 py-0.5 rounded-full normal-case font-medium">WhatsApp / Gmail / Mobile</span>
             </button>
+
+            {/* Download Buttons Row */}
+            <div className="grid grid-cols-2 gap-2.5">
+              <button
+                onClick={() => lastRegisteredUser && exportAccessSlipPDF(lastRegisteredUser)}
+                className="bg-slate-900 dark:bg-slate-800 text-white hover:bg-slate-800 dark:hover:bg-slate-700 py-3 px-3 rounded-xl font-black text-[10px] uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-md active:scale-95"
+                title="Download Official PDF Slip"
+              >
+                <Download className="w-4 h-4 text-red-400" />
+                <span>Download PDF Slip</span>
+              </button>
+
+              <button
+                onClick={() => lastRegisteredUser && handleDownloadTxt(lastRegisteredUser)}
+                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 py-3 px-3 rounded-xl font-black text-[10px] uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-xs active:scale-95"
+                title="Download Text File (.txt)"
+              >
+                <FileText className="w-4 h-4 text-teal-600" />
+                <span>{copiedField === 'txt' ? 'Downloaded .TXT' : 'Download .TXT'}</span>
+              </button>
+            </div>
+
+            {/* Direct Platform Quick Launch Channels */}
+            <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2 text-left">
+              <div className="flex items-center justify-between">
+                <span className="text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                  <Smartphone className="w-3 h-3 text-slate-500" />
+                  Quick Direct Send:
+                </span>
+                <span className="text-[8px] text-slate-400">1-Tap Redirect</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {/* WhatsApp */}
+                <button
+                  type="button"
+                  onClick={() => lastRegisteredUser && handleShareWhatsApp(lastRegisteredUser)}
+                  className="flex items-center justify-center gap-1.5 bg-[#25D366]/10 hover:bg-[#25D366]/20 border border-[#25D366]/30 text-[#128C7E] dark:text-[#25D366] font-bold text-[10px] py-2 px-2.5 rounded-lg transition-all active:scale-95"
+                  title="Send via WhatsApp"
+                >
+                  <MessageSquare className="w-3.5 h-3.5 text-[#25D366]" />
+                  <span>WhatsApp</span>
+                </button>
+
+                {/* Gmail */}
+                <button
+                  type="button"
+                  onClick={() => lastRegisteredUser && handleShareGmail(lastRegisteredUser)}
+                  className="flex items-center justify-center gap-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-600 dark:text-red-400 font-bold text-[10px] py-2 px-2.5 rounded-lg transition-all active:scale-95"
+                  title="Compose in Gmail Web"
+                >
+                  <Mail className="w-3.5 h-3.5 text-red-500" />
+                  <span>Gmail</span>
+                </button>
+
+                {/* Default Mail */}
+                <button
+                  type="button"
+                  onClick={() => lastRegisteredUser && handleShareEmail(lastRegisteredUser)}
+                  className="flex items-center justify-center gap-1.5 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-600 dark:text-blue-400 font-bold text-[10px] py-2 px-2.5 rounded-lg transition-all active:scale-95"
+                  title="Send with Default Email Client"
+                >
+                  <Send className="w-3.5 h-3.5 text-blue-500" />
+                  <span>Email App</span>
+                </button>
+
+                {/* Copy Full Slip */}
+                <button
+                  type="button"
+                  onClick={() => lastRegisteredUser && handleCopyAll(lastRegisteredUser)}
+                  className="flex items-center justify-center gap-1.5 bg-slate-200/60 hover:bg-slate-200 dark:bg-slate-700/60 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-200 font-bold text-[10px] py-2 px-2.5 rounded-lg transition-all active:scale-95"
+                  title="Copy Full Credentials Text"
+                >
+                  {copiedField === 'all' ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                      <span className="text-emerald-600 font-black">Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
+                      <span>Copy Slip</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Dismiss Button */}
             <button
-              onClick={() => { setIsSlipModalOpen(false); setLastRegisteredUser(null); }}
-              className="w-full bg-slate-100 text-slate-500 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all"
+              onClick={() => { 
+                setIsSlipModalOpen(false); 
+                setLastRegisteredUser(null);
+                setShowDirectShareMenu(false);
+                setCopiedField(null);
+              }}
+              className="w-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 py-2.5 rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
             >
               Dismiss Notification
             </button>

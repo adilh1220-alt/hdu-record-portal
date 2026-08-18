@@ -376,38 +376,11 @@ export const calculateLogoRenderParams = (
 export const exportToPDF = async (title: string, headers: string[], rows: any[][], metadata: ReportMetadata) => {
   const doc = new jsPDF('landscape'); 
   const pageWidth = doc.internal.pageSize.width;
-  
-  const verificationUrl = getVerificationUrl('report', title.toLowerCase().replace(/\s+/g, '-'), {
-    filters: metadata.filters,
-    period: metadata.period || ''
-  });
-  const qrDataUrl = await generateQRCodeDataUrl(verificationUrl);
 
   // Header Logo with user adjustments
   const renderParams = calculateLogoRenderParams(14, 6, 68, 24, 297);
   if (renderParams.logoBase64) {
     doc.addImage(renderParams.logoBase64, 'PNG', renderParams.x, renderParams.y, renderParams.width, renderParams.height);
-  }
-
-  // Right Top Header: Embedded QR Verification Badge
-  if (qrDataUrl) {
-    const qrX = pageWidth - 14 - 44;
-    doc.setDrawColor(226, 232, 240);
-    doc.setFillColor(248, 250, 252);
-    doc.roundedRect(qrX, 6, 44, 23, 2, 2, 'FD');
-    doc.addImage(qrDataUrl, 'PNG', qrX + 1.5, 7.5, 20, 20);
-
-    doc.setFontSize(6);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(15, 23, 42);
-    doc.text("SCAN TO VERIFY", qrX + 23, 12);
-
-    doc.setFontSize(5);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(71, 85, 105);
-    doc.text("Official Medical Record", qrX + 23, 16);
-    doc.text("The Kidney Centre", qrX + 23, 20);
-    doc.text("Digital Verification", qrX + 23, 24);
   }
 
   // Report Title & Metadata
@@ -766,12 +739,6 @@ export const exportIncidentsPDF = async (incidents: IncidentRecord[], metadata: 
 
 export const exportPatientSummaryPDF = async (patient: Patient, generatedBy: string) => {
   const doc = new jsPDF();
-  
-  const verificationUrl = getVerificationUrl('patient', patient.regNo || patient.id, {
-    name: patient.name,
-    unit: patient.unit
-  });
-  const qrDataUrl = await generateQRCodeDataUrl(verificationUrl);
 
   // Header Block with Logo
   const renderParams = calculateLogoRenderParams(14, 8, 48, 22.7, 210);
@@ -781,25 +748,17 @@ export const exportPatientSummaryPDF = async (patient: Patient, generatedBy: str
 
   // Header Title Box
   doc.setFillColor(15, 23, 42); // Slate-900
-  doc.roundedRect(64, 8, 102, 22.7, 2, 2, 'F');
+  doc.roundedRect(64, 8, 132, 22.7, 2, 2, 'F');
   
   doc.setFontSize(10);
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.text("CLINICAL INPATIENT & PROCEDURE SUMMARY", 115, 16, { align: 'center' });
+  doc.text("CLINICAL INPATIENT & PROCEDURE SUMMARY", 130, 16, { align: 'center' });
 
   // Timestamp
   doc.setFontSize(6.5);
   doc.setTextColor(186, 200, 218); // Soft slate color
-  doc.text(`Generated On: ${new Date().toLocaleString()}  |  By: ${generatedBy.toUpperCase()}`, 115, 23, { align: 'center' });
-
-  // Verification QR Code Box on Header Right
-  if (qrDataUrl) {
-    doc.setDrawColor(226, 232, 240);
-    doc.setFillColor(248, 250, 252);
-    doc.roundedRect(168, 8, 28, 22.7, 2, 2, 'FD');
-    doc.addImage(qrDataUrl, 'PNG', 172, 9, 20, 20);
-  }
+  doc.text(`Generated On: ${new Date().toLocaleString()}  |  By: ${generatedBy.toUpperCase()}`, 130, 23, { align: 'center' });
 
   // 1. Patient Demographics & Profile Panel
   doc.setDrawColor(226, 232, 240); // Slate-200
@@ -1030,13 +989,6 @@ export const exportSingleEndoscopyReportPDF = async (record: EndoscopyRecord, ge
   const doc = new jsPDF('p', 'mm', 'a4');
   const pageHeight = doc.internal.pageSize.height;
   const pageWidth = doc.internal.pageSize.width;
-
-  const verificationUrl = getVerificationUrl('endoscopy', record.id || record.serialNo || record.regNo || '1', {
-    mrn: record.regNo,
-    name: record.name,
-    date: record.date
-  });
-  const qrDataUrl = await generateQRCodeDataUrl(verificationUrl);
 
   // Pre-load all remote images asynchronously to avoid cross-origin canvas errors in jsPDF
   const preloadedList: { id: string; url: string; title: string }[] = [];
@@ -1529,31 +1481,6 @@ export const exportSingleEndoscopyReportPDF = async (record: EndoscopyRecord, ge
   doc.setTextColor(100);
   doc.setFont('helvetica', 'normal');
   doc.text("Performing Physician Signature", 44, signY + 4, { align: 'center' });
-
-  // Verification QR Code Box on the Right
-  if (qrDataUrl) {
-    const qrX = pageWidth - 14 - 60;
-    const qrY = signY - 10;
-    doc.setDrawColor(226, 232, 240);
-    doc.setFillColor(248, 250, 252);
-    doc.roundedRect(qrX, qrY, 60, 22, 2, 2, 'FD');
-
-    doc.addImage(qrDataUrl, 'PNG', qrX + 2, qrY + 2, 18, 18);
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6.5);
-    doc.setTextColor(15, 23, 42);
-    doc.text("SCAN TO VERIFY RECORD", qrX + 22, qrY + 6);
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(5.5);
-    doc.setTextColor(71, 85, 105);
-    doc.text("The Kidney Centre Verified", qrX + 22, qrY + 10.5);
-    doc.text(`MRN: ${record.regNo || 'N/A'}`, qrX + 22, qrY + 14.5);
-    doc.setFontSize(5);
-    doc.setTextColor(100, 116, 139);
-    doc.text("Official Clinical Verification", qrX + 22, qrY + 18.5);
-  }
 
   doc.save(`endoscopy_procedure_report_${record.regNo}_${record.serialNo}.pdf`);
 };

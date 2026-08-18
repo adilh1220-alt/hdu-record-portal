@@ -18,7 +18,6 @@ import {
   EndoscopyRecord,
   ClinicalUnit
 } from '../types';
-import { QRCodeSVG } from 'qrcode.react';
 import { 
   generateKidneyCentreLogoBase64,
   getLogoSettings,
@@ -26,8 +25,7 @@ import {
   getEffectiveLogoBase64,
   getLogoUrlWithCacheBust,
   DEFAULT_LOGO_SETTINGS,
-  LogoSettings,
-  getVerificationUrl
+  LogoSettings
 } from '../services/pdfService';
 import { downloadCSV, downloadExcel } from '../services/exportService';
 import { 
@@ -2698,9 +2696,9 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
             </div>
           )}
 
-          {/* Signature & Verification Block */}
+          {/* Signature Block */}
           {includeSignatures && (
-            <div className="mt-12 pt-8 border-t border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-6 text-[10px] text-slate-500 uppercase tracking-wider items-end">
+            <div className="mt-12 pt-8 border-t border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-8 text-[10px] text-slate-500 uppercase tracking-wider items-end">
               <div className="space-y-12">
                 <p className="font-bold">Prepared & Signed By:</p>
                 <div className="border-t border-slate-300 pt-1.5">
@@ -2715,20 +2713,6 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
                     Timestamp: {new Date().toLocaleDateString()} {new Date().toLocaleTimeString()}
                   </p>
                 </div>
-              </div>
-
-              {/* Digital Record QR Verification */}
-              <div className="flex flex-col items-center justify-center p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-center normal-case">
-                <div className="bg-white p-1.5 rounded border border-slate-200 shadow-2xs mb-1">
-                  <QRCodeSVG 
-                    value={getVerificationUrl('census', selectedUnit || 'ALL', { unit: selectedUnit, date: new Date().toISOString() })} 
-                    size={52} 
-                    level="M" 
-                  />
-                </div>
-                <span className="font-extrabold text-[8.5px] uppercase text-slate-900 tracking-wider">Verified Clinical Report</span>
-                <span className="text-[7.5px] text-slate-500">Scan QR Code to Verify Authenticity</span>
-                <span className="text-[7px] text-slate-400 font-mono mt-0.5">TKC Digital Records System</span>
               </div>
 
               <div className="space-y-12">

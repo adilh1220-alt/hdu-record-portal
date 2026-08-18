@@ -23,7 +23,9 @@ import { ActiveFiltersBar } from './ActiveFiltersBar';
 import { PatientStatusTimeline } from './PatientStatusTimeline';
 import PatientQRCodeModal from './PatientQRCodeModal';
 import QRScannerModal from './QRScannerModal';
-import { QrCode } from 'lucide-react';
+import ClinicalSummaryShareModal from './ClinicalSummaryShareModal';
+import MessageTemplateManagerModal from './MessageTemplateManagerModal';
+import { QrCode, Share2, MessageSquare, Tag, Settings, Sparkles } from 'lucide-react';
 import { TableSkeleton, DataSyncBadge, ButtonSpinner, DynamicRoundedLoader } from './LoadingSpinner';
 
 interface FormErrors {
@@ -792,9 +794,10 @@ interface PrintSummaryModalProps {
   isOpen: boolean;
   onClose: () => void;
   patient: Patient | null;
+  onOpenShare?: (patient: Patient) => void;
 }
 
-const PrintSummaryModal: React.FC<PrintSummaryModalProps> = ({ isOpen, onClose, patient }) => {
+const PrintSummaryModal: React.FC<PrintSummaryModalProps> = ({ isOpen, onClose, patient, onOpenShare }) => {
   const { currentUser } = useAuth();
   
   if (!patient) return null;
@@ -850,13 +853,26 @@ const PrintSummaryModal: React.FC<PrintSummaryModalProps> = ({ isOpen, onClose, 
         {/* On-screen control bar */}
         <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200 print:hidden">
           <div>
-            <h4 className="text-[10px] font-black text-slate-800 uppercase tracking-wider">Clinical Export Suite</h4>
-            <p className="text-[8px] text-slate-400 font-bold uppercase mt-0.5">Select your preferred output format for medical records.</p>
+            <h4 className="text-[10px] font-black text-slate-800 uppercase tracking-wider">Clinical Export & Share Suite</h4>
+            <p className="text-[8px] text-slate-400 font-bold uppercase mt-0.5">Select your preferred output or dispatch format for medical records.</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            {onOpenShare && (
+              <button 
+                onClick={() => {
+                  onClose();
+                  onOpenShare(patient);
+                }}
+                className="px-3.5 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors uppercase text-[9px] font-black tracking-wider flex items-center gap-1.5 active:scale-95 shadow-sm shadow-emerald-100 cursor-pointer"
+                title="Share customized summary via WhatsApp or Email"
+              >
+                <Share2 className="w-3.5 h-3.5" />
+                Share / Message
+              </button>
+            )}
             <button 
               onClick={handleBrowserPrint}
-              className="px-4 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-800 transition-colors uppercase text-[9px] font-black tracking-wider flex items-center gap-1.5 active:scale-95 shadow-sm"
+              className="px-3.5 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-800 transition-colors uppercase text-[9px] font-black tracking-wider flex items-center gap-1.5 active:scale-95 shadow-sm cursor-pointer"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 1.523a1.125 1.125 0 01-1.12 1.227H7.231c-.615 0-1.114-.507-1.12-1.125L6.34 18m11.32 0h-11.32m11.32 0a3 3 0 003-3V9.75a3 3 0 00-3-3h-11.32a3 3 0 00-3 3V15a3 3 0 003 3m11.32-11.25V4.5a2.25 2.25 0 00-2.25-2.25h-6.75a2.25 2.25 0 00-2.25 2.25v2.25m6.75 0h-6.75M8.25 10.5h.008v.008H8.25V10.5zm.375 0a.375 0 11-.75 0 .375 0 01.75 0z" />
@@ -865,7 +881,7 @@ const PrintSummaryModal: React.FC<PrintSummaryModalProps> = ({ isOpen, onClose, 
             </button>
             <button 
               onClick={handleDownloadPDF}
-              className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors uppercase text-[9px] font-black tracking-wider flex items-center gap-1.5 active:scale-95 shadow-sm shadow-red-100"
+              className="px-3.5 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors uppercase text-[9px] font-black tracking-wider flex items-center gap-1.5 active:scale-95 shadow-sm shadow-red-100 cursor-pointer"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
@@ -1115,6 +1131,9 @@ const PatientTable: React.FC = () => {
   const [historyPatient, setHistoryPatient] = useState<Patient | null>(null);
   const [isPrintSummaryModalOpen, setIsPrintSummaryModalOpen] = useState(false);
   const [printPatient, setPrintPatient] = useState<Patient | null>(null);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [sharePatient, setSharePatient] = useState<Patient | null>(null);
+  const [isTemplateManagerOpen, setIsTemplateManagerOpen] = useState(false);
   const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
   const [qrModalPatient, setQrModalPatient] = useState<Patient | null>(null);
 
@@ -1737,6 +1756,15 @@ const PatientTable: React.FC = () => {
               <QrCode className="w-4 h-4" />
               <span>Scan QR</span>
             </button>
+            <button 
+              type="button"
+              onClick={() => setIsTemplateManagerOpen(true)}
+              className="bg-slate-100 hover:bg-slate-200 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 px-3.5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xs active:scale-95 flex items-center gap-1.5 cursor-pointer"
+              title="Configure Custom Pre-filled Message Templates for Clinical Summaries & Dispatches"
+            >
+              <MessageSquare className="w-3.5 h-3.5 text-red-500" />
+              <span>Templates</span>
+            </button>
           </div>
           <button 
             onClick={() => setIsExportModalOpen(true)}
@@ -2164,7 +2192,19 @@ const PatientTable: React.FC = () => {
                                 >
                                   <QrCode className="w-4 h-4" />
                                 </button>
-                                <button onClick={(e) => { e.stopPropagation(); setPrintPatient(p); setIsPrintSummaryModalOpen(true); }} className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-all active:scale-95" title="Print Clinical Summary">
+                                <button 
+                                  type="button"
+                                  onClick={(e) => { 
+                                    e.stopPropagation(); 
+                                    setSharePatient(p); 
+                                    setIsShareModalOpen(true); 
+                                  }} 
+                                  className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-all active:scale-95 cursor-pointer" 
+                                  title="Share Clinical Summary (WhatsApp, Email & Configured Templates)"
+                                >
+                                  <Share2 className="w-4 h-4" />
+                                </button>
+                                <button onClick={(e) => { e.stopPropagation(); setPrintPatient(p); setIsPrintSummaryModalOpen(true); }} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all active:scale-95" title="Print Clinical Summary">
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 1.523a1.125 1.125 0 01-1.12 1.227H7.231c-.615 0-1.114-.507-1.12-1.125L6.34 18m11.32 0h-11.32m11.32 0a3 3 0 003-3V9.75a3 3 0 00-3-3h-11.32a3 3 0 00-3 3V15a3 3 0 003 3m11.32-11.25V4.5a2.25 2.25 0 00-2.25-2.25h-6.75a2.25 2.25 0 00-2.25 2.25v2.25m6.75 0h-6.75M8.25 10.5h.008v.008H8.25V10.5zm.375 0a.375 0 11-.75 0 .375 0 01.75 0z" />
                                     </svg>
@@ -2367,6 +2407,22 @@ const PatientTable: React.FC = () => {
         isOpen={isPrintSummaryModalOpen}
         onClose={() => { setIsPrintSummaryModalOpen(false); setPrintPatient(null); }}
         patient={printPatient}
+        onOpenShare={(p) => {
+          setSharePatient(p);
+          setIsShareModalOpen(true);
+        }}
+      />
+
+      <ClinicalSummaryShareModal
+        isOpen={isShareModalOpen}
+        onClose={() => { setIsShareModalOpen(false); setSharePatient(null); }}
+        patient={sharePatient}
+      />
+
+      <MessageTemplateManagerModal
+        isOpen={isTemplateManagerOpen}
+        onClose={() => setIsTemplateManagerOpen(false)}
+        samplePatient={sharePatient || printPatient || patients[0]}
       />
 
       <PatientQRCodeModal

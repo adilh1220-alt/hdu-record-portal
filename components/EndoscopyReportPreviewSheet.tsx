@@ -1,7 +1,6 @@
 import React from 'react';
-import { QRCodeSVG } from 'qrcode.react';
-import { CheckCircle2, MapPin, Phone, Smartphone } from 'lucide-react';
-import { getEffectiveLogoBase64, getLogoUrlWithCacheBust, getLogoSettings, getVerificationUrl } from '../services/pdfService';
+import { MapPin, Phone, Smartphone } from 'lucide-react';
+import { getEffectiveLogoBase64, getLogoUrlWithCacheBust, getLogoSettings } from '../services/pdfService';
 import { GastroScopeIcon } from './GastroScopeIcon';
 
 export interface EndoscopyReportPreviewSheetProps {
@@ -972,26 +971,6 @@ export const EndoscopyReportPreviewSheet: React.FC<EndoscopyReportPreviewSheetPr
             <p className={`font-black text-slate-600 uppercase tracking-widest ${isCompactView ? 'text-[8px]' : 'text-[9px]'}`}>
               Performing Physician / Endoscopist Signature
             </p>
-          </div>
-
-          {/* Embedded Digital Verification QR Code Card */}
-          <div className="flex items-center gap-2.5 bg-slate-50 border border-slate-200 rounded-lg p-2 shadow-2xs">
-            <div className="bg-white p-1 rounded border border-slate-200">
-              <QRCodeSVG 
-                value={getVerificationUrl('endoscopy', formRegNo || '1', { mrn: formRegNo, name: formName, date: formDate })} 
-                size={isCompactView ? 46 : 54} 
-                level="M" 
-              />
-            </div>
-            <div className="text-left space-y-0.5">
-              <div className="flex items-center gap-1 text-emerald-700">
-                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                <span className="font-extrabold text-[8.5px] uppercase tracking-wider">Verified Clinical Record</span>
-              </div>
-              <p className="text-[8px] font-mono font-bold text-slate-800">MRN: {formRegNo || 'N/A'}</p>
-              <p className="text-[7.5px] text-slate-500">Scan QR code for authentic verification</p>
-              <p className="text-[7px] text-slate-400 font-medium">The Kidney Centre Medical Records</p>
-            </div>
           </div>
         </div>
 

@@ -8,6 +8,7 @@ import ConfirmModal from './ConfirmModal';
 import SettingsModal from './SettingsModal';
 import ShortcutsModal from './ShortcutsModal';
 import HeaderLogoModal from './HeaderLogoModal';
+import MessageTemplateManagerModal from './MessageTemplateManagerModal';
 import { DailyEmailReportModal } from './DailyEmailReportModal';
 import { MonthlyDepartmentReportSchedulerModal } from './MonthlyDepartmentReportSchedulerModal';
 import { db } from '../services/firebaseConfig';
@@ -35,6 +36,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
   const [isHeaderLogoOpen, setHeaderLogoOpen] = useState(false);
   const [isDailyEmailOpen, setIsDailyEmailOpen] = useState(false);
   const [isMonthlyEmailOpen, setIsMonthlyEmailOpen] = useState(false);
+  const [isMessageTemplatesOpen, setIsMessageTemplatesOpen] = useState(false);
   const [sidebarLogo, setSidebarLogo] = useState<string>('');
   const [sidebarLogoWidth, setSidebarLogoWidth] = useState<number>(() => getLogoSettings().sidebarLogoWidthPx || 40);
 
@@ -575,6 +577,29 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
               {isSidebarOpen && <span className="font-semibold text-xs tracking-tight whitespace-nowrap">Monthly Dept Scheduler</span>}
             </button>
 
+            {/* Custom Pre-filled Message Templates */}
+            <button
+              onClick={() => {
+                setIsMessageTemplatesOpen(true);
+                if (typeof window !== 'undefined' && window.innerWidth < 768) {
+                  setSidebarOpen(false);
+                }
+              }}
+              title="Custom Message Templates (WhatsApp & Email)"
+              className={`transition-all duration-200 ${
+                isSidebarOpen 
+                  ? 'w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl' 
+                  : 'w-12 h-12 mx-auto flex items-center justify-center rounded-xl p-0 shrink-0'
+              } text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:text-emerald-700 font-semibold`}
+            >
+              <div className="shrink-0 flex items-center justify-center w-6 h-6">
+                <svg className="w-6 h-6 shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                </svg>
+              </div>
+              {isSidebarOpen && <span className="font-semibold text-xs tracking-tight whitespace-nowrap">Message Templates</span>}
+            </button>
+
             <button
               onClick={() => {
                 setSettingsOpen(true);
@@ -901,6 +926,11 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
       <MonthlyDepartmentReportSchedulerModal
         isOpen={isMonthlyEmailOpen}
         onClose={() => setIsMonthlyEmailOpen(false)}
+      />
+
+      <MessageTemplateManagerModal
+        isOpen={isMessageTemplatesOpen}
+        onClose={() => setIsMessageTemplatesOpen(false)}
       />
 
       <HeaderLogoModal
