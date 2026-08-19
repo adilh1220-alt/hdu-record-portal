@@ -191,10 +191,22 @@ export const UnifiedEmailHubModal: React.FC<UnifiedEmailHubModalProps> = ({
         setSmtpConfig(dailyData.smtpConfig);
         setSmtpHost(dailyData.smtpConfig.host || 'smtp.gmail.com');
         setSmtpPort(dailyData.smtpConfig.port || 587);
-        setSmtpUser(dailyData.smtpConfig.user || '');
-        setSmtpSenderEmail(dailyData.smtpConfig.senderEmail || dailyData.smtpConfig.user || '');
         
-        const defaultRecipient = currentUser?.email || dailyData.smtpConfig.user || 'adilh1220@gmail.com';
+        const cleanUser = (dailyData.smtpConfig.user && !dailyData.smtpConfig.user.includes('Not Configured') && !dailyData.smtpConfig.user.includes('Simulation')) 
+          ? dailyData.smtpConfig.user 
+          : (currentUser?.email || 'adilh1220@gmail.com');
+        setSmtpUser(cleanUser);
+
+        const cleanSender = (dailyData.smtpConfig.senderEmail && !dailyData.smtpConfig.senderEmail.includes('kidneycentre.org') && !dailyData.smtpConfig.senderEmail.includes('medilog'))
+          ? dailyData.smtpConfig.senderEmail
+          : cleanUser;
+        setSmtpSenderEmail(cleanSender);
+
+        if (dailyData.smtpConfig.pass) {
+          setSmtpPass(dailyData.smtpConfig.pass);
+        }
+        
+        const defaultRecipient = currentUser?.email || cleanUser || 'adilh1220@gmail.com';
         setTestEmailAddress(defaultRecipient);
       }
 
@@ -338,7 +350,6 @@ export const UnifiedEmailHubModal: React.FC<UnifiedEmailHubModalProps> = ({
         hasPassword: result.smtpConfig?.hasPassword ?? true
       });
 
-      setSmtpPass('');
       setSmtpSavedSuccess(true);
       setValidationErrors({});
 

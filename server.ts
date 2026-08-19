@@ -1041,8 +1041,8 @@ app.post("/api/cloud-functions/dispatch-email", async (req, res) => {
 
 // GET Daily Email Report Settings
 app.get("/api/reports/daily-email/settings", (_req, res) => {
-  const activeUser = customSmtpConfig.user || process.env.SMTP_USER;
-  const activePass = customSmtpConfig.pass || process.env.SMTP_PASS;
+  const activeUser = customSmtpConfig.user || process.env.SMTP_USER || "";
+  const activePass = customSmtpConfig.pass || process.env.SMTP_PASS || "";
   const isSmtpConfigured = Boolean(activeUser && activePass);
 
   return res.json({
@@ -1050,8 +1050,8 @@ app.get("/api/reports/daily-email/settings", (_req, res) => {
     smtpConfig: {
       host: customSmtpConfig.host || process.env.SMTP_HOST || "smtp.gmail.com",
       port: Number(customSmtpConfig.port || process.env.SMTP_PORT) || 587,
-      user: activeUser || "Not Configured (Simulation Mode)",
-      senderEmail: customSmtpConfig.senderEmail || process.env.SENDER_EMAIL || activeUser || "reports@medilog-clinical.com",
+      user: activeUser,
+      senderEmail: customSmtpConfig.senderEmail || process.env.SENDER_EMAIL || activeUser,
       isConfigured: isSmtpConfigured
     }
   });
@@ -1067,7 +1067,7 @@ app.get("/api/smtp/config", (_req, res) => {
     port: Number(customSmtpConfig.port || process.env.SMTP_PORT) || 587,
     user: activeUser,
     hasPassword: Boolean(activePass),
-    senderEmail: customSmtpConfig.senderEmail || process.env.SENDER_EMAIL || activeUser || "reports@medilog-clinical.com",
+    senderEmail: customSmtpConfig.senderEmail || process.env.SENDER_EMAIL || activeUser,
     isConfigured: Boolean(activeUser && activePass)
   });
 });
@@ -2130,7 +2130,7 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (_req, res) => {
+    app.get('*all', (_req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
