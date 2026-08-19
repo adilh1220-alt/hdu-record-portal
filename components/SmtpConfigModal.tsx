@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import Modal from './Modal';
 import { dailyReportService } from '../services/dailyReportService';
-import { Server, ShieldCheck, Mail, Key, CheckCircle2, AlertCircle, RefreshCw, Send, Eye, EyeOff, HelpCircle } from 'lucide-react';
+import { Server, ShieldCheck, Mail, Key, CheckCircle2, AlertCircle, RefreshCw, Send, Eye, EyeOff, HelpCircle, Activity, Settings as SettingsIcon } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { EmailConnectionDiagnostic } from './EmailConnectionDiagnostic';
 
 interface SmtpConfigModalProps {
   isOpen: boolean;
@@ -12,6 +13,7 @@ interface SmtpConfigModalProps {
 
 export const SmtpConfigModal: React.FC<SmtpConfigModalProps> = ({ isOpen, onClose, onConfigSaved }) => {
   const { currentUser } = useAuth();
+  const [activeTab, setActiveTab] = useState<'config' | 'diagnostics'>('config');
   const [host, setHost] = useState('smtp.gmail.com');
   const [port, setPort] = useState<number>(587);
   const [user, setUser] = useState('');
@@ -114,7 +116,15 @@ export const SmtpConfigModal: React.FC<SmtpConfigModalProps> = ({ isOpen, onClos
   // Save Credentials
   const handleSaveConfig = async () => {
     if (!user.trim()) {
-      setFeedback({ type: 'error', message: 'SMTP Username / Email is required.' });
+      setFeedback({ type: 'error', message: 'SMTP Username / Email (e.g. adilh1220@gmail.com) is required.' });
+      return;
+    }
+
+    if (!pass.trim() && !hasPassword) {
+      setFeedback({ 
+        type: 'error', 
+        message: 'Password / App Password is required. Please paste your 16-character Google App Password.' 
+      });
       return;
     }
 
@@ -123,27 +133,27 @@ export const SmtpConfigModal: React.FC<SmtpConfigModalProps> = ({ isOpen, onClos
 
     try {
       const result = await dailyReportService.saveSmtpConfig({
-        host: host.trim(),
-        port: Number(port),
+        host: host.trim() || 'smtp.gmail.com',
+        port: Number(port) || 587,
         user: user.trim(),
         pass: pass.trim(),
         senderEmail: senderEmail.trim() || user.trim()
       });
 
-      setIsConfigured(result.smtpConfig.isConfigured);
-      setHasPassword(result.smtpConfig.hasPassword);
+      setIsConfigured(result.smtpConfig?.isConfigured ?? true);
+      setHasPassword(result.smtpConfig?.hasPassword ?? true);
       setPass(''); // Clear plain password field after save
 
       setFeedback({
         type: 'success',
-        message: 'SMTP Credentials saved and activated successfully! Real daily reports will now deliver directly to inboxes.'
+        message: 'SMTP Credentials saved and activated successfully! Real reports will now deliver directly to inboxes.'
       });
 
       if (onConfigSaved) onConfigSaved();
     } catch (err: any) {
       setFeedback({
         type: 'error',
-        message: err.message || 'Failed to save SMTP configuration.'
+        message: err.message || 'Failed to save SMTP configuration. Please check your network or credentials.'
       });
     } finally {
       setSaving(false);
@@ -178,6 +188,35 @@ export const SmtpConfigModal: React.FC<SmtpConfigModalProps> = ({ isOpen, onClos
           </div>
         </div>
 
+        {/* Tab Navigation */}
+        <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+          <button
+            type="button"
+            onClick={() => setActiveTab('config')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              activeTab === 'config'
+                ? 'bg-slate-900 text-white shadow'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            <SettingsIcon className="w-4 h-4" /> Server Credentials
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('diagnostics')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              activeTab === 'diagnostics'
+                ? 'bg-sky-600 text-white shadow'
+                : 'bg-sky-50 text-sky-700 hover:bg-sky-100'
+            }`}
+          >
+            <Activity className="w-4 h-4" /> Live Connection Diagnostics
+          </button>
+        </div>
+
+        {activeTab === 'config' ? (
+          <div className="space-y-6">
+
         {/* Feedback Alert */}
         {feedback && (
           <div className={`p-4 rounded-xl text-xs font-bold flex items-start justify-between gap-3 animate-in fade-in slide-in-from-top-2 border ${
@@ -193,7 +232,18 @@ export const SmtpConfigModal: React.FC<SmtpConfigModalProps> = ({ isOpen, onClos
               )}
               <span className="leading-relaxed">{feedback.message}</span>
             </div>
-            <button onClick={() => setFeedback(null)} className="text-slate-400 hover:text-slate-600 text-sm">✕</button>
+            <div className="flex items-center gap-2">
+              {feedback.type === 'error' && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('diagnostics')}
+                  className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-[10px] font-bold"
+                >
+                  Diagnose
+                </button>
+              )}
+              <button onClick={() => setFeedback(null)} className="text-slate-400 hover:text-slate-600 text-sm">✕</button>
+            </div>
           </div>
         )}
 
@@ -272,18 +322,24 @@ export const SmtpConfigModal: React.FC<SmtpConfigModalProps> = ({ isOpen, onClos
 
             <div className="space-y-1">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">Password / App Password</label>
-                {hasPassword && !pass && (
-                  <span className="text-[10px] text-emerald-600 font-bold">✓ Saved in Session</span>
+                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
+                  Password / App Password <span className="text-red-500">*</span>
+                </label>
+                {hasPassword && !pass ? (
+                  <span className="text-[10px] text-emerald-600 font-bold">✓ Saved</span>
+                ) : (
+                  <span className="text-[10px] text-amber-600 font-semibold">(16-char App Password)</span>
                 )}
               </div>
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
-                  placeholder={hasPassword ? '•••••••••••••••• (Leave unchanged to keep)' : 'Enter password or App Password'}
+                  placeholder={hasPassword ? '•••••••••••••••• (Leave unchanged to keep)' : 'Enter 16-character App Password'}
                   value={pass}
                   onChange={(e) => setPass(e.target.value)}
-                  className="w-full pl-3 pr-10 py-2 border border-slate-300 rounded-lg text-xs font-mono outline-none focus:ring-2 focus:ring-slate-900 bg-white"
+                  className={`w-full pl-3 pr-10 py-2 border rounded-lg text-xs font-mono outline-none focus:ring-2 focus:ring-slate-900 bg-white ${
+                    !pass && !hasPassword ? 'border-amber-300 focus:border-amber-500' : 'border-slate-300'
+                  }`}
                 />
                 <button
                   type="button"
@@ -379,6 +435,13 @@ export const SmtpConfigModal: React.FC<SmtpConfigModalProps> = ({ isOpen, onClos
             )}
           </button>
         </div>
+
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <EmailConnectionDiagnostic onOpenSmtpConfig={() => setActiveTab('config')} />
+          </div>
+        )}
 
       </div>
     </Modal>

@@ -185,5 +185,48 @@ export const dailyReportService = {
       throw new Error(data.error || 'SMTP Connection Test failed');
     }
     return data;
+  },
+
+  // Run Real-Time Connection Diagnostic Probe
+  runDiagnosticProbe: async (params?: {
+    host?: string;
+    port?: number;
+    user?: string;
+    pass?: string;
+    senderEmail?: string;
+    testEmail?: string;
+    sendTestMail?: boolean;
+  }): Promise<import('../types').SmtpDiagnosticResult> => {
+    const res = await fetch('/api/smtp/diagnostic/probe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params || {})
+    });
+    const data = await res.json();
+    return data;
+  },
+
+  // Get Diagnostic Audit Logs
+  getDiagnosticLogs: async (): Promise<import('../types').SmtpDiagnosticLog[]> => {
+    try {
+      const res = await fetch('/api/smtp/diagnostic/logs');
+      if (!res.ok) throw new Error('Failed to fetch diagnostic logs');
+      const data = await res.json();
+      return data.logs || [];
+    } catch (err) {
+      console.warn('Error fetching diagnostic logs:', err);
+      return [];
+    }
+  },
+
+  // Clear Diagnostic Audit Logs
+  clearDiagnosticLogs: async (): Promise<boolean> => {
+    try {
+      const res = await fetch('/api/smtp/diagnostic/logs', { method: 'DELETE' });
+      return res.ok;
+    } catch (err) {
+      console.warn('Error clearing diagnostic logs:', err);
+      return false;
+    }
   }
 };

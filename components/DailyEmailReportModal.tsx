@@ -4,9 +4,10 @@ import { dailyReportService } from '../services/dailyReportService';
 import { DailyEmailReportSettings, DailyReportLog, ClinicalUnit, Patient, InventoryItem } from '../types';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
-import { Mail, Clock, ShieldCheck, Send, CheckCircle2, AlertCircle, RefreshCw, Layers, Plus, Trash2, Eye, History, Server, FileText, Settings } from 'lucide-react';
+import { Mail, Clock, ShieldCheck, Send, CheckCircle2, AlertCircle, RefreshCw, Layers, Plus, Trash2, Eye, History, Server, FileText, Settings, Activity } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { SmtpConfigModal } from './SmtpConfigModal';
+import { EmailConnectionDiagnostic } from './EmailConnectionDiagnostic';
 
 interface DailyEmailReportModalProps {
   isOpen: boolean;
@@ -17,7 +18,7 @@ const CLINICAL_UNITS: ClinicalUnit[] = ['HDU', 'ICU', 'TRANSPLANT', '4th-WARD', 
 
 export const DailyEmailReportModal: React.FC<DailyEmailReportModalProps> = ({ isOpen, onClose }) => {
   const { currentUser } = useAuth();
-  const [activeTab, setActiveTab] = useState<'settings' | 'preview' | 'logs'>('settings');
+  const [activeTab, setActiveTab] = useState<'settings' | 'preview' | 'logs' | 'diagnostics'>('settings');
   
   // Settings state
   const [settings, setSettings] = useState<DailyEmailReportSettings>({
@@ -349,6 +350,16 @@ export const DailyEmailReportModal: React.FC<DailyEmailReportModalProps> = ({ is
           >
             <History className="w-4 h-4" /> Dispatch History ({logs.length})
           </button>
+          <button
+            onClick={() => setActiveTab('diagnostics')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              activeTab === 'diagnostics' 
+                ? 'bg-sky-600 text-white shadow' 
+                : 'bg-sky-50 text-sky-700 hover:bg-sky-100'
+            }`}
+          >
+            <Activity className="w-4 h-4" /> Connection Diagnostics
+          </button>
         </div>
 
         {/* TAB 1: SCHEDULE & RECIPIENTS */}
@@ -596,6 +607,13 @@ export const DailyEmailReportModal: React.FC<DailyEmailReportModalProps> = ({ is
                 </table>
               </div>
             )}
+          </div>
+        )}
+
+        {/* TAB 4: CONNECTION DIAGNOSTICS */}
+        {activeTab === 'diagnostics' && (
+          <div className="space-y-4">
+            <EmailConnectionDiagnostic onOpenSmtpConfig={() => setIsSmtpModalOpen(true)} />
           </div>
         )}
 

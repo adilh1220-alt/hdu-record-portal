@@ -547,13 +547,12 @@ export const exportAccessSlipPDF = (userData: { name: string; email: string; pas
 };
 
 export const exportPatientsPDF = async (patients: Patient[], metadata: ReportMetadata) => {
-  const headers = ['Reg No', 'Patient Name', 'Gender', 'Category', 'Triage', 'Location', 'Code', 'Consultant', 'In-Date', 'Out-Date', 'LOS'];
+  const headers = ['Reg No', 'Patient Name', 'Gender', 'Category', 'Location', 'Code', 'Consultant', 'In-Date', 'Out-Date', 'LOS'];
   const rows = patients.map(p => [
     p.regNo, 
     p.name, 
     p.gender,
     p.category, 
-    p.triagePriority || 'Stable',
     p.location || 'N/A',
     p.codeStatus, 
     p.consultant, 
@@ -812,12 +811,11 @@ export const exportPatientSummaryPDF = async (patient: Patient, generatedBy: str
   doc.text(patient.codeStatus || 'Full Code', 50, gridY4);
   
   doc.setTextColor(71, 85, 105);
-  doc.setFont('helvetica', 'bold'); doc.text("Triage Priority:", 110, gridY4);
+  doc.setFont('helvetica', 'bold'); doc.text("Shift / Status:", 110, gridY4);
   doc.setFont('helvetica', 'bold');
-  if (patient.triagePriority === 'Critical') doc.setTextColor(220, 38, 38);
-  else if (patient.triagePriority === 'Urgent') doc.setTextColor(217, 119, 6);
-  else doc.setTextColor(30, 41, 59);
-  doc.text(patient.triagePriority || 'Stable', 145, gridY4);
+  const shiftVal = (patient.transferStatus === 'Discharged (DC)' || patient.shiftTo === 'Discharged (DC)') ? 'DC' : (patient.transferStatus || patient.shiftTo || (patient.dischargeDate ? 'DC' : 'In-Unit (Active)'));
+  doc.setTextColor(30, 41, 59);
+  doc.text(shiftVal, 145, gridY4);
 
   // Reset colors
   doc.setTextColor(30, 41, 59);

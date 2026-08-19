@@ -11,6 +11,8 @@ import HeaderLogoModal from './HeaderLogoModal';
 import MessageTemplateManagerModal from './MessageTemplateManagerModal';
 import { DailyEmailReportModal } from './DailyEmailReportModal';
 import { MonthlyDepartmentReportSchedulerModal } from './MonthlyDepartmentReportSchedulerModal';
+import { EmailConnectionDiagnosticModal } from './EmailConnectionDiagnosticModal';
+import { SmtpConfigModal } from './SmtpConfigModal';
 import { db } from '../services/firebaseConfig';
 import { onSnapshotsInSync } from 'firebase/firestore';
 import { getEffectiveLogoBase64, getLogoSettings, saveLogoSettings, getLogoUrlWithCacheBust } from '../services/pdfService';
@@ -37,6 +39,8 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
   const [isDailyEmailOpen, setIsDailyEmailOpen] = useState(false);
   const [isMonthlyEmailOpen, setIsMonthlyEmailOpen] = useState(false);
   const [isMessageTemplatesOpen, setIsMessageTemplatesOpen] = useState(false);
+  const [isEmailDiagnosticOpen, setIsEmailDiagnosticOpen] = useState(false);
+  const [isSmtpConfigOpen, setIsSmtpConfigOpen] = useState(false);
   const [sidebarLogo, setSidebarLogo] = useState<string>('');
   const [sidebarLogoWidth, setSidebarLogoWidth] = useState<number>(() => getLogoSettings().sidebarLogoWidthPx || 40);
 
@@ -600,6 +604,36 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
               {isSidebarOpen && <span className="font-semibold text-xs tracking-tight whitespace-nowrap">Message Templates</span>}
             </button>
 
+            {/* Email Connection Diagnostic Terminal */}
+            <button
+              onClick={() => {
+                setIsEmailDiagnosticOpen(true);
+                if (typeof window !== 'undefined' && window.innerWidth < 768) {
+                  setSidebarOpen(false);
+                }
+              }}
+              title="Email Connection Diagnostic & SMTP Health"
+              className={`transition-all duration-200 ${
+                isSidebarOpen 
+                  ? 'w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl' 
+                  : 'w-12 h-12 mx-auto flex items-center justify-center rounded-xl p-0 shrink-0'
+              } text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-950/30 hover:text-sky-700 font-semibold`}
+            >
+              <div className="shrink-0 flex items-center justify-center w-6 h-6">
+                <svg className="w-6 h-6 shrink-0 text-sky-600 dark:text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
+              {isSidebarOpen && (
+                <div className="flex items-center justify-between flex-1">
+                  <span className="font-semibold text-xs tracking-tight whitespace-nowrap">Email Diagnostics</span>
+                  <span className="px-1.5 py-0.5 text-[9px] font-bold bg-sky-100 text-sky-700 dark:bg-sky-900/60 dark:text-sky-300 rounded">
+                    SMTP
+                  </span>
+                </div>
+              )}
+            </button>
+
             <button
               onClick={() => {
                 setSettingsOpen(true);
@@ -607,7 +641,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
                   setSidebarOpen(false);
                 }
               }}
-              title="Security"
+              title="Security & Settings"
               className={`transition-all duration-200 ${
                 isSidebarOpen 
                   ? 'w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl' 
@@ -916,6 +950,18 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
       <SettingsModal 
         isOpen={isSettingsOpen}
         onClose={() => setSettingsOpen(false)}
+        onOpenSmtpConfig={() => setIsSmtpConfigOpen(true)}
+      />
+
+      <EmailConnectionDiagnosticModal
+        isOpen={isEmailDiagnosticOpen}
+        onClose={() => setIsEmailDiagnosticOpen(false)}
+        onOpenSmtpConfig={() => setIsSmtpConfigOpen(true)}
+      />
+
+      <SmtpConfigModal
+        isOpen={isSmtpConfigOpen}
+        onClose={() => setIsSmtpConfigOpen(false)}
       />
 
       <DailyEmailReportModal

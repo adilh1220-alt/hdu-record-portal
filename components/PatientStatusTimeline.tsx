@@ -148,7 +148,9 @@ export const PatientStatusTimeline: React.FC<PatientStatusTimelineProps> = ({
             <span className="text-[8px] font-black uppercase tracking-wider">Disposition / Shift</span>
             <span className={`w-2 h-2 rounded-full ${patient.dischargeDate || (patient.shiftTo && patient.shiftTo !== 'In-Unit (Active)') ? 'bg-indigo-500' : 'bg-emerald-500 animate-pulse'}`}></span>
           </div>
-          <p className="text-xs font-black text-slate-900 truncate">{patient.shiftTo || (patient.dischargeDate ? 'Discharged (DC)' : 'Active In-Patient')}</p>
+          <p className="text-xs font-black text-slate-900 truncate">
+            {patient.shiftTo === 'Discharged (DC)' || patient.shiftTo === 'Discharge Home' || patient.shiftTo === 'DC' ? 'DC' : (patient.shiftTo || (patient.dischargeDate ? 'Discharged' : 'Active In-Patient'))}
+          </p>
           <span className="text-[8.5px] font-bold text-slate-500">{patient.dischargeDate ? `DC: ${patient.dischargeDate}` : 'Currently in HDU'}</span>
         </div>
       </div>

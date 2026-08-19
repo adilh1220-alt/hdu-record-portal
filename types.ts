@@ -12,6 +12,8 @@ export type CodeStatus = 'Full Code' | 'DNR' | 'DNI';
 export type TriagePriority = 'Critical' | 'Urgent' | 'Stable';
 export type TransferDischargeStatus = 
   | 'Active (In-Unit)'
+  | 'DC'
+  | 'Discharged (DC)'
   | 'Ward Transfer'
   | 'ICU Transfer'
   | 'Discharge Home'
@@ -271,4 +273,52 @@ export interface MonthlyReportDispatchLog {
   cronExpression: string;
   details: string;
 }
+
+export type SmtpDiagnosticStatus = 'AUTHENTICATED' | 'AUTH_FAILED' | 'TIMEOUT' | 'UNREACHABLE' | 'NOT_CONFIGURED' | 'CONNECTED';
+
+export interface SmtpDiagnosticStep {
+  id: 'socket' | 'tls' | 'auth' | 'delivery';
+  name: string;
+  description: string;
+  status: 'PENDING' | 'RUNNING' | 'PASSED' | 'FAILED' | 'SKIPPED';
+  durationMs?: number;
+  details?: string;
+  errorCode?: string;
+}
+
+export interface SmtpDiagnosticResult {
+  success: boolean;
+  status: SmtpDiagnosticStatus;
+  timestamp: string;
+  host: string;
+  port: number;
+  user: string;
+  hasPassword: boolean;
+  latencyMs: number;
+  errorCode?: string;
+  smtpResponseCode?: number;
+  rawError?: string;
+  friendlyExplanation: string;
+  suggestedFix: string;
+  steps: SmtpDiagnosticStep[];
+  messageId?: string;
+}
+
+export interface SmtpDiagnosticLog {
+  id: string;
+  timestamp: string;
+  host: string;
+  port: number;
+  user: string;
+  status: 'PASSED' | 'FAILED';
+  statusCategory: SmtpDiagnosticStatus;
+  latencyMs: number;
+  errorCode?: string;
+  smtpResponseCode?: number;
+  summary: string;
+  details: string;
+  suggestedFix?: string;
+  testRecipient?: string;
+}
+
 

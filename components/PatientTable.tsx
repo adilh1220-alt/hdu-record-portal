@@ -25,7 +25,7 @@ import PatientQRCodeModal from './PatientQRCodeModal';
 import QRScannerModal from './QRScannerModal';
 import ClinicalSummaryShareModal from './ClinicalSummaryShareModal';
 import MessageTemplateManagerModal from './MessageTemplateManagerModal';
-import { QrCode, Share2, MessageSquare, Tag, Settings, Sparkles } from 'lucide-react';
+import { QrCode, Share2, MessageSquare, Tag, Settings, Sparkles, Filter, UserCheck, Eye, EyeOff, Activity, X } from 'lucide-react';
 import { TableSkeleton, DataSyncBadge, ButtonSpinner, DynamicRoundedLoader } from './LoadingSpinner';
 
 interface FormErrors {
@@ -968,8 +968,8 @@ const PrintSummaryModal: React.FC<PrintSummaryModalProps> = ({ isOpen, onClose, 
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 text-[10px] font-bold text-slate-700 uppercase space-y-2 transition-all duration-300 hover:shadow-md hover:shadow-slate-100 hover:bg-white hover:-translate-y-0.5 cursor-pointer">
                 <div className="flex justify-between items-center border-b border-slate-200/50 pb-2">
                   <span className="text-slate-400 font-bold uppercase text-[8px] tracking-wider">Shift To</span>
-                  <span className={`px-2 py-0.5 rounded text-[8px] border font-bold ${TRANSFER_DISCHARGE_COLORS[patient.transferStatus || patient.shiftTo || (patient.dischargeDate ? 'Discharged (DC)' : 'In-Unit (Active)')] || 'bg-slate-100 text-slate-800 border-slate-200'}`}>
-                    {patient.transferStatus || patient.shiftTo || (patient.dischargeDate ? 'Discharged (DC)' : 'In-Unit (Active)')}
+                  <span className={`px-2 py-0.5 rounded text-[8px] border font-bold ${TRANSFER_DISCHARGE_COLORS[patient.transferStatus || patient.shiftTo || 'In-Unit (Active)'] || 'bg-slate-100 text-slate-800 border-slate-200'}`}>
+                    {(patient.transferStatus === 'Discharged (DC)' || patient.shiftTo === 'Discharged (DC)' || patient.shiftTo === 'DC' || patient.transferStatus === 'DC') ? 'DC' : (patient.transferStatus || patient.shiftTo || 'In-Unit (Active)')}
                   </span>
                 </div>
                 <div className="flex justify-between items-center border-b border-slate-200/50 pb-2">
@@ -1119,6 +1119,7 @@ const PatientTable: React.FC = () => {
   const [codeStatusFilter, setCodeStatusFilter] = useState('');
   const [monthPreset, setMonthPreset] = useState('');
   const [isFetchingFilter, setIsFetchingFilter] = useState(false);
+  const [hideDischarged, setHideDischarged] = useState(false);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
@@ -1330,7 +1331,7 @@ const PatientTable: React.FC = () => {
       p.name, 
       p.gender,
       p.category, 
-      p.transferStatus || p.shiftTo || (p.dischargeDate ? 'Discharged (DC)' : 'In-Unit (Active)'),
+      p.transferStatus === 'Discharged (DC)' ? 'DC' : (p.transferStatus || p.shiftTo || (p.dischargeDate ? 'DC' : 'In-Unit (Active)')),
       p.codeStatus, 
       p.consultant, 
       p.admissionDate,
@@ -1505,6 +1506,37 @@ const PatientTable: React.FC = () => {
     }, 350);
   };
 
+  const isPatientDischarged = (p: Patient) => {
+    return Boolean(
+      p.dischargeDate ||
+      p.transferStatus === 'DC' ||
+      p.transferStatus === 'Discharged (DC)' ||
+      p.transferStatus === 'Discharge Home' ||
+      p.shiftTo === 'DC' ||
+      p.shiftTo === 'Discharged (DC)' ||
+      p.shiftTo === 'Discharge Home' ||
+      p.status === PatientStatus.DISCHARGED ||
+      (p.status as string) === 'Discharged'
+    );
+  };
+
+  const dischargedCount = useMemo(() => patients.filter(isPatientDischarged).length, [patients]);
+  const activeCount = useMemo(() => patients.filter(p => !isPatientDischarged(p)).length, [patients]);
+
+  const toggleHideDischarged = () => {
+    setIsFetchingFilter(true);
+    const nextVal = !hideDischarged;
+    setHideDischarged(nextVal);
+    if (nextVal) {
+      toast.searchUpdated(`Quick Filter: Focusing on ${activeCount} active admissions (Discharged records hidden).`);
+    } else {
+      toast.searchUpdated('Quick Filter: Showing all patient records including Discharged (DC).');
+    }
+    setTimeout(() => {
+      setIsFetchingFilter(false);
+    }, 150);
+  };
+
   const resetFilters = () => {
     setIsFetchingFilter(true);
     startLoading('Clearing Active Filters...', 'Resetting Patient Registry');
@@ -1520,6 +1552,7 @@ const PatientTable: React.FC = () => {
     setMrnFilter('');
     setNameFilter('');
     setMonthPreset('');
+    setHideDischarged(false);
     toast.searchUpdated('All search and filter conditions cleared.');
     setTimeout(() => {
       setIsFetchingFilter(false);
@@ -1527,11 +1560,11 @@ const PatientTable: React.FC = () => {
     }, 300);
   };
 
-  const isFilterActive = !!(appliedStartDate || appliedEndDate || consultantFilter || categoryFilter || locationFilter || codeStatusFilter || mrnFilter || nameFilter || searchTerm);
+  const isFilterActive = !!(appliedStartDate || appliedEndDate || consultantFilter || categoryFilter || locationFilter || codeStatusFilter || mrnFilter || nameFilter || searchTerm || hideDischarged);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, advSearchQuery, appliedStartDate, advStartDate, appliedEndDate, advEndDate, advSeverity, consultantFilter, categoryFilter, locationFilter, codeStatusFilter, activeUnit, mrnFilter, nameFilter]);
+  }, [searchTerm, advSearchQuery, appliedStartDate, advStartDate, appliedEndDate, advEndDate, advSeverity, consultantFilter, categoryFilter, locationFilter, codeStatusFilter, activeUnit, mrnFilter, nameFilter, hideDischarged]);
 
   const sortedAndFiltered = useMemo(() => {
     const combinedQuery = [searchTerm, advSearchQuery].filter(Boolean).join(' ').toLowerCase().trim();
@@ -1541,6 +1574,10 @@ const PatientTable: React.FC = () => {
     const effectiveEnd = appliedEndDate || advEndDate;
 
     const filtered = patients.filter(p => {
+      if (hideDischarged && isPatientDischarged(p)) {
+        return false;
+      }
+
       const matchesSearch = tokens.length === 0 || tokens.every(token => {
         return (
           p.name.toLowerCase().includes(token) || 
@@ -1633,7 +1670,7 @@ const PatientTable: React.FC = () => {
       }
       return 0;
     });
-  }, [patients, searchTerm, advSearchQuery, appliedStartDate, advStartDate, appliedEndDate, advEndDate, advSeverity, sortConfig, consultantFilter, categoryFilter, locationFilter, codeStatusFilter, mrnFilter, nameFilter]);
+  }, [patients, searchTerm, advSearchQuery, appliedStartDate, advStartDate, appliedEndDate, advEndDate, advSeverity, sortConfig, consultantFilter, categoryFilter, locationFilter, codeStatusFilter, mrnFilter, nameFilter, hideDischarged]);
 
   const totalPages = Math.ceil(sortedAndFiltered.length / itemsPerPage);
   const paginatedPatients = useMemo(() => {
@@ -1738,6 +1775,39 @@ const PatientTable: React.FC = () => {
                 </button>
               </div>
             </div>
+            {/* Quick Filter: Active Admissions Only / Toggle DC */}
+            <button 
+              id="btn-quick-filter-active-admissions"
+              type="button"
+              onClick={toggleHideDischarged}
+              className={`px-3.5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-xs active:scale-95 flex items-center gap-1.5 cursor-pointer border ${
+                hideDischarged 
+                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-500 shadow-md shadow-emerald-200/50 ring-2 ring-emerald-400/40 dark:shadow-none'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700'
+              }`}
+              title={hideDischarged ? "Quick Filter Active: Discharged (DC) records are hidden. Click to show all records." : "Quick Filter: Hide Discharged (DC) records to focus solely on active admissions."}
+            >
+              {hideDischarged ? (
+                <>
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+                  </span>
+                  <UserCheck className="w-3.5 h-3.5 text-white" />
+                  <span>Active Only</span>
+                  <span className="bg-emerald-800/90 text-emerald-100 px-1.5 py-0.5 rounded text-[8.5px] font-mono font-bold">{activeCount}</span>
+                </>
+              ) : (
+                <>
+                  <Filter className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+                  <span>Quick Filter</span>
+                  <span className="text-[8.5px] font-bold text-slate-500 dark:text-slate-400">Hide DC</span>
+                  {dischargedCount > 0 && (
+                    <span className="bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-1.5 py-0.5 rounded text-[8px] font-mono font-bold">{dischargedCount} DC</span>
+                  )}
+                </>
+              )}
+            </button>
             {canManageRecords && (
               <button 
                 onClick={() => { setEditingPatient(null); setIsModalOpen(true); }}
@@ -1895,6 +1965,19 @@ const PatientTable: React.FC = () => {
             )}
             Records Fetched: <span className="text-emerald-950 font-black text-[11px] px-1.5 py-0.5 bg-emerald-200/60 rounded ml-0.5">{isFetchingFilter ? '...' : sortedAndFiltered.length}</span>
           </div>
+          {hideDischarged && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-800 rounded-full border border-emerald-200 shadow-2xs animate-in fade-in">
+              <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
+              <span className="text-[8.5px] font-black uppercase tracking-wider">DC Hidden ({activeCount} Active)</span>
+              <button 
+                onClick={() => setHideDischarged(false)} 
+                className="text-emerald-700 hover:text-emerald-950 ml-1 p-0.5 rounded-full hover:bg-emerald-200/60 cursor-pointer"
+                title="Show Discharged Records"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          )}
           {isFilterActive && (
             <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full border border-blue-200">
                <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse" />
@@ -2061,6 +2144,20 @@ const PatientTable: React.FC = () => {
                   <th className="px-2 py-1.5 bg-slate-100 border-b border-slate-200"></th>
                   <th className="px-2 py-1.5 bg-slate-100 border-b border-slate-200"></th>
                   <th className="px-2 py-1.5 bg-slate-100 border-b border-slate-200"></th>
+                  <th className="px-2 py-1.5 bg-slate-100 border-b border-slate-200 text-center">
+                    <button
+                      type="button"
+                      onClick={toggleHideDischarged}
+                      className={`inline-flex items-center justify-center gap-1 px-2 py-0.5 rounded text-[8px] font-black uppercase transition-all cursor-pointer border ${
+                        hideDischarged
+                          ? 'bg-emerald-600 text-white border-emerald-700 shadow-2xs'
+                          : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+                      }`}
+                      title={hideDischarged ? "Active Admissions Only (Click to show DC records)" : "Quick Filter: Hide Discharged (DC)"}
+                    >
+                      {hideDischarged ? 'DC Hidden' : 'Hide DC'}
+                    </button>
+                  </th>
                   <th className="px-2 py-1.5 bg-slate-100 border-b border-slate-200"></th>
                   <th className="px-2 py-1.5 bg-slate-100 border-b border-slate-200 text-right"></th>
                 </tr>
@@ -2139,13 +2236,20 @@ const PatientTable: React.FC = () => {
                             </span>
                           ) : (
                             <div className="flex flex-col items-center gap-0.5">
-                              {(p.transferStatus && p.transferStatus !== 'Active (In-Unit)' && p.transferStatus !== 'In-Unit (Active)') || (p.shiftTo && p.shiftTo !== 'In-Unit (Active)') ? (
-                                <span className={`px-1.5 py-0.5 rounded text-[7.5px] font-black uppercase border leading-none ${
-                                  TRANSFER_DISCHARGE_COLORS[p.transferStatus || p.shiftTo || ''] || 'bg-slate-100 text-slate-700 border-slate-200'
-                                }`}>
-                                  {p.transferStatus || p.shiftTo}
-                                </span>
-                              ) : null}
+                              {(() => {
+                                const raw = p.transferStatus || p.shiftTo;
+                                if (!raw || raw === 'Active (In-Unit)' || raw === 'In-Unit (Active)') {
+                                  return null;
+                                }
+                                const label = (raw === 'Discharged (DC)' || raw === 'Discharge Home') ? 'DC' : raw;
+                                return (
+                                  <span className={`px-1.5 py-0.5 rounded text-[7.5px] font-black uppercase border leading-none ${
+                                    TRANSFER_DISCHARGE_COLORS[label] || TRANSFER_DISCHARGE_COLORS[raw] || 'bg-slate-100 text-slate-700 border-slate-200'
+                                  }`}>
+                                    {label}
+                                  </span>
+                                );
+                              })()}
                               {p.dischargeDate ? (
                                 <span className="font-mono text-slate-500 text-[9px] font-bold">
                                   {formatDate(p.dischargeDate)}

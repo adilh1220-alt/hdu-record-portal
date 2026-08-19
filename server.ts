@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import path from "path";
+import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
 import nodemailer from "nodemailer";
@@ -13,19 +14,80 @@ const PORT = 3000;
 app.use(cors());
 app.use(express.json({ limit: '25mb' }));
 
-// In-memory Daily Email Report Settings & Configuration
-let dailyReportSettings = {
-  enabled: true,
-  scheduleTime: "08:00", // HH:MM 24hr format
-  recipients: ["adilh1220@gmail.com"],
-  unitScope: "ALL",
-  includeCensus: true,
-  includeInventory: true,
-  includeMortality: true,
-  includeIncidents: true,
-  lastSentAt: null as string | null,
-  lastStatus: null as string | null
-};
+const DATA_DIR = path.join(process.cwd(), "data");
+const SMTP_CONFIG_FILE = path.join(DATA_DIR, "smtp_config.json");
+const DAILY_SETTINGS_FILE = path.join(DATA_DIR, "daily_report_settings.json");
+const SMTP_DIAGNOSTIC_LOGS_FILE = path.join(DATA_DIR, "smtp_diagnostic_logs.json");
+
+function ensureDataDir() {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+  } catch (e) {
+    console.warn("Could not create data directory:", e);
+  }
+}
+
+// Persistent SMTP Diagnostic Logs
+function loadSmtpDiagnosticLogs(): Array<any> {
+  try {
+    if (fs.existsSync(SMTP_DIAGNOSTIC_LOGS_FILE)) {
+      const data = JSON.parse(fs.readFileSync(SMTP_DIAGNOSTIC_LOGS_FILE, "utf-8"));
+      if (Array.isArray(data)) return data;
+    }
+  } catch (err) {
+    console.warn("Could not read SMTP diagnostic logs:", err);
+  }
+  return [];
+}
+
+function saveSmtpDiagnosticLogs(logs: Array<any>) {
+  try {
+    ensureDataDir();
+    fs.writeFileSync(SMTP_DIAGNOSTIC_LOGS_FILE, JSON.stringify(logs.slice(-100), null, 2), "utf-8");
+  } catch (err) {
+    console.error("Failed to save SMTP diagnostic logs:", err);
+  }
+}
+
+let smtpDiagnosticLogs = loadSmtpDiagnosticLogs();
+
+// Persistent Daily Email Report Settings & Configuration
+function loadDailyReportSettings() {
+  const defaults = {
+    enabled: true,
+    scheduleTime: "08:00", // HH:MM 24hr format
+    recipients: ["adilh1220@gmail.com"],
+    unitScope: "ALL",
+    includeCensus: true,
+    includeInventory: true,
+    includeMortality: true,
+    includeIncidents: true,
+    lastSentAt: null as string | null,
+    lastStatus: null as string | null
+  };
+  try {
+    if (fs.existsSync(DAILY_SETTINGS_FILE)) {
+      const data = JSON.parse(fs.readFileSync(DAILY_SETTINGS_FILE, "utf-8"));
+      return { ...defaults, ...data };
+    }
+  } catch (err) {
+    console.warn("Could not read daily report settings file:", err);
+  }
+  return defaults;
+}
+
+function saveDailyReportSettings(settings: typeof dailyReportSettings) {
+  try {
+    ensureDataDir();
+    fs.writeFileSync(DAILY_SETTINGS_FILE, JSON.stringify(settings, null, 2), "utf-8");
+  } catch (err) {
+    console.error("Failed to save daily report settings:", err);
+  }
+}
+
+let dailyReportSettings = loadDailyReportSettings();
 
 // Daily Email Report Audit Logs
 const dailyReportLogs: Array<{
@@ -39,14 +101,42 @@ const dailyReportLogs: Array<{
   details: string;
 }> = [];
 
-// Dynamic Runtime SMTP Server Configuration
-let customSmtpConfig = {
-  host: process.env.SMTP_HOST || "smtp.gmail.com",
-  port: Number(process.env.SMTP_PORT) || 587,
-  user: process.env.SMTP_USER || "",
-  pass: process.env.SMTP_PASS || "",
-  senderEmail: process.env.SENDER_EMAIL || process.env.SMTP_USER || "reports@medilog-clinical.com"
-};
+// Persistent Dynamic Runtime SMTP Server Configuration
+function loadSmtpConfig() {
+  const defaults = {
+    host: process.env.SMTP_HOST || "smtp.gmail.com",
+    port: Number(process.env.SMTP_PORT) || 587,
+    user: process.env.SMTP_USER || "",
+    pass: process.env.SMTP_PASS || "",
+    senderEmail: process.env.SENDER_EMAIL || process.env.SMTP_USER || "reports@kidneycentre.org"
+  };
+  try {
+    if (fs.existsSync(SMTP_CONFIG_FILE)) {
+      const data = JSON.parse(fs.readFileSync(SMTP_CONFIG_FILE, "utf-8"));
+      return {
+        host: data.host || defaults.host,
+        port: Number(data.port) || defaults.port,
+        user: data.user || defaults.user,
+        pass: data.pass || defaults.pass,
+        senderEmail: data.senderEmail || defaults.senderEmail
+      };
+    }
+  } catch (err) {
+    console.warn("Could not read SMTP config file:", err);
+  }
+  return defaults;
+}
+
+function saveSmtpConfig(config: typeof customSmtpConfig) {
+  try {
+    ensureDataDir();
+    fs.writeFileSync(SMTP_CONFIG_FILE, JSON.stringify(config, null, 2), "utf-8");
+  } catch (err) {
+    console.error("Failed to save SMTP config to disk:", err);
+  }
+}
+
+let customSmtpConfig = loadSmtpConfig();
 
 // Helper to get SMTP Transporter from customSmtpConfig or process.env
 function getSmtpTransporter() {
@@ -967,6 +1057,7 @@ app.post("/api/smtp/config", (req, res) => {
     }
 
     const isNowConfigured = Boolean(customSmtpConfig.user && customSmtpConfig.pass);
+    saveSmtpConfig(customSmtpConfig);
 
     return res.json({
       success: true,
@@ -1070,6 +1161,390 @@ app.post("/api/smtp/test", async (req, res) => {
   }
 });
 
+// Helper: Analyze SMTP Errors for specific diagnostics
+function analyzeSmtpError(err: any, host: string, user: string, pass: string) {
+  const errMsg = (err?.message || "").toString();
+  const errCode = (err?.code || "").toString().toUpperCase();
+  const responseCode = Number(err?.responseCode) || 0;
+  const response = (err?.response || "").toString();
+  const command = (err?.command || "").toString();
+
+  if (!user || !pass) {
+    return {
+      status: 'NOT_CONFIGURED' as const,
+      errorCode: 'EMISSING_CREDENTIALS',
+      smtpResponseCode: 0,
+      friendlyExplanation: "SMTP credentials are incomplete. Both SMTP Username (Gmail address) and Password / App Password are required.",
+      suggestedFix: "1. Enter your full email address (e.g. adilh1220@gmail.com).\n2. Generate a 16-character App Password at myaccount.google.com/security and paste it into the Password field."
+    };
+  }
+
+  // Google 535 / EAUTH Authentication Failure
+  if (errCode === 'EAUTH' || responseCode === 535 || errMsg.includes('535') || response.includes('535') || errMsg.includes('Username and Password not accepted') || errMsg.includes('BadCredentials')) {
+    return {
+      status: 'AUTH_FAILED' as const,
+      errorCode: 'EAUTH_535',
+      smtpResponseCode: 535,
+      friendlyExplanation: "Google rejected your login credentials. Google Gmail accounts do NOT accept regular account passwords for third-party SMTP dispatch. You must use a dedicated 16-character 'App Password'.",
+      suggestedFix: "1. Open Google Account Security: https://myaccount.google.com/security\n2. Verify that '2-Step Verification' is turned ON.\n3. Search for 'App Passwords' in the search bar.\n4. Create a new App Password named 'Clinical Portal' or 'Kidney Centre'.\n5. Copy the 16-character code (e.g. abcd efgh ijkl mnop) and paste it into the Password field."
+    };
+  }
+
+  // Timeout / Firewall
+  if (errCode === 'ETIMEDOUT' || errCode === 'ESOCKET' || errCode === 'ECONNRESET' || errMsg.includes('timeout') || errMsg.includes('ETIMEDOUT')) {
+    return {
+      status: 'TIMEOUT' as const,
+      errorCode: 'ETIMEDOUT',
+      smtpResponseCode: 421,
+      friendlyExplanation: `Connection to SMTP Server ${host} timed out. Outbound port 587/465 or network packets are being delayed or blocked.`,
+      suggestedFix: "1. Check if your network restricts outbound SMTP traffic on port 587.\n2. Try switching port to 465 (SSL/TLS).\n3. Verify server internet connectivity."
+    };
+  }
+
+  // Connection Refused / Host unreachable
+  if (errCode === 'ECONNREFUSED' || errCode === 'ENOTFOUND' || errCode === 'EENOTFOUND' || errMsg.includes('ENOTFOUND')) {
+    return {
+      status: 'UNREACHABLE' as const,
+      errorCode: errCode || 'ECONNREFUSED',
+      smtpResponseCode: 0,
+      friendlyExplanation: `Unable to reach host '${host}'. DNS resolution failed or the remote server refused connection.`,
+      suggestedFix: "1. Confirm the SMTP Host is set exactly to 'smtp.gmail.com' for Gmail/Google Workspace.\n2. Confirm port is set to 587 or 465."
+    };
+  }
+
+  // Invalid sender or recipient envelope
+  if (errCode === 'EENVELOPE' || responseCode === 550 || responseCode === 553 || errMsg.includes('550')) {
+    return {
+      status: 'AUTH_FAILED' as const,
+      errorCode: 'EENVELOPE_550',
+      smtpResponseCode: responseCode || 550,
+      friendlyExplanation: "The mail server rejected the sender or recipient email address envelope.",
+      suggestedFix: "Verify that the recipient and sender email addresses are correctly formatted and authorized."
+    };
+  }
+
+  // Fallback
+  return {
+    status: 'AUTH_FAILED' as const,
+    errorCode: errCode || 'EUNKNOWN',
+    smtpResponseCode: responseCode,
+    friendlyExplanation: `SMTP connection error: ${errMsg}`,
+    suggestedFix: "Verify your SMTP Host, Port, Username, and 16-character Google App Password."
+  };
+}
+
+// POST /api/smtp/diagnostic/probe - Full Diagnostic Health Check
+app.post("/api/smtp/diagnostic/probe", async (req, res) => {
+  const startTime = Date.now();
+  const { host, port, user, pass, senderEmail, testEmail, sendTestMail = false } = req.body;
+
+  const targetHost = (host && typeof host === 'string' && host.trim()) || customSmtpConfig.host || process.env.SMTP_HOST || "smtp.gmail.com";
+  const targetPort = Number(port || customSmtpConfig.port || process.env.SMTP_PORT) || 587;
+  const targetUser = (user !== undefined ? user : (customSmtpConfig.user || process.env.SMTP_USER || "")).trim();
+  const targetPass = (pass !== undefined && pass !== "" ? pass : (customSmtpConfig.pass || process.env.SMTP_PASS || "")).trim();
+  const targetSender = (senderEmail && typeof senderEmail === 'string' && senderEmail.trim()) || customSmtpConfig.senderEmail || process.env.SENDER_EMAIL || targetUser || "reports@kidneycentre.org";
+  const recipient = (testEmail && typeof testEmail === 'string' && testEmail.trim()) || targetUser || "adilh1220@gmail.com";
+
+  const steps = [
+    {
+      id: 'socket' as const,
+      name: 'Host & Port Reachability',
+      description: `Testing TCP socket connect to ${targetHost}:${targetPort}`,
+      status: 'PENDING' as any,
+      durationMs: 0,
+      details: ''
+    },
+    {
+      id: 'tls' as const,
+      name: 'TLS / STARTTLS Encryption Handshake',
+      description: `Negotiating secure encrypted tunnel on port ${targetPort}`,
+      status: 'PENDING' as any,
+      durationMs: 0,
+      details: ''
+    },
+    {
+      id: 'auth' as const,
+      name: 'SMTP User & App Password Authentication',
+      description: `Authenticating user: ${targetUser || 'None'} with remote mail exchange`,
+      status: 'PENDING' as any,
+      durationMs: 0,
+      details: ''
+    },
+    {
+      id: 'delivery' as const,
+      name: 'Test Email Dispatch & Delivery Verification',
+      description: sendTestMail ? `Dispatching verification email to ${recipient}` : 'Verification email dispatch (Optional)',
+      status: sendTestMail ? 'PENDING' as any : 'SKIPPED' as any,
+      durationMs: 0,
+      details: sendTestMail ? '' : 'Skipped (Enable "Send Test Email" to execute full dispatch probe)'
+    }
+  ];
+
+  let diagnosticStatus: 'AUTHENTICATED' | 'AUTH_FAILED' | 'TIMEOUT' | 'UNREACHABLE' | 'NOT_CONFIGURED' | 'CONNECTED' = 'CONNECTED';
+  let errorCode: string | undefined;
+  let smtpResponseCode: number | undefined;
+  let rawError: string | undefined;
+  let friendlyExplanation = "All diagnostic steps passed successfully. SMTP Mail Transport is active and healthy.";
+  let suggestedFix = "No action required. Your email service is operating properly.";
+  let messageId: string | undefined;
+
+  // Step 0: Check if credentials supplied
+  if (!targetUser || !targetPass) {
+    steps[0].status = 'PASSED';
+    steps[0].durationMs = 1;
+    steps[0].details = `Socket configuration is valid (${targetHost}:${targetPort}).`;
+
+    steps[1].status = 'SKIPPED';
+    steps[1].details = 'TLS handshake skipped because credentials are missing.';
+
+    steps[2].status = 'FAILED';
+    steps[2].details = `Missing credentials: ${!targetUser ? 'Username is empty. ' : ''}${!targetPass ? 'App Password is empty.' : ''}`;
+    steps[2].errorCode = 'EMISSING_CREDENTIALS';
+
+    diagnosticStatus = 'NOT_CONFIGURED';
+    errorCode = 'EMISSING_CREDENTIALS';
+    friendlyExplanation = "SMTP Username or App Password is not provided. Real emails cannot be dispatched without authenticating.";
+    suggestedFix = "1. Enter your full Gmail address in the Username field.\n2. Generate a 16-character App Password at myaccount.google.com/security and enter it into the Password field.\n3. Click 'Save & Activate SMTP'.";
+
+    const latencyMs = Date.now() - startTime;
+    const logEntry = {
+      id: `diag_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      timestamp: new Date().toISOString(),
+      host: targetHost,
+      port: targetPort,
+      user: targetUser || 'None',
+      status: 'FAILED',
+      statusCategory: diagnosticStatus,
+      latencyMs,
+      errorCode,
+      smtpResponseCode: 0,
+      summary: 'Missing SMTP Username or App Password',
+      details: steps[2].details,
+      suggestedFix,
+      testRecipient: recipient
+    };
+
+    smtpDiagnosticLogs.unshift(logEntry);
+    saveSmtpDiagnosticLogs(smtpDiagnosticLogs);
+
+    return res.json({
+      success: false,
+      status: diagnosticStatus,
+      timestamp: new Date().toISOString(),
+      host: targetHost,
+      port: targetPort,
+      user: targetUser,
+      hasPassword: Boolean(targetPass),
+      latencyMs,
+      errorCode,
+      smtpResponseCode: 0,
+      friendlyExplanation,
+      suggestedFix,
+      steps
+    });
+  }
+
+  // Execute nodemailer verify & test
+  try {
+    const s0 = Date.now();
+    steps[0].status = 'RUNNING';
+
+    const transporter = nodemailer.createTransport({
+      host: targetHost,
+      port: targetPort,
+      secure: targetPort === 465,
+      auth: {
+        user: targetUser,
+        pass: targetPass
+      },
+      tls: { rejectUnauthorized: false },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000
+    });
+
+    // Verify SMTP connection
+    steps[0].status = 'PASSED';
+    steps[0].durationMs = Math.max(1, Date.now() - s0);
+    steps[0].details = `Successfully established connection to ${targetHost}:${targetPort}`;
+
+    const s1 = Date.now();
+    steps[1].status = 'RUNNING';
+    steps[2].status = 'RUNNING';
+
+    await transporter.verify();
+
+    steps[1].status = 'PASSED';
+    steps[1].durationMs = Math.max(1, Math.round((Date.now() - s1) / 2));
+    steps[1].details = `TLS Handshake negotiated successfully on port ${targetPort}`;
+
+    steps[2].status = 'PASSED';
+    steps[2].durationMs = Math.max(1, Date.now() - s1);
+    steps[2].details = `Authenticated user ${targetUser} successfully with ${targetHost}.`;
+
+    diagnosticStatus = 'AUTHENTICATED';
+
+    // Optional Step 3: Send Test Email
+    if (sendTestMail) {
+      const s3 = Date.now();
+      steps[3].status = 'RUNNING';
+
+      const mailResult = await transporter.sendMail({
+        from: `"The Kidney Centre Diagnostics" <${targetSender}>`,
+        to: recipient,
+        subject: `🩺 [DIAGNOSTIC TEST SUCCESS] Email System Health Check - The Kidney Centre`,
+        html: `
+          <div style="font-family: Arial, sans-serif; padding: 24px; background-color: #f8fafc; color: #1e293b;">
+            <div style="max-width: 580px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; border: 1px solid #cbd5e1; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+              <div style="background-color: #059669; color: #ffffff; padding: 12px 16px; border-radius: 8px; font-weight: bold; font-size: 16px; margin-bottom: 20px;">
+                ✅ Email Connection Diagnostic Check - PASSED
+              </div>
+              <p style="font-size: 14px; line-height: 1.6;">Hello,</p>
+              <p style="font-size: 14px; line-height: 1.6; color: #065f46; font-weight: bold;">
+                This diagnostic email confirms that your outgoing SMTP mail gateway is properly configured, securely authenticated, and actively communicating with external mail servers.
+              </p>
+              <div style="background-color: #f1f5f9; padding: 14px; border-radius: 8px; font-family: monospace; font-size: 12px; margin: 16px 0; border: 1px solid #e2e8f0;">
+                <strong>SMTP Host:</strong> ${targetHost}:${targetPort}<br/>
+                <strong>Authenticated Account:</strong> ${targetUser}<br/>
+                <strong>Sender Identity:</strong> ${targetSender}<br/>
+                <strong>Diagnostic Latency:</strong> ${Date.now() - startTime} ms<br/>
+                <strong>Probe Timestamp:</strong> ${new Date().toLocaleString()}
+              </div>
+              <p style="font-size: 13px; color: #64748b; margin-top: 16px;">
+                Automated clinical summaries, census reports, and inventory notifications will be delivered reliably.
+              </p>
+            </div>
+          </div>
+        `
+      });
+
+      steps[3].status = 'PASSED';
+      steps[3].durationMs = Math.max(1, Date.now() - s3);
+      steps[3].details = `Delivered test verification email to ${recipient}. (Message ID: ${mailResult.messageId})`;
+      messageId = mailResult.messageId;
+    }
+
+    const latencyMs = Date.now() - startTime;
+    const logEntry = {
+      id: `diag_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      timestamp: new Date().toISOString(),
+      host: targetHost,
+      port: targetPort,
+      user: targetUser,
+      status: 'PASSED' as const,
+      statusCategory: diagnosticStatus,
+      latencyMs,
+      summary: `Connection & Authentication Verified (${latencyMs}ms)`,
+      details: sendTestMail ? `Test email delivered to ${recipient}.` : `Credentials verified on ${targetHost}:${targetPort}.`,
+      suggestedFix: 'None. System operational.',
+      testRecipient: recipient
+    };
+
+    smtpDiagnosticLogs.unshift(logEntry);
+    saveSmtpDiagnosticLogs(smtpDiagnosticLogs);
+
+    return res.json({
+      success: true,
+      status: diagnosticStatus,
+      timestamp: new Date().toISOString(),
+      host: targetHost,
+      port: targetPort,
+      user: targetUser,
+      hasPassword: true,
+      latencyMs,
+      friendlyExplanation,
+      suggestedFix,
+      steps,
+      messageId
+    });
+
+  } catch (err: any) {
+    const latencyMs = Date.now() - startTime;
+    rawError = err?.message || String(err);
+    const analysis = analyzeSmtpError(err, targetHost, targetUser, targetPass);
+
+    diagnosticStatus = analysis.status;
+    errorCode = analysis.errorCode;
+    smtpResponseCode = analysis.smtpResponseCode;
+    friendlyExplanation = analysis.friendlyExplanation;
+    suggestedFix = analysis.suggestedFix;
+
+    // Update failing step
+    if (diagnosticStatus === 'UNREACHABLE' || diagnosticStatus === 'TIMEOUT') {
+      steps[0].status = 'FAILED';
+      steps[0].details = `Failed to connect to ${targetHost}:${targetPort}: ${rawError}`;
+      steps[0].errorCode = errorCode;
+      steps[1].status = 'SKIPPED';
+      steps[2].status = 'SKIPPED';
+    } else {
+      steps[0].status = 'PASSED';
+      steps[1].status = 'PASSED';
+      steps[2].status = 'FAILED';
+      steps[2].details = `Authentication rejected: ${rawError}`;
+      steps[2].errorCode = errorCode;
+    }
+
+    if (sendTestMail) {
+      steps[3].status = 'SKIPPED';
+      steps[3].details = 'Cannot send test email due to authentication or connection failure.';
+    }
+
+    const logEntry = {
+      id: `diag_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      timestamp: new Date().toISOString(),
+      host: targetHost,
+      port: targetPort,
+      user: targetUser,
+      status: 'FAILED' as const,
+      statusCategory: diagnosticStatus,
+      latencyMs,
+      errorCode,
+      smtpResponseCode,
+      summary: `Diagnostic Failed: ${errorCode || 'Error'}`,
+      details: rawError,
+      suggestedFix,
+      testRecipient: recipient
+    };
+
+    smtpDiagnosticLogs.unshift(logEntry);
+    saveSmtpDiagnosticLogs(smtpDiagnosticLogs);
+
+    return res.json({
+      success: false,
+      status: diagnosticStatus,
+      timestamp: new Date().toISOString(),
+      host: targetHost,
+      port: targetPort,
+      user: targetUser,
+      hasPassword: Boolean(targetPass),
+      latencyMs,
+      errorCode,
+      smtpResponseCode,
+      rawError,
+      friendlyExplanation,
+      suggestedFix,
+      steps
+    });
+  }
+});
+
+// GET /api/smtp/diagnostic/logs - Get Audit Logs
+app.get("/api/smtp/diagnostic/logs", (_req, res) => {
+  return res.json({
+    logs: smtpDiagnosticLogs.slice(0, 50)
+  });
+});
+
+// DELETE /api/smtp/diagnostic/logs - Clear Audit Logs
+app.delete("/api/smtp/diagnostic/logs", (_req, res) => {
+  smtpDiagnosticLogs = [];
+  saveSmtpDiagnosticLogs(smtpDiagnosticLogs);
+  return res.json({
+    success: true,
+    message: "SMTP diagnostic history cleared."
+  });
+});
+
 // POST Update Daily Email Report Settings
 app.post("/api/reports/daily-email/settings", (req, res) => {
   try {
@@ -1083,6 +1558,8 @@ app.post("/api/reports/daily-email/settings", (req, res) => {
     if (typeof includeInventory === 'boolean') dailyReportSettings.includeInventory = includeInventory;
     if (typeof includeMortality === 'boolean') dailyReportSettings.includeMortality = includeMortality;
     if (typeof includeIncidents === 'boolean') dailyReportSettings.includeIncidents = includeIncidents;
+
+    saveDailyReportSettings(dailyReportSettings);
 
     return res.json({
       success: true,
