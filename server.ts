@@ -15,9 +15,13 @@ app.use(cors());
 app.use(express.json({ limit: '25mb' }));
 
 const DATA_DIR = path.join(process.cwd(), "data");
+const TMP_DIR = "/tmp";
 const SMTP_CONFIG_FILE = path.join(DATA_DIR, "smtp_config.json");
+const SMTP_CONFIG_TMP_FILE = path.join(TMP_DIR, "medilog_smtp_config.json");
 const DAILY_SETTINGS_FILE = path.join(DATA_DIR, "daily_report_settings.json");
+const DAILY_SETTINGS_TMP_FILE = path.join(TMP_DIR, "medilog_daily_report_settings.json");
 const SMTP_DIAGNOSTIC_LOGS_FILE = path.join(DATA_DIR, "smtp_diagnostic_logs.json");
+const SMTP_DIAGNOSTIC_LOGS_TMP_FILE = path.join(TMP_DIR, "medilog_smtp_diagnostic_logs.json");
 
 function ensureDataDir() {
   try {
@@ -25,29 +29,37 @@ function ensureDataDir() {
       fs.mkdirSync(DATA_DIR, { recursive: true });
     }
   } catch (e) {
-    console.warn("Could not create data directory:", e);
+    // Non-fatal, /tmp fallback will be used
   }
 }
 
 // Persistent SMTP Diagnostic Logs
 function loadSmtpDiagnosticLogs(): Array<any> {
   try {
-    if (fs.existsSync(SMTP_DIAGNOSTIC_LOGS_FILE)) {
+    if (fs.existsSync(SMTP_CONFIG_FILE)) {
       const data = JSON.parse(fs.readFileSync(SMTP_DIAGNOSTIC_LOGS_FILE, "utf-8"));
+      if (Array.isArray(data)) return data;
+    } else if (fs.existsSync(SMTP_DIAGNOSTIC_LOGS_TMP_FILE)) {
+      const data = JSON.parse(fs.readFileSync(SMTP_DIAGNOSTIC_LOGS_TMP_FILE, "utf-8"));
       if (Array.isArray(data)) return data;
     }
   } catch (err) {
-    console.warn("Could not read SMTP diagnostic logs:", err);
+    // fallback
   }
   return [];
 }
 
 function saveSmtpDiagnosticLogs(logs: Array<any>) {
+  const content = JSON.stringify(logs.slice(-100), null, 2);
   try {
     ensureDataDir();
-    fs.writeFileSync(SMTP_DIAGNOSTIC_LOGS_FILE, JSON.stringify(logs.slice(-100), null, 2), "utf-8");
+    fs.writeFileSync(SMTP_DIAGNOSTIC_LOGS_FILE, content, "utf-8");
   } catch (err) {
-    console.error("Failed to save SMTP diagnostic logs:", err);
+    try {
+      fs.writeFileSync(SMTP_DIAGNOSTIC_LOGS_TMP_FILE, content, "utf-8");
+    } catch (tmpErr) {
+      // memory only
+    }
   }
 }
 
@@ -71,6 +83,9 @@ function loadDailyReportSettings() {
     if (fs.existsSync(DAILY_SETTINGS_FILE)) {
       const data = JSON.parse(fs.readFileSync(DAILY_SETTINGS_FILE, "utf-8"));
       return { ...defaults, ...data };
+    } else if (fs.existsSync(DAILY_SETTINGS_TMP_FILE)) {
+      const data = JSON.parse(fs.readFileSync(DAILY_SETTINGS_TMP_FILE, "utf-8"));
+      return { ...defaults, ...data };
     }
   } catch (err) {
     console.warn("Could not read daily report settings file:", err);
@@ -79,11 +94,16 @@ function loadDailyReportSettings() {
 }
 
 function saveDailyReportSettings(settings: typeof dailyReportSettings) {
+  const content = JSON.stringify(settings, null, 2);
   try {
     ensureDataDir();
-    fs.writeFileSync(DAILY_SETTINGS_FILE, JSON.stringify(settings, null, 2), "utf-8");
+    fs.writeFileSync(DAILY_SETTINGS_FILE, content, "utf-8");
   } catch (err) {
-    console.error("Failed to save daily report settings:", err);
+    try {
+      fs.writeFileSync(DAILY_SETTINGS_TMP_FILE, content, "utf-8");
+    } catch (tmpErr) {
+      // in memory
+    }
   }
 }
 
@@ -120,6 +140,15 @@ function loadSmtpConfig() {
         pass: data.pass || defaults.pass,
         senderEmail: data.senderEmail || defaults.senderEmail
       };
+    } else if (fs.existsSync(SMTP_CONFIG_TMP_FILE)) {
+      const data = JSON.parse(fs.readFileSync(SMTP_CONFIG_TMP_FILE, "utf-8"));
+      return {
+        host: data.host || defaults.host,
+        port: Number(data.port) || defaults.port,
+        user: data.user || defaults.user,
+        pass: data.pass || defaults.pass,
+        senderEmail: data.senderEmail || defaults.senderEmail
+      };
     }
   } catch (err) {
     console.warn("Could not read SMTP config file:", err);
@@ -128,11 +157,16 @@ function loadSmtpConfig() {
 }
 
 function saveSmtpConfig(config: typeof customSmtpConfig) {
+  const content = JSON.stringify(config, null, 2);
   try {
     ensureDataDir();
-    fs.writeFileSync(SMTP_CONFIG_FILE, JSON.stringify(config, null, 2), "utf-8");
+    fs.writeFileSync(SMTP_CONFIG_FILE, content, "utf-8");
   } catch (err) {
-    console.error("Failed to save SMTP config to disk:", err);
+    try {
+      fs.writeFileSync(SMTP_CONFIG_TMP_FILE, content, "utf-8");
+    } catch (tmpErr) {
+      console.warn("Failed to write to tmp file:", tmpErr);
+    }
   }
 }
 
@@ -1245,36 +1279,44 @@ app.post("/api/smtp/diagnostic/probe", async (req, res) => {
   const targetSender = (senderEmail && typeof senderEmail === 'string' && senderEmail.trim()) || customSmtpConfig.senderEmail || process.env.SENDER_EMAIL || targetUser || "reports@kidneycentre.org";
   const recipient = (testEmail && typeof testEmail === 'string' && testEmail.trim()) || targetUser || "adilh1220@gmail.com";
 
-  const steps = [
+  const steps: Array<{
+    id: 'socket' | 'tls' | 'auth' | 'delivery';
+    name: string;
+    description: string;
+    status: 'PASSED' | 'FAILED' | 'SKIPPED' | 'PENDING' | 'RUNNING';
+    durationMs: number;
+    details: string;
+    errorCode?: string;
+  }> = [
     {
-      id: 'socket' as const,
+      id: 'socket',
       name: 'Host & Port Reachability',
       description: `Testing TCP socket connect to ${targetHost}:${targetPort}`,
-      status: 'PENDING' as any,
+      status: 'PENDING',
       durationMs: 0,
       details: ''
     },
     {
-      id: 'tls' as const,
+      id: 'tls',
       name: 'TLS / STARTTLS Encryption Handshake',
       description: `Negotiating secure encrypted tunnel on port ${targetPort}`,
-      status: 'PENDING' as any,
+      status: 'PENDING',
       durationMs: 0,
       details: ''
     },
     {
-      id: 'auth' as const,
+      id: 'auth',
       name: 'SMTP User & App Password Authentication',
       description: `Authenticating user: ${targetUser || 'None'} with remote mail exchange`,
-      status: 'PENDING' as any,
+      status: 'PENDING',
       durationMs: 0,
       details: ''
     },
     {
-      id: 'delivery' as const,
+      id: 'delivery',
       name: 'Test Email Dispatch & Delivery Verification',
       description: sendTestMail ? `Dispatching verification email to ${recipient}` : 'Verification email dispatch (Optional)',
-      status: sendTestMail ? 'PENDING' as any : 'SKIPPED' as any,
+      status: sendTestMail ? 'PENDING' : 'SKIPPED',
       durationMs: 0,
       details: sendTestMail ? '' : 'Skipped (Enable "Send Test Email" to execute full dispatch probe)'
     }

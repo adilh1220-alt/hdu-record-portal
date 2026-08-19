@@ -1,4 +1,9 @@
 import { DailyEmailReportSettings, DailyReportLog, Patient, InventoryItem, ClinicalUnit } from '../types';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { db, safeFirestoreWrite } from './firebaseConfig';
+
+const LOCAL_SMTP_KEY = 'medilog_smtp_config_v2';
+const LOCAL_SETTINGS_KEY = 'medilog_daily_report_settings_v2';
 
 export const dailyReportService = {
   // Fetch current schedule settings & SMTP configuration status
@@ -12,49 +17,98 @@ export const dailyReportService = {
       isConfigured: boolean;
     };
   }> => {
+    let serverSettings: any = null;
     try {
       const res = await fetch('/api/reports/daily-email/settings');
-      if (!res.ok) throw new Error('Failed to fetch daily report settings');
-      return await res.json();
+      if (res.ok) {
+        serverSettings = await res.json();
+      }
     } catch (err) {
-      console.warn('Error fetching settings, falling back to defaults:', err);
-      return {
-        settings: {
-          enabled: true,
-          scheduleTime: '08:00',
-          recipients: ['authorized.personnel@kidneycentre.org'],
-          unitScope: 'ALL',
-          includeCensus: true,
-          includeInventory: true,
-          includeMortality: true,
-          includeIncidents: true,
-          lastSentAt: null,
-          lastStatus: null
-        },
-        smtpConfig: {
-          host: 'smtp.gmail.com',
-          port: 587,
-          user: 'Not Configured',
-          senderEmail: 'reports@kidneycentre.org',
-          isConfigured: false
-        }
-      };
+      console.warn('Server fetch settings failed:', err);
     }
+
+    // Try loading local cached settings as fallback
+    let localSavedSettings: any = null;
+    try {
+      const cached = localStorage.getItem(LOCAL_SETTINGS_KEY);
+      if (cached) localSavedSettings = JSON.parse(cached);
+    } catch (e) {}
+
+    // Try loading Firestore settings
+    let firestoreSettings: any = null;
+    try {
+      const snap = await getDoc(doc(db, 'system_config', 'daily_report_settings'));
+      if (snap.exists()) {
+        firestoreSettings = snap.data();
+      }
+    } catch (e) {}
+
+    const mergedSettings: DailyEmailReportSettings = {
+      enabled: true,
+      scheduleTime: '08:00',
+      recipients: ['adilh1220@gmail.com'],
+      unitScope: 'ALL',
+      includeCensus: true,
+      includeInventory: true,
+      includeMortality: true,
+      includeIncidents: true,
+      lastSentAt: null,
+      lastStatus: null,
+      ...(serverSettings?.settings || {}),
+      ...(firestoreSettings || {}),
+      ...(localSavedSettings || {})
+    };
+
+    return {
+      settings: mergedSettings,
+      smtpConfig: serverSettings?.smtpConfig || {
+        host: 'smtp.gmail.com',
+        port: 587,
+        user: 'Not Configured',
+        senderEmail: 'reports@kidneycentre.org',
+        isConfigured: false
+      }
+    };
   },
 
   // Save schedule & recipient configuration
   updateSettings: async (settings: Partial<DailyEmailReportSettings>): Promise<DailyEmailReportSettings> => {
-    const res = await fetch('/api/reports/daily-email/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(settings)
-    });
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.error || 'Failed to update daily email report settings');
+    // 1. Save to LocalStorage immediately
+    try {
+      const current = localStorage.getItem(LOCAL_SETTINGS_KEY);
+      const parsed = current ? JSON.parse(current) : {};
+      const updated = { ...parsed, ...settings };
+      localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify(updated));
+    } catch (e) {}
+
+    // 2. Save to Firestore
+    try {
+      await safeFirestoreWrite(() => 
+        setDoc(doc(db, 'system_config', 'daily_report_settings'), {
+          ...settings,
+          updatedAt: new Date().toISOString()
+        }, { merge: true })
+      );
+    } catch (e) {
+      console.warn('Firestore settings write warning:', e);
     }
-    const data = await res.json();
-    return data.settings;
+
+    // 3. Save to Server
+    try {
+      const res = await fetch('/api/reports/daily-email/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data.settings;
+      }
+    } catch (e) {
+      console.warn('Server settings update warning:', e);
+    }
+
+    return settings as DailyEmailReportSettings;
   },
 
   // Fetch execution audit logs
@@ -129,21 +183,73 @@ export const dailyReportService = {
     senderEmail: string;
     isConfigured: boolean;
   }> => {
+    let serverConfig: any = null;
     try {
       const res = await fetch('/api/smtp/config');
-      if (!res.ok) throw new Error('Failed to fetch SMTP configuration');
-      return await res.json();
+      if (res.ok) {
+        serverConfig = await res.json();
+      }
     } catch (err) {
-      console.warn('Error fetching SMTP config, falling back to default:', err);
-      return {
-        host: 'smtp.gmail.com',
-        port: 587,
-        user: '',
-        hasPassword: false,
-        senderEmail: 'reports@kidneycentre.org',
-        isConfigured: false
-      };
+      console.warn('Server fetch SMTP config failed:', err);
     }
+
+    // Try loading local cached config
+    let localConfig: any = null;
+    try {
+      const cached = localStorage.getItem(LOCAL_SMTP_KEY);
+      if (cached) localConfig = JSON.parse(cached);
+    } catch (e) {}
+
+    // Try loading Firestore config
+    let firestoreConfig: any = null;
+    try {
+      const snap = await getDoc(doc(db, 'system_config', 'smtp_settings'));
+      if (snap.exists()) {
+        firestoreConfig = snap.data();
+      }
+    } catch (e) {}
+
+    const isServerActive = Boolean(serverConfig?.isConfigured);
+    const hasLocalCreds = Boolean(localConfig?.user && localConfig?.pass);
+
+    // If server is not active or restarted, but local cache has credentials, auto-resync to server
+    if (!isServerActive && hasLocalCreds) {
+      try {
+        const syncRes = await fetch('/api/smtp/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            host: localConfig.host || 'smtp.gmail.com',
+            port: Number(localConfig.port) || 587,
+            user: localConfig.user,
+            pass: localConfig.pass,
+            senderEmail: localConfig.senderEmail || localConfig.user
+          })
+        });
+        if (syncRes.ok) {
+          const syncData = await syncRes.json();
+          return syncData.smtpConfig;
+        }
+      } catch (syncErr) {
+        console.warn('Auto-resync to server failed:', syncErr);
+      }
+    }
+
+    const host = serverConfig?.host || firestoreConfig?.host || localConfig?.host || 'smtp.gmail.com';
+    const port = Number(serverConfig?.port || firestoreConfig?.port || localConfig?.port) || 587;
+    const user = serverConfig?.user || firestoreConfig?.user || localConfig?.user || '';
+    const hasPassword = Boolean(serverConfig?.hasPassword || (localConfig?.pass && localConfig?.pass.length > 0));
+    const senderEmail = serverConfig?.senderEmail || firestoreConfig?.senderEmail || localConfig?.senderEmail || user || 'reports@kidneycentre.org';
+    const isConfigured = Boolean(serverConfig?.isConfigured || (user && hasPassword));
+
+    return {
+      host,
+      port,
+      user,
+      hasPassword,
+      senderEmail,
+      isConfigured
+    };
   },
 
   // Save SMTP server config
@@ -154,6 +260,40 @@ export const dailyReportService = {
     pass?: string;
     senderEmail?: string;
   }) => {
+    // 1. Save to LocalStorage immediately
+    try {
+      const existing = localStorage.getItem(LOCAL_SMTP_KEY);
+      const parsed = existing ? JSON.parse(existing) : {};
+      const updated = {
+        host: params.host || parsed.host || 'smtp.gmail.com',
+        port: params.port || parsed.port || 587,
+        user: params.user || parsed.user || '',
+        pass: params.pass !== undefined && params.pass !== '' ? params.pass : parsed.pass,
+        senderEmail: params.senderEmail || parsed.senderEmail || params.user,
+        savedAt: new Date().toISOString()
+      };
+      localStorage.setItem(LOCAL_SMTP_KEY, JSON.stringify(updated));
+    } catch (e) {
+      console.warn('LocalStorage SMTP write warning:', e);
+    }
+
+    // 2. Save non-sensitive metadata to Firestore
+    try {
+      await safeFirestoreWrite(() => 
+        setDoc(doc(db, 'system_config', 'smtp_settings'), {
+          host: params.host,
+          port: params.port,
+          user: params.user,
+          senderEmail: params.senderEmail || params.user,
+          isConfigured: true,
+          updatedAt: new Date().toISOString()
+        }, { merge: true })
+      );
+    } catch (e) {
+      console.warn('Firestore SMTP metadata write warning:', e);
+    }
+
+    // 3. Save to Server
     const res = await fetch('/api/smtp/config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -161,7 +301,7 @@ export const dailyReportService = {
     });
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.error || 'Failed to save SMTP configuration');
+      throw new Error(errData.error || 'Failed to save SMTP configuration on server');
     }
     return await res.json();
   },

@@ -13,6 +13,7 @@ import { DailyEmailReportModal } from './DailyEmailReportModal';
 import { MonthlyDepartmentReportSchedulerModal } from './MonthlyDepartmentReportSchedulerModal';
 import { EmailConnectionDiagnosticModal } from './EmailConnectionDiagnosticModal';
 import { SmtpConfigModal } from './SmtpConfigModal';
+import { UnifiedEmailHubModal } from './UnifiedEmailHubModal';
 import { db } from '../services/firebaseConfig';
 import { onSnapshotsInSync } from 'firebase/firestore';
 import { getEffectiveLogoBase64, getLogoSettings, saveLogoSettings, getLogoUrlWithCacheBust } from '../services/pdfService';
@@ -36,6 +37,8 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
   const [isSettingsOpen, setSettingsOpen] = useState(false);
   const [isShortcutsOpen, setShortcutsOpen] = useState(false);
   const [isHeaderLogoOpen, setHeaderLogoOpen] = useState(false);
+  const [isEmailHubOpen, setIsEmailHubOpen] = useState(false);
+  const [emailHubInitialTab, setEmailHubInitialTab] = useState<'daily' | 'monthly' | 'smtp' | 'diagnostics' | 'templates'>('daily');
   const [isDailyEmailOpen, setIsDailyEmailOpen] = useState(false);
   const [isMonthlyEmailOpen, setIsMonthlyEmailOpen] = useState(false);
   const [isMessageTemplatesOpen, setIsMessageTemplatesOpen] = useState(false);
@@ -535,15 +538,16 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
               {isSidebarOpen && <span className="font-semibold text-xs tracking-tight whitespace-nowrap">Header Logo Settings</span>}
             </button>
 
-            {/* Automated Daily Email Report Button */}
+            {/* Unified Automated Email & Report Hub Button */}
             <button
               onClick={() => {
-                setIsDailyEmailOpen(true);
+                setEmailHubInitialTab('daily');
+                setIsEmailHubOpen(true);
                 if (typeof window !== 'undefined' && window.innerWidth < 768) {
                   setSidebarOpen(false);
                 }
               }}
-              title="Automated Daily Email Reports"
+              title="Automated Email & Clinical Report Hub (Daily Census, Monthly Digest, SMTP Setup & Diagnostics)"
               className={`transition-all duration-200 ${
                 isSidebarOpen 
                   ? 'w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl' 
@@ -555,80 +559,11 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
               </div>
-              {isSidebarOpen && <span className="font-semibold text-xs tracking-tight whitespace-nowrap">Daily Email Reports</span>}
-            </button>
-
-            {/* Automated Monthly Department Report Scheduler Button */}
-            <button
-              onClick={() => {
-                setIsMonthlyEmailOpen(true);
-                if (typeof window !== 'undefined' && window.innerWidth < 768) {
-                  setSidebarOpen(false);
-                }
-              }}
-              title="Monthly Department Report Scheduler (Cloud Cron)"
-              className={`transition-all duration-200 ${
-                isSidebarOpen 
-                  ? 'w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl' 
-                  : 'w-12 h-12 mx-auto flex items-center justify-center rounded-xl p-0 shrink-0'
-              } text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-700 font-semibold`}
-            >
-              <div className="shrink-0 flex items-center justify-center w-6 h-6">
-                <svg className="w-6 h-6 shrink-0 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              </div>
-              {isSidebarOpen && <span className="font-semibold text-xs tracking-tight whitespace-nowrap">Monthly Dept Scheduler</span>}
-            </button>
-
-            {/* Custom Pre-filled Message Templates */}
-            <button
-              onClick={() => {
-                setIsMessageTemplatesOpen(true);
-                if (typeof window !== 'undefined' && window.innerWidth < 768) {
-                  setSidebarOpen(false);
-                }
-              }}
-              title="Custom Message Templates (WhatsApp & Email)"
-              className={`transition-all duration-200 ${
-                isSidebarOpen 
-                  ? 'w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl' 
-                  : 'w-12 h-12 mx-auto flex items-center justify-center rounded-xl p-0 shrink-0'
-              } text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:text-emerald-700 font-semibold`}
-            >
-              <div className="shrink-0 flex items-center justify-center w-6 h-6">
-                <svg className="w-6 h-6 shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                </svg>
-              </div>
-              {isSidebarOpen && <span className="font-semibold text-xs tracking-tight whitespace-nowrap">Message Templates</span>}
-            </button>
-
-            {/* Email Connection Diagnostic Terminal */}
-            <button
-              onClick={() => {
-                setIsEmailDiagnosticOpen(true);
-                if (typeof window !== 'undefined' && window.innerWidth < 768) {
-                  setSidebarOpen(false);
-                }
-              }}
-              title="Email Connection Diagnostic & SMTP Health"
-              className={`transition-all duration-200 ${
-                isSidebarOpen 
-                  ? 'w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl' 
-                  : 'w-12 h-12 mx-auto flex items-center justify-center rounded-xl p-0 shrink-0'
-              } text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-950/30 hover:text-sky-700 font-semibold`}
-            >
-              <div className="shrink-0 flex items-center justify-center w-6 h-6">
-                <svg className="w-6 h-6 shrink-0 text-sky-600 dark:text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-              </div>
               {isSidebarOpen && (
                 <div className="flex items-center justify-between flex-1">
-                  <span className="font-semibold text-xs tracking-tight whitespace-nowrap">Email Diagnostics</span>
-                  <span className="px-1.5 py-0.5 text-[9px] font-bold bg-sky-100 text-sky-700 dark:bg-sky-900/60 dark:text-sky-300 rounded">
-                    SMTP
+                  <span className="font-semibold text-xs tracking-tight whitespace-nowrap">Email & Report Hub</span>
+                  <span className="px-1.5 py-0.5 text-[9px] font-extrabold bg-sky-100 text-sky-700 dark:bg-sky-900/60 dark:text-sky-300 rounded">
+                    ALL-IN-1
                   </span>
                 </div>
               )}
@@ -950,13 +885,26 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
       <SettingsModal 
         isOpen={isSettingsOpen}
         onClose={() => setSettingsOpen(false)}
-        onOpenSmtpConfig={() => setIsSmtpConfigOpen(true)}
+        onOpenSmtpConfig={() => {
+          setEmailHubInitialTab('smtp');
+          setIsEmailHubOpen(true);
+        }}
+      />
+
+      {/* Unified All-in-One Email & Report Hub */}
+      <UnifiedEmailHubModal
+        isOpen={isEmailHubOpen}
+        onClose={() => setIsEmailHubOpen(false)}
+        initialTab={emailHubInitialTab}
       />
 
       <EmailConnectionDiagnosticModal
         isOpen={isEmailDiagnosticOpen}
         onClose={() => setIsEmailDiagnosticOpen(false)}
-        onOpenSmtpConfig={() => setIsSmtpConfigOpen(true)}
+        onOpenSmtpConfig={() => {
+          setEmailHubInitialTab('smtp');
+          setIsEmailHubOpen(true);
+        }}
       />
 
       <SmtpConfigModal
