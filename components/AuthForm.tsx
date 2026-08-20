@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ClipboardList } from 'lucide-react';
+import { ClipboardList, Fingerprint, Shield, Sparkles, KeyRound, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { userService } from '../services/userService';
 import { authService } from '../services/authService';
+import { webAuthnService, WebAuthnSupport } from '../services/webAuthnService';
 import Modal from './Modal';
 
 const AuthForm: React.FC = () => {
@@ -14,6 +15,13 @@ const AuthForm: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [shake, setShake] = useState(false);
   
+  // Biometric States
+  const [biometricSupport, setBiometricSupport] = useState<WebAuthnSupport | null>(null);
+  const [biometricLoading, setBiometricLoading] = useState(false);
+  const [biometricFeedback, setBiometricFeedback] = useState<string | null>(null);
+  const [lastBiometricUser, setLastBiometricUser] = useState<{ email: string; displayName: string; userUid: string; deviceName: string } | null>(null);
+  const [hasEnrolledCreds, setHasEnrolledCreds] = useState(false);
+
   const passwordRef = useRef<HTMLInputElement>(null);
 
   // Reset States
@@ -23,14 +31,36 @@ const AuthForm: React.FC = () => {
   const [resetMessage, setResetMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [showInactivityAlert, setShowInactivityAlert] = useState(false);
 
-  const { login } = useAuth();
+  const { login, loginWithBiometrics } = useAuth();
 
-  // Detect inactivity logout on mount
+  // Detect inactivity logout & check WebAuthn on mount
   useEffect(() => {
     if (localStorage.getItem('hdu_inactivity_logout') === 'true') {
       setShowInactivityAlert(true);
       localStorage.removeItem('hdu_inactivity_logout');
     }
+
+    // Check WebAuthn support and existing enrolled credentials
+    const checkAuthn = async () => {
+      try {
+        const support = await webAuthnService.checkSupport();
+        setBiometricSupport(support);
+
+        const creds = await webAuthnService.getCredentials();
+        setHasEnrolledCreds(creds.length > 0);
+
+        const lastUser = webAuthnService.getLastBiometricUser();
+        if (lastUser) {
+          setLastBiometricUser(lastUser);
+          if (!email) {
+            setEmail(lastUser.email);
+          }
+        }
+      } catch (e) {
+        console.warn('Biometric support check failed:', e);
+      }
+    };
+    checkAuthn();
   }, []);
 
   // Clear error alert after 5 seconds
@@ -40,6 +70,29 @@ const AuthForm: React.FC = () => {
       return () => clearTimeout(timer);
     }
   }, [error]);
+
+  // Handle Biometric Login
+  const handleBiometricLogin = async () => {
+    setError('');
+    setBiometricFeedback('Verifying biometric credential...');
+    setBiometricLoading(true);
+
+    try {
+      const targetEmail = email || lastBiometricUser?.email || undefined;
+      const result = await loginWithBiometrics(targetEmail);
+      
+      setBiometricFeedback(`Welcome back, ${result.userProfile.displayName}!`);
+    } catch (err: any) {
+      console.warn('Biometric login failed:', err);
+      const friendlyMsg = err.message || 'Biometric verification cancelled or unavailable.';
+      setError(friendlyMsg);
+      setShake(true);
+      setTimeout(() => setShake(false), 500);
+    } finally {
+      setBiometricLoading(false);
+      setBiometricFeedback(null);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -159,6 +212,80 @@ const AuthForm: React.FC = () => {
                 <p className="text-[11px] font-semibold text-amber-700 mt-1 leading-relaxed">
                   You were automatically signed out after 15 minutes of inactivity for compliance and patient-data security.
                 </p>
+              </div>
+            </div>
+          )}
+
+          {/* Biometric WebAuthn Fast Login Section */}
+          {biometricSupport?.isSupported && (
+            <div className="mb-6 space-y-3">
+              <button
+                type="button"
+                onClick={handleBiometricLogin}
+                disabled={biometricLoading || loading}
+                className={`w-full p-4 rounded-2xl border transition-all duration-200 flex items-center gap-3.5 relative overflow-hidden group cursor-pointer shadow-md active:scale-95 ${
+                  hasEnrolledCreds || lastBiometricUser
+                    ? 'bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white border-slate-700 hover:border-red-500/50 shadow-slate-900/20'
+                    : 'bg-white hover:bg-slate-50 text-slate-800 border-slate-300 hover:border-slate-400'
+                }`}
+              >
+                <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${
+                  hasEnrolledCreds || lastBiometricUser
+                    ? 'bg-gradient-to-br from-red-500 to-rose-600 text-white shadow-md shadow-red-500/30'
+                    : 'bg-slate-100 text-slate-700'
+                }`}>
+                  <Fingerprint className={`w-6 h-6 ${biometricLoading ? 'animate-pulse text-white' : ''}`} />
+                </div>
+
+                <div className="flex-1 text-left min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] font-black uppercase tracking-wider truncate">
+                      {biometricLoading 
+                        ? 'Verifying Biometrics...' 
+                        : lastBiometricUser 
+                          ? `Fast Biometric Sign-In` 
+                          : 'Sign In with Biometrics'
+                      }
+                    </span>
+                    <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${
+                      hasEnrolledCreds || lastBiometricUser
+                        ? 'bg-red-500/20 text-red-300 border border-red-500/30'
+                        : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      WebAuthn
+                    </span>
+                  </div>
+
+                  <p className={`text-[10px] truncate mt-0.5 font-medium ${
+                    hasEnrolledCreds || lastBiometricUser ? 'text-slate-300' : 'text-slate-500'
+                  }`}>
+                    {lastBiometricUser 
+                      ? `${lastBiometricUser.displayName} (${lastBiometricUser.deviceName || biometricSupport.deviceLabel})`
+                      : `${biometricSupport.deviceLabel} • 1-Tap Secure Entry`
+                    }
+                  </p>
+                </div>
+
+                {biometricLoading ? (
+                  <div className="w-5 h-5 border-2 border-red-400/30 border-t-red-500 rounded-full animate-spin shrink-0" />
+                ) : (
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-ping shrink-0" title="Biometric Authenticator Ready" />
+                )}
+              </button>
+
+              {biometricFeedback && (
+                <div className="p-2.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-bold flex items-center gap-2 animate-in fade-in">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{biometricFeedback}</span>
+                </div>
+              )}
+
+              <div className="relative flex py-2 items-center">
+                <div className="flex-grow border-t border-slate-200" />
+                <span className="flex-shrink mx-3 text-[9px] font-black uppercase tracking-widest text-slate-400">
+                  Or use medical password
+                </span>
+                <div className="flex-grow border-t border-slate-200" />
               </div>
             </div>
           )}

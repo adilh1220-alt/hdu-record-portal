@@ -4,6 +4,7 @@ import { EndoscopyRecord, DispatchLog } from '../types';
 import Modal from './Modal';
 import { MessageTemplate, messageTemplateService } from '../services/messageTemplateService';
 import MessageTemplateManagerModal from './MessageTemplateManagerModal';
+import { getSingleEndoscopyReportPDFBlob } from '../services/pdfService';
 
 interface WhatsAppDispatchModalProps {
   isOpen: boolean;
@@ -83,6 +84,8 @@ export const WhatsAppDispatchModal: React.FC<WhatsAppDispatchModalProps> = ({
   const [isTemplateManagerOpen, setIsTemplateManagerOpen] = useState(false);
   const [isEditingMessage, setIsEditingMessage] = useState(false);
   const [copiedText, setCopiedText] = useState(false);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [pdfShareNotice, setPdfShareNotice] = useState<string | null>(null);
 
   const [isSending, setIsSending] = useState(false);
   const [dispatchResult, setDispatchResult] = useState<{
@@ -390,6 +393,59 @@ _This automated message was sent via The Kidney Centre Gateway._`;
     }
   };
 
+  const handleShareDirectPDFWhatsApp = async () => {
+    if (!phoneNumber || !digitsOnly) {
+      alert("Please enter a valid patient phone number.");
+      return;
+    }
+
+    setIsGeneratingPDF(true);
+    setPdfShareNotice(null);
+
+    try {
+      const fileObj = await getSingleEndoscopyReportPDFBlob(record, 'The Kidney Centre Endoscopy Staff');
+
+      // Check if Web Share API with Files is supported (mobile Android Chrome, iOS Safari, etc.)
+      if (typeof navigator !== 'undefined' && navigator.share && navigator.canShare && navigator.canShare({ files: [fileObj.file] })) {
+        try {
+          await navigator.share({
+            files: [fileObj.file],
+            title: `Endoscopy Procedure Report - ${record.name}`,
+            text: effectiveMessage
+          });
+          setPdfShareNotice('Report PDF sent to WhatsApp via device picker!');
+          setTimeout(() => setPdfShareNotice(null), 4500);
+          return;
+        } catch (err: any) {
+          if (err.name === 'AbortError') {
+            return;
+          }
+          console.warn('Native share with file aborted or not available, falling back:', err);
+        }
+      }
+
+      // Fallback for Desktop / WhatsApp Web:
+      // Trigger instant direct download of the PDF so the user has the file immediately ready, then open WhatsApp chat
+      const url = URL.createObjectURL(fileObj.blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileObj.filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      handleOpenWhatsAppDirect();
+      setPdfShareNotice('PDF generated & downloaded! WhatsApp opened — attach the file to your chat.');
+      setTimeout(() => setPdfShareNotice(null), 5500);
+    } catch (err: any) {
+      console.error('Error generating PDF for WhatsApp:', err);
+      handleOpenWhatsAppDirect();
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
+
   const handleOpenWhatsAppDirect = (e?: React.MouseEvent) => {
     if (!phoneNumber || !digitsOnly) {
       if (e) e.preventDefault();
@@ -628,23 +684,55 @@ _This automated message was sent via The Kidney Centre Gateway._`;
               )}
             </div>
 
-            {/* Action Buttons */}
-            <div className="pt-2 flex flex-col sm:flex-row gap-2.5">
+            {/* PDF Share Feedback Banner */}
+            {pdfShareNotice && (
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700 rounded-xl text-xs font-bold text-emerald-800 dark:text-emerald-200 flex items-start gap-2 animate-in fade-in slide-in-from-top-1 duration-200 shadow-sm">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                <p className="leading-snug">{pdfShareNotice}</p>
+              </div>
+            )}
+
+            {/* Primary Direct WhatsApp PDF Action */}
+            <button
+              type="button"
+              onClick={handleShareDirectPDFWhatsApp}
+              disabled={isGeneratingPDF || !phoneNumber}
+              className={`w-full py-3 px-4 text-xs font-black uppercase tracking-wider rounded-xl border flex items-center justify-center gap-2.5 transition-all shadow-md active:scale-95 cursor-pointer ${
+                phoneNumber && digitsOnly
+                  ? 'bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-800 text-white border-emerald-500 shadow-emerald-600/20'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700 cursor-not-allowed pointer-events-none'
+              }`}
+            >
+              {isGeneratingPDF ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                  <span>Preparing & Attaching PDF Report...</span>
+                </>
+              ) : (
+                <>
+                  <FileText className="w-4 h-4 text-white" />
+                  <span>Send PDF Report via WhatsApp (Instant)</span>
+                </>
+              )}
+            </button>
+
+            {/* Secondary Action Buttons */}
+            <div className="pt-1 flex flex-col sm:flex-row gap-2.5">
               <button
                 type="button"
                 onClick={handleSendWhatsApp}
                 disabled={isSending || !phoneNumber}
-                className="flex-1 py-3 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 dark:disabled:bg-slate-800 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-md flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
+                className="flex-1 py-2.5 px-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-50 text-slate-800 dark:text-slate-200 font-bold text-xs uppercase tracking-wider rounded-xl border border-slate-300 dark:border-slate-700 shadow-xs flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
               >
                 {isSending ? (
                   <>
-                    <RefreshCw className="w-4 h-4 animate-spin text-white" />
-                    Executing Cloud Function...
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Executing API...</span>
                   </>
                 ) : (
                   <>
-                    <Send className="w-4 h-4" />
-                    Send via Cloud API
+                    <Send className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Cloud API</span>
                   </>
                 )}
               </button>
@@ -659,14 +747,14 @@ _This automated message was sent via The Kidney Centre Gateway._`;
                     alert("Please enter a valid patient phone number.");
                   }
                 }}
-                className={`flex-1 py-3 px-4 text-xs font-black uppercase tracking-wider rounded-xl border flex items-center justify-center gap-2 transition-all shadow-md ${
+                className={`flex-1 py-2.5 px-3 text-xs font-bold uppercase tracking-wider rounded-xl border flex items-center justify-center gap-1.5 transition-all shadow-xs ${
                   phoneNumber && digitsOnly
                     ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-700 cursor-pointer active:scale-95'
                     : 'bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700 cursor-not-allowed pointer-events-none'
                 }`}
               >
-                <ExternalLink className="w-4 h-4 text-white" />
-                Open Direct WhatsApp
+                <ExternalLink className="w-3.5 h-3.5 text-white" />
+                <span>Open Chat (Text)</span>
               </a>
 
               <a
@@ -679,7 +767,7 @@ _This automated message was sent via The Kidney Centre Gateway._`;
                     alert("Please enter a valid patient phone number.");
                   }
                 }}
-                className={`py-3 px-3 text-xs font-bold uppercase tracking-wider rounded-xl border flex items-center justify-center gap-1.5 transition-all shadow-sm ${
+                className={`py-2.5 px-3 text-xs font-bold uppercase tracking-wider rounded-xl border flex items-center justify-center gap-1 transition-all shadow-xs ${
                   phoneNumber && digitsOnly
                     ? 'bg-slate-800 hover:bg-slate-900 text-emerald-400 border-slate-700 cursor-pointer active:scale-95'
                     : 'bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700 cursor-not-allowed pointer-events-none'
@@ -687,7 +775,7 @@ _This automated message was sent via The Kidney Centre Gateway._`;
                 title="Alternative wa.me direct link"
               >
                 <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
-                wa.me
+                <span>wa.me</span>
               </a>
             </div>
           </div>

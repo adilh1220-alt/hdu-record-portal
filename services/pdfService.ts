@@ -736,7 +736,7 @@ export const exportIncidentsPDF = async (incidents: IncidentRecord[], metadata: 
   });
 };
 
-export const exportPatientSummaryPDF = async (patient: Patient, generatedBy: string) => {
+export const generatePatientSummaryPDFDoc = async (patient: Patient, generatedBy: string): Promise<jsPDF> => {
   const doc = new jsPDF();
 
   // Header Block with Logo
@@ -923,7 +923,20 @@ export const exportPatientSummaryPDF = async (patient: Patient, generatedBy: str
   doc.setTextColor(148, 163, 184);
   doc.text("CONFIDENTIAL CLINICAL DOCUMENT — FOR HEALTHCARE PROFESSIONAL USE ONLY", 105, pageHeight - 12, { align: 'center' });
 
+  return doc;
+};
+
+export const exportPatientSummaryPDF = async (patient: Patient, generatedBy: string) => {
+  const doc = await generatePatientSummaryPDFDoc(patient, generatedBy);
   doc.save(`clinical_summary_${patient.regNo}_${new Date().getTime()}.pdf`);
+};
+
+export const getPatientSummaryPDFBlob = async (patient: Patient, generatedBy: string): Promise<{ blob: Blob; filename: string; file: File; doc: jsPDF }> => {
+  const doc = await generatePatientSummaryPDFDoc(patient, generatedBy);
+  const blob = doc.output('blob');
+  const filename = `clinical_summary_${patient.regNo || 'patient'}_${new Date().getTime()}.pdf`;
+  const file = new File([blob], filename, { type: 'application/pdf' });
+  return { blob, filename, file, doc };
 };
 
 const loadRemoteImageAsDataURL = (url: string): Promise<string> => {
@@ -983,7 +996,7 @@ const loadRemoteImageAsDataURL = (url: string): Promise<string> => {
   });
 };
 
-export const exportSingleEndoscopyReportPDF = async (record: EndoscopyRecord, generatedBy: string, isCompact: boolean = false) => {
+export const generateSingleEndoscopyReportPDFDoc = async (record: EndoscopyRecord, generatedBy: string, isCompact: boolean = false): Promise<jsPDF> => {
   const doc = new jsPDF('p', 'mm', 'a4');
   const pageHeight = doc.internal.pageSize.height;
   const pageWidth = doc.internal.pageSize.width;
@@ -1480,5 +1493,18 @@ export const exportSingleEndoscopyReportPDF = async (record: EndoscopyRecord, ge
   doc.setFont('helvetica', 'normal');
   doc.text("Performing Physician Signature", 44, signY + 4, { align: 'center' });
 
+  return doc;
+};
+
+export const exportSingleEndoscopyReportPDF = async (record: EndoscopyRecord, generatedBy: string, isCompact: boolean = false) => {
+  const doc = await generateSingleEndoscopyReportPDFDoc(record, generatedBy, isCompact);
   doc.save(`endoscopy_procedure_report_${record.regNo}_${record.serialNo}.pdf`);
+};
+
+export const getSingleEndoscopyReportPDFBlob = async (record: EndoscopyRecord, generatedBy: string, isCompact: boolean = false): Promise<{ blob: Blob; filename: string; file: File; doc: jsPDF }> => {
+  const doc = await generateSingleEndoscopyReportPDFDoc(record, generatedBy, isCompact);
+  const blob = doc.output('blob');
+  const filename = `endoscopy_procedure_report_${record.regNo || 'record'}_${record.serialNo || 'doc'}.pdf`;
+  const file = new File([blob], filename, { type: 'application/pdf' });
+  return { blob, filename, file, doc };
 };

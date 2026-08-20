@@ -220,8 +220,7 @@ export const UnifiedEmailHubModal: React.FC<UnifiedEmailHubModalProps> = ({
       const monthlyLogList = await monthlyReportService.getLogs();
       setMonthlyLogs(monthlyLogList);
 
-      // 4. Load Live Clinical Data from Firestore for census & metrics
-      const patientsSnap = await getDocs(collection(db, 'patients'));
+      // 4. Load Live Clinical Data from Firestore for census & metrics (Non-blocking & resilient)
       const activeList: Patient[] = [];
       let admissions = 0;
       let discharges = 0;
@@ -231,18 +230,23 @@ export const UnifiedEmailHubModal: React.FC<UnifiedEmailHubModalProps> = ({
         deptMap[u.key] = { census: 0, admissions: 0, discharges: 0 };
       });
 
-      patientsSnap.forEach(docSnap => {
-        const p = docSnap.data() as Patient;
-        const unit = p.unit || 'HDU';
-        if (!p.status || p.status === 'Active') {
-          activeList.push({ id: docSnap.id, ...p });
-          if (deptMap[unit]) deptMap[unit].census += 1;
-        } else if (p.status === 'Discharged') {
-          discharges += 1;
-          if (deptMap[unit]) deptMap[unit].discharges += 1;
-        }
-        admissions += 1;
-      });
+      try {
+        const patientsSnap = await getDocs(collection(db, 'patients'));
+        patientsSnap.forEach(docSnap => {
+          const p = docSnap.data() as Patient;
+          const unit = p.unit || 'HDU';
+          if (!p.status || p.status === 'Active') {
+            activeList.push({ id: docSnap.id, ...p });
+            if (deptMap[unit]) deptMap[unit].census += 1;
+          } else if (p.status === 'Discharged') {
+            discharges += 1;
+            if (deptMap[unit]) deptMap[unit].discharges += 1;
+          }
+          admissions += 1;
+        });
+      } catch (pErr) {
+        console.warn('Patients fetch warning (offline fallback active):', pErr);
+      }
 
       setActivePatients(activeList);
       setTotalHospitalCensus(activeList.length);
@@ -265,22 +269,30 @@ export const UnifiedEmailHubModal: React.FC<UnifiedEmailHubModalProps> = ({
       setDepartmentMetrics(metricsSummary);
 
       // Inventory Alerts
-      const inventorySnap = await getDocs(collection(db, 'inventory'));
       const lowStock: InventoryItem[] = [];
       let totalInv = 0;
-      inventorySnap.forEach(docSnap => {
-        totalInv++;
-        const item = docSnap.data() as InventoryItem;
-        if (item.quantity <= (item.minThreshold || 5)) {
-          lowStock.push({ id: docSnap.id, ...item });
-        }
-      });
+      try {
+        const inventorySnap = await getDocs(collection(db, 'inventory'));
+        inventorySnap.forEach(docSnap => {
+          totalInv++;
+          const item = docSnap.data() as InventoryItem;
+          if (item.quantity <= (item.minThreshold || 5)) {
+            lowStock.push({ id: docSnap.id, ...item });
+          }
+        });
+      } catch (invErr) {
+        console.warn('Inventory fetch warning:', invErr);
+      }
       setLowStockItems(lowStock);
       setTotalInventoryCount(totalInv);
 
       // Mortality Records
-      const mortalitySnap = await getDocs(collection(db, 'mortality_records'));
-      setMortalityCount24h(mortalitySnap.size);
+      try {
+        const mortalitySnap = await getDocs(collection(db, 'mortality_records'));
+        setMortalityCount24h(mortalitySnap.size);
+      } catch (mortErr) {
+        console.warn('Mortality fetch warning:', mortErr);
+      }
 
     } catch (err: any) {
       console.warn("Notice: Loaded email configuration with fallback values:", err);

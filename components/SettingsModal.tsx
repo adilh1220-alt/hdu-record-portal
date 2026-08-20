@@ -1,14 +1,15 @@
-import React, { useState, memo } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import Modal from './Modal';
 import { authService } from '../services/authService';
 import { useAuth } from '../contexts/AuthContext';
 import EmailConnectionDiagnostic from './EmailConnectionDiagnostic';
-import { Shield, Activity } from 'lucide-react';
+import { Shield, Activity, Fingerprint, Plus, Trash2, CheckCircle2, AlertCircle, Smartphone, Laptop, Key } from 'lucide-react';
+import { webAuthnService, BiometricCredential, WebAuthnSupport } from '../services/webAuthnService';
 
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  initialTab?: 'security' | 'diagnostics';
+  initialTab?: 'security' | 'diagnostics' | 'biometrics';
   onOpenSmtpConfig?: () => void;
 }
 
@@ -72,7 +73,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   initialTab = 'security',
   onOpenSmtpConfig
 }) => {
-  const [activeTab, setActiveTab] = useState<'security' | 'diagnostics'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'security' | 'biometrics' | 'diagnostics'>(initialTab);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -81,7 +82,95 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
-  const { currentUser } = useAuth();
+  
+  // Biometrics Management State
+  const [biometricSupport, setBiometricSupport] = useState<WebAuthnSupport | null>(null);
+  const [enrolledCreds, setEnrolledCreds] = useState<BiometricCredential[]>([]);
+  const [isRegisteringBio, setIsRegisteringBio] = useState(false);
+  const [bioActionMessage, setBioActionMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [customDeviceLabel, setCustomDeviceLabel] = useState('');
+
+  const { currentUser, loginWithBiometrics } = useAuth();
+
+  // Load Biometric status & credentials on open
+  useEffect(() => {
+    if (isOpen) {
+      loadBiometricsData();
+    }
+  }, [isOpen, currentUser]);
+
+  const loadBiometricsData = async () => {
+    try {
+      const support = await webAuthnService.checkSupport();
+      setBiometricSupport(support);
+      if (currentUser?.uid) {
+        const creds = await webAuthnService.getCredentials(currentUser.uid);
+        setEnrolledCreds(creds);
+      }
+    } catch (e) {
+      console.warn('Failed to load biometrics data:', e);
+    }
+  };
+
+  const handleRegisterBiometric = async () => {
+    if (!currentUser) return;
+    setIsRegisteringBio(true);
+    setBioActionMessage(null);
+
+    try {
+      const cred = await webAuthnService.registerBiometricCredential(
+        currentUser, 
+        customDeviceLabel.trim() || undefined
+      );
+      setBioActionMessage({
+        text: `Successfully enrolled [${cred.deviceName}]! You can now use biometric 1-tap sign in.`,
+        type: 'success'
+      });
+      setCustomDeviceLabel('');
+      await loadBiometricsData();
+    } catch (err: any) {
+      setBioActionMessage({
+        text: err.message || 'Failed to register biometric device.',
+        type: 'error'
+      });
+    } finally {
+      setIsRegisteringBio(false);
+    }
+  };
+
+  const handleTestBiometric = async () => {
+    setBioActionMessage(null);
+    try {
+      await loginWithBiometrics(currentUser?.email || undefined);
+      setBioActionMessage({
+        text: 'Biometric verification passed successfully! Authenticator is healthy.',
+        type: 'success'
+      });
+      await loadBiometricsData();
+    } catch (err: any) {
+      setBioActionMessage({
+        text: `Verification test failed: ${err.message}`,
+        type: 'error'
+      });
+    }
+  };
+
+  const handleDeleteBiometric = async (id: string, name: string) => {
+    if (!confirm(`Are you sure you want to remove the biometric authenticator "${name}"?`)) return;
+    try {
+      await webAuthnService.deleteCredential(id);
+      setBioActionMessage({
+        text: `Removed authenticator "${name}".`,
+        type: 'success'
+      });
+      await loadBiometricsData();
+    } catch (err: any) {
+      setBioActionMessage({
+        text: err.message || 'Failed to delete credential.',
+        type: 'error'
+      });
+    }
+  };
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -133,35 +222,48 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
       <div className="space-y-6">
         
         {/* Navigation Tabs */}
-        <div className="flex items-center gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+        <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
           <button
             type="button"
             onClick={() => setActiveTab('security')}
-            className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+            className={`flex-1 py-2 px-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
               activeTab === 'security'
                 ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm border border-slate-200 dark:border-slate-800'
                 : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
             }`}
           >
             <Shield className="w-3.5 h-3.5 text-slate-700 dark:text-slate-300" />
-            Account Security
+            Password
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('biometrics')}
+            className={`flex-1 py-2 px-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+              activeTab === 'biometrics'
+                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm border border-slate-200 dark:border-slate-800'
+                : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+            }`}
+          >
+            <Fingerprint className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+            Biometrics / WebAuthn
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('diagnostics')}
-            className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+            className={`flex-1 py-2 px-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
               activeTab === 'diagnostics'
                 ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm border border-slate-200 dark:border-slate-800'
                 : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
             }`}
           >
             <Activity className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
-            Email Connection Diagnostics
+            Email Diagnostic
           </button>
         </div>
 
-        {activeTab === 'security' ? (
+        {activeTab === 'security' && (
           <div className="space-y-6">
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex items-center justify-between">
               <div>
@@ -169,7 +271,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                 <p className="text-sm font-bold text-slate-800">{currentUser?.email || 'N/A'}</p>
               </div>
               <div className="p-2 bg-slate-200 text-slate-500 rounded-lg">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                <Shield className="w-5 h-5 text-slate-600" />
               </div>
             </div>
 
@@ -251,7 +353,150 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               </p>
             </div>
           </div>
-        ) : (
+        )}
+
+        {activeTab === 'biometrics' && (
+          <div className="space-y-6">
+            {/* Biometric Capability Status Card */}
+            <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white border border-slate-700 shadow-md">
+              <div className="flex items-start gap-3.5">
+                <div className="w-10 h-10 rounded-xl bg-red-500/20 text-red-400 border border-red-500/30 flex items-center justify-center shrink-0">
+                  <Fingerprint className="w-6 h-6" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-xs font-black uppercase tracking-wider text-white">
+                      WebAuthn Biometric Layer
+                    </h4>
+                    <span className="px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      FIDO2 Standard
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 font-medium mt-1 leading-relaxed">
+                    Register your device's biometric sensor (Touch ID, Face ID, Windows Hello, Android Fingerprint) for instant, encrypted 1-tap login into The Kidney Centre portal without typing passwords.
+                  </p>
+                  <div className="mt-3 flex items-center gap-2 text-[10px] font-bold text-slate-400">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>Hardware Sensor: {biometricSupport?.deviceLabel || 'Biometric Authenticator Ready'}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Action Feedback message */}
+            {bioActionMessage && (
+              <div className={`p-3.5 rounded-xl text-xs font-bold flex items-start gap-2.5 animate-in fade-in border ${
+                bioActionMessage.type === 'success' 
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
+                  : 'bg-red-50 text-red-800 border-red-200'
+              }`}>
+                {bioActionMessage.type === 'success' ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                )}
+                <p className="flex-1 leading-snug">{bioActionMessage.text}</p>
+              </div>
+            )}
+
+            {/* Device Enrollment Action */}
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+              <h5 className="text-[10px] font-black text-slate-600 uppercase tracking-widest">
+                Enroll This Terminal / Authenticator
+              </h5>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="text"
+                  placeholder={`Device Label (e.g. ${biometricSupport?.deviceLabel || 'My Laptop'})`}
+                  value={customDeviceLabel}
+                  onChange={(e) => setCustomDeviceLabel(e.target.value)}
+                  className="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-medium outline-none focus:ring-2 focus:ring-red-100"
+                />
+                <button
+                  type="button"
+                  onClick={handleRegisterBiometric}
+                  disabled={isRegisteringBio}
+                  className="py-2.5 px-4 bg-red-600 hover:bg-red-700 disabled:bg-slate-300 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 shrink-0 cursor-pointer"
+                >
+                  {isRegisteringBio ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                      <span>Touch Sensor Now...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4" />
+                      <span>Enroll Sensor</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Enrolled Keys List */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h5 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                  Enrolled Authenticators ({enrolledCreds.length})
+                </h5>
+                {enrolledCreds.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleTestBiometric}
+                    className="text-[10px] font-black text-red-600 hover:text-red-700 uppercase tracking-wider underline cursor-pointer"
+                  >
+                    Test Verification
+                  </button>
+                )}
+              </div>
+
+              {enrolledCreds.length === 0 ? (
+                <div className="p-6 text-center rounded-xl bg-slate-50 border border-dashed border-slate-200">
+                  <Fingerprint className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                  <p className="text-xs font-bold text-slate-500">No biometric passkeys registered for this user yet.</p>
+                  <p className="text-[10px] text-slate-400 mt-1">Click "Enroll Sensor" above to set up Touch ID or Windows Hello.</p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                  {enrolledCreds.map((cred) => (
+                    <div
+                      key={cred.id}
+                      className="p-3 bg-white rounded-xl border border-slate-200 shadow-xs flex items-center justify-between gap-3 hover:border-slate-300 transition-colors"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-8 h-8 rounded-lg bg-red-50 text-red-600 flex items-center justify-center shrink-0">
+                          <Fingerprint className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-xs font-bold text-slate-800 truncate">{cred.deviceName}</p>
+                            <span className="text-[8px] font-black uppercase px-1.5 py-0.2 bg-slate-100 text-slate-500 rounded">
+                              {cred.authenticatorType}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-400 font-medium truncate mt-0.5">
+                            Created: {new Date(cred.createdAt).toLocaleDateString()} {cred.lastUsedAt ? `• Last Used: ${new Date(cred.lastUsedAt).toLocaleDateString()}` : ''}
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteBiometric(cred.id, cred.deviceName)}
+                        className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer shrink-0"
+                        title="Remove authenticator"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'diagnostics' && (
           <div className="max-h-[70vh] overflow-y-auto pr-1">
             <EmailConnectionDiagnostic 
               onOpenSmtpConfig={() => {

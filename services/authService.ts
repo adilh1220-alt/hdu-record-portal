@@ -1,30 +1,24 @@
 
-// Fix: Reverted to named imports for firebase/auth to resolve property access and missing member errors
-// Added @ts-ignore to suppress 'no exported member' errors for modular auth in this environment
-// @ts-ignore
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, signOut, onAuthStateChanged, updatePassword, reauthenticateWithCredential, EmailAuthProvider, User, sendPasswordResetEmail } from 'firebase/auth';
 // @ts-ignore
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db, safeFirestoreWrite } from './firebaseConfig';
+import { activityService } from './activityService';
 
 export const authService = {
   login: async (email: string, pass: string) => {
     try {
-      // Fix: Use named function call directly
       await signInWithEmailAndPassword(auth, email, pass);
     } catch (error: any) {
-      // Propagation of raw error to allow code-based mapping in the UI
       throw error;
     }
   },
 
   signup: async (email: string, pass: string, name: string, role: string, assignedUnit?: string) => {
     try {
-      // Fix: Use named function call directly
       const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
       if (userCredential.user) {
         const user = userCredential.user;
-        // Fix: Use named function call directly
         await updateProfile(user, { displayName: name });
         
         // Create Firestore record for the user
@@ -46,7 +40,6 @@ export const authService = {
 
   logout: async () => {
     try {
-      // Fix: Use named function call directly
       await signOut(auth);
     } catch (error: any) {
       throw new Error("Failed to logout");
@@ -56,7 +49,23 @@ export const authService = {
   sendPasswordReset: async (email: string) => {
     try {
       await sendPasswordResetEmail(auth, email);
+      activityService.logAuthEvent(
+        'PASSWORD_CHANGE',
+        `Password recovery link dispatched to ${email}`,
+        email,
+        'Staff',
+        'INFO',
+        { eventType: 'RESET_DISPATCH' }
+      );
     } catch (error: any) {
+      activityService.logAuthEvent(
+        'AUTH_FAILED',
+        `Password recovery failed for ${email}: ${error.message}`,
+        email,
+        'Unknown',
+        'WARNING',
+        { errorCode: error.code }
+      );
       if (error.code === 'auth/user-not-found') {
         throw new Error("No medical account found with this email address.");
       }
@@ -74,9 +83,25 @@ export const authService = {
       await reauthenticateWithCredential(user, credential);
       
       // 2. Perform the update
-      // Firebase Auth automatically handles secure hashing and salted storage
       await updatePassword(user, newPassword);
+
+      activityService.logAuthEvent(
+        'PASSWORD_CHANGE',
+        `Master password updated successfully for authenticated session ${user.email}`,
+        user.email,
+        'Staff',
+        'SUCCESS',
+        { uid: user.uid }
+      );
     } catch (error: any) {
+      activityService.logAuthEvent(
+        'AUTH_FAILED',
+        `Password update challenge failed for ${user.email}: ${error.message}`,
+        user.email,
+        'Staff',
+        'ERROR',
+        { errorCode: error.code }
+      );
       if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
         throw new Error("Incorrect current password.");
       }
@@ -87,9 +112,7 @@ export const authService = {
     }
   },
 
-  // Fix: Reference User type and function directly
   onAuthStateChanged: (callback: (user: User | null) => void) => {
-    // Fix: Use named function call directly
     return onAuthStateChanged(auth, callback);
   }
 };

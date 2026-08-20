@@ -1,6 +1,7 @@
 import { DailyEmailReportSettings, DailyReportLog, Patient, InventoryItem, ClinicalUnit } from '../types';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, safeFirestoreWrite } from './firebaseConfig';
+import { activityService } from './activityService';
 
 const LOCAL_SMTP_KEY = 'medilog_smtp_config_v2';
 const LOCAL_SETTINGS_KEY = 'medilog_daily_report_settings_v2';
@@ -87,12 +88,17 @@ export const dailyReportService = {
 
   // Save schedule & recipient configuration
   updateSettings: async (settings: Partial<DailyEmailReportSettings>): Promise<DailyEmailReportSettings> => {
+    let localSaved = false;
+    let firestoreSaved = false;
+    let serverSaved = false;
+
     // 1. Save to LocalStorage immediately
     try {
       const current = localStorage.getItem(LOCAL_SETTINGS_KEY);
       const parsed = current ? JSON.parse(current) : {};
       const updated = { ...parsed, ...settings };
       localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify(updated));
+      localSaved = true;
     } catch (e) {}
 
     // 2. Save to Firestore
@@ -103,6 +109,7 @@ export const dailyReportService = {
           updatedAt: new Date().toISOString()
         }, { merge: true })
       );
+      firestoreSaved = true;
     } catch (e) {
       console.warn('Firestore settings write warning:', e);
     }
@@ -115,11 +122,31 @@ export const dailyReportService = {
         body: JSON.stringify(settings)
       });
       if (resp.ok && resp.data?.settings) {
+        serverSaved = true;
+        activityService.logConfigPersistenceEvent(
+          'CONFIG_PERSIST',
+          'daily_report_settings',
+          `Daily email schedule updated: Time=${settings.scheduleTime || '08:00'}, Scope=${settings.unitScope || 'ALL'}. Saved to [LocalStorage: ${localSaved ? 'OK' : 'FAIL'}, Firestore: ${firestoreSaved ? 'OK' : 'FAIL'}, Server: OK].`,
+          'System Administrator',
+          'HYBRID',
+          'SUCCESS',
+          { settings, localSaved, firestoreSaved, serverSaved }
+        );
         return resp.data.settings;
       }
     } catch (e) {
       console.warn('Server settings update warning:', e);
     }
+
+    activityService.logConfigPersistenceEvent(
+      firestoreSaved || localSaved ? 'CONFIG_PERSIST' : 'CONFIG_FAIL',
+      'daily_report_settings',
+      `Daily report settings persistence result: LocalStorage=${localSaved ? 'Saved' : 'Failed'}, Firestore=${firestoreSaved ? 'Saved' : 'Offline/Failed'}, Server=${serverSaved ? 'Saved' : 'Unreachable'}.`,
+      'System Administrator',
+      'HYBRID',
+      firestoreSaved || localSaved ? 'SUCCESS' : 'ERROR',
+      { settings, localSaved, firestoreSaved, serverSaved }
+    );
 
     return settings as DailyEmailReportSettings;
   },
@@ -278,6 +305,10 @@ export const dailyReportService = {
     pass?: string;
     senderEmail?: string;
   }): Promise<{ success: boolean; message: string; smtpConfig?: any }> => {
+    let localSaved = false;
+    let firestoreSaved = false;
+    let serverSaved = false;
+
     // 1. Save to LocalStorage immediately
     try {
       const existing = localStorage.getItem(LOCAL_SMTP_KEY);
@@ -291,6 +322,7 @@ export const dailyReportService = {
         savedAt: new Date().toISOString()
       };
       localStorage.setItem(LOCAL_SMTP_KEY, JSON.stringify(updated));
+      localSaved = true;
     } catch (e) {
       console.warn('LocalStorage SMTP write warning:', e);
     }
@@ -307,6 +339,7 @@ export const dailyReportService = {
           updatedAt: new Date().toISOString()
         }, { merge: true })
       );
+      firestoreSaved = true;
     } catch (e) {
       console.warn('Firestore SMTP metadata write warning:', e);
     }
@@ -320,12 +353,32 @@ export const dailyReportService = {
         body: JSON.stringify(params)
       });
       if (resp.ok && resp.data?.success) {
+        serverSaved = true;
+        activityService.logConfigPersistenceEvent(
+          'CONFIG_PERSIST',
+          'smtp_settings',
+          `SMTP mail credentials updated for user [${params.user}]. Synced to [LocalStorage: ${localSaved ? 'OK' : 'FAIL'}, Firestore: ${firestoreSaved ? 'OK' : 'FAIL'}, Server: OK].`,
+          params.user || 'Admin',
+          'HYBRID',
+          'SUCCESS',
+          { host: params.host, port: params.port, user: params.user, localSaved, firestoreSaved, serverSaved }
+        );
         return resp.data;
       }
       serverResp = resp.data;
     } catch (err) {
       console.warn('Server save warning:', err);
     }
+
+    activityService.logConfigPersistenceEvent(
+      localSaved || firestoreSaved ? 'CONFIG_PERSIST' : 'CONFIG_FAIL',
+      'smtp_settings',
+      `SMTP settings persistence status: LocalStorage=${localSaved ? 'Saved' : 'Failed'}, Firestore=${firestoreSaved ? 'Saved' : 'Offline/Failed'}, Server=${serverSaved ? 'Saved' : 'Unreachable'}.`,
+      params.user || 'Admin',
+      'HYBRID',
+      localSaved || firestoreSaved ? 'SUCCESS' : 'ERROR',
+      { host: params.host, port: params.port, user: params.user, localSaved, firestoreSaved, serverSaved }
+    );
 
     // Return successful response using saved credentials
     return {
