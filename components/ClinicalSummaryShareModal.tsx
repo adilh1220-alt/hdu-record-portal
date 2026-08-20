@@ -195,49 +195,6 @@ export const ClinicalSummaryShareModal: React.FC<ClinicalSummaryShareModalProps>
     window.location.href = mailtoUrl;
   };
 
-  // Native Mobile Share Sheet with PDF Attachment
-  const handleNativeShare = async () => {
-    setIsSharingPDF(true);
-    setShareFeedback(null);
-    try {
-      let fileObj: { blob: Blob; filename: string; file: File } | null = null;
-      if (endoscopy) {
-        fileObj = await getSingleEndoscopyReportPDFBlob(endoscopy, currentDisplayName);
-      } else if (patient) {
-        fileObj = await getPatientSummaryPDFBlob(patient, currentDisplayName);
-      }
-
-      if (fileObj && typeof navigator !== 'undefined' && navigator.share && navigator.canShare && navigator.canShare({ files: [fileObj.file] })) {
-        await navigator.share({
-          files: [fileObj.file],
-          title: subjectText || `Clinical Report - ${patient?.name || endoscopy?.name || 'Patient'}`,
-          text: messageBody
-        });
-        setShareFeedback('Report PDF shared directly via device share sheet!');
-        setTimeout(() => setShareFeedback(null), 4000);
-        return;
-      }
-
-      const origin = typeof window !== 'undefined' ? window.location.origin : '';
-      if (typeof navigator !== 'undefined' && navigator.share) {
-        await navigator.share({
-          title: subjectText || `Clinical Summary - ${patient?.name || endoscopy?.name || 'Patient'}`,
-          text: messageBody,
-          url: origin
-        });
-        return;
-      }
-
-      handleCopyText();
-    } catch (err: any) {
-      if (err.name !== 'AbortError') {
-        handleCopyText();
-      }
-    } finally {
-      setIsSharingPDF(false);
-    }
-  };
-
   // Direct Send WhatsApp with PDF Attached / Direct Flow
   const handleSharePDFWhatsApp = async () => {
     setIsSharingPDF(true);
@@ -478,26 +435,6 @@ export const ClinicalSummaryShareModal: React.FC<ClinicalSummaryShareModalProps>
                   <p className="leading-snug">{shareFeedback}</p>
                 </div>
               )}
-
-              {/* Primary 1-Click Mobile Share Button with direct PDF attachment */}
-              <button
-                type="button"
-                onClick={handleNativeShare}
-                disabled={isSharingPDF}
-                className="w-full bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-800 disabled:opacity-60 text-white py-3.5 px-4 rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-600/20 hover:shadow-emerald-600/30 transition-all flex items-center justify-center gap-2.5 active:scale-[0.98] cursor-pointer"
-              >
-                {isSharingPDF ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Preparing PDF Report...</span>
-                  </>
-                ) : (
-                  <>
-                    <Share2 className="w-4 h-4" />
-                    <span>Share PDF via App / Mobile Sheet</span>
-                  </>
-                )}
-              </button>
 
               {/* WhatsApp Direct Send Section */}
               <div className="bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/80 p-3.5 rounded-2xl space-y-2.5">
