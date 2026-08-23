@@ -6,13 +6,20 @@ import { authService } from '../services/authService';
 import { db } from '../services/firebaseConfig';
 import { syncLogoSettingsFromFirestore } from '../services/pdfService';
 import { activityService } from '../services/activityService';
-import { webAuthnService, BiometricCredential } from '../services/webAuthnService';
+import { webAuthnService, BiometricCredential, WebAuthnSupport } from '../services/webAuthnService';
 
 interface AuthContextType {
   currentUser: AuthUser | null;
   loading: boolean;
+  biometricSupport: WebAuthnSupport | null;
+  biometricLoading: boolean;
+  registeredBiometrics: BiometricCredential[];
   login: (email: string, pass: string) => Promise<void>;
   loginWithBiometrics: (targetEmail?: string) => Promise<{ userProfile: AuthUser; credentialInfo: BiometricCredential }>;
+  registerBiometrics: (targetClinician?: AuthUser, customLabel?: string) => Promise<BiometricCredential>;
+  revokeBiometrics: (credentialId: string) => Promise<void>;
+  refreshBiometricCredentials: () => Promise<BiometricCredential[]>;
+  checkBiometricSupport: () => Promise<WebAuthnSupport>;
   signup: (email: string, pass: string, name: string, role: 'Admin' | 'Consultant' | 'Staff', assignedUnit?: string) => Promise<void>;
   logout: () => Promise<void>;
   isAdmin: boolean;
@@ -24,6 +31,102 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [biometricSupport, setBiometricSupport] = useState<WebAuthnSupport | null>(null);
+  const [biometricLoading, setBiometricLoading] = useState(false);
+  const [registeredBiometrics, setRegisteredBiometrics] = useState<BiometricCredential[]>([]);
+
+  useEffect(() => {
+    // Check WebAuthn support and load credentials on provider mount
+    checkBiometricSupport().catch(() => {});
+    refreshBiometricCredentials().catch(() => {});
+  }, []);
+
+  const checkBiometricSupport = async (): Promise<WebAuthnSupport> => {
+    try {
+      const support = await webAuthnService.checkSupport();
+      setBiometricSupport(support);
+      return support;
+    } catch (e) {
+      const fallback: WebAuthnSupport = {
+        isSupported: false,
+        isPlatformAuthenticatorAvailable: false,
+        deviceLabel: 'WebAuthn Unavailable',
+        authenticatorIcon: 'fingerprint',
+        isInIframe: false
+      };
+      setBiometricSupport(fallback);
+      return fallback;
+    }
+  };
+
+  const refreshBiometricCredentials = async (): Promise<BiometricCredential[]> => {
+    try {
+      const creds = await webAuthnService.getCredentials();
+      setRegisteredBiometrics(creds);
+      return creds;
+    } catch (e) {
+      console.warn('Failed to refresh biometric credentials in AuthContext:', e);
+      return [];
+    }
+  };
+
+  const registerBiometrics = async (targetClinician?: AuthUser, customLabel?: string): Promise<BiometricCredential> => {
+    const userToEnroll = targetClinician || currentUser;
+    if (!userToEnroll) {
+      throw new Error('No clinician user specified for biometric enrollment.');
+    }
+
+    try {
+      setBiometricLoading(true);
+      const enrolled = await webAuthnService.registerBiometricCredential(userToEnroll, customLabel);
+      
+      activityService.logAuthEvent(
+        'BIOMETRIC_ENROLLED',
+        `Biometric passkey [${enrolled.deviceName}] registered for ${userToEnroll.displayName} (${userToEnroll.email}).`,
+        userToEnroll.email || userToEnroll.uid,
+        userToEnroll.role,
+        'SUCCESS',
+        { credentialId: enrolled.id, authenticatorType: enrolled.authenticatorType }
+      ).catch(() => {});
+
+      await refreshBiometricCredentials();
+      return enrolled;
+    } catch (err: any) {
+      activityService.logAuthEvent(
+        'BIOMETRIC_FAILED',
+        `Biometric enrollment failed for ${userToEnroll.email}: ${err.message}`,
+        userToEnroll.email || userToEnroll.uid,
+        userToEnroll.role,
+        'ERROR',
+        { error: err.message }
+      ).catch(() => {});
+      throw err;
+    } finally {
+      setBiometricLoading(false);
+    }
+  };
+
+  const revokeBiometrics = async (credentialId: string): Promise<void> => {
+    try {
+      setBiometricLoading(true);
+      await webAuthnService.deleteCredential(credentialId);
+
+      activityService.logAuthEvent(
+        'BIOMETRIC_REVOKED',
+        `Biometric credential [${credentialId}] revoked.`,
+        currentUser?.email || 'Admin',
+        currentUser?.role || 'Staff',
+        'INFO',
+        { credentialId }
+      ).catch(() => {});
+
+      await refreshBiometricCredentials();
+    } catch (err: any) {
+      throw err;
+    } finally {
+      setBiometricLoading(false);
+    }
+  };
 
   useEffect(() => {
     // Check if there is an existing saved session to prevent flicker
@@ -252,7 +355,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const canManageRecords = isAdmin || currentUser?.role === 'Consultant' || currentUser?.role === 'Staff';
 
   return (
-    <AuthContext.Provider value={{ currentUser, loading, login, loginWithBiometrics, signup, logout, isAdmin, canManageRecords }}>
+    <AuthContext.Provider value={{ 
+      currentUser, 
+      loading, 
+      biometricSupport, 
+      biometricLoading, 
+      registeredBiometrics, 
+      login, 
+      loginWithBiometrics, 
+      registerBiometrics, 
+      revokeBiometrics, 
+      refreshBiometricCredentials, 
+      checkBiometricSupport, 
+      signup, 
+      logout, 
+      isAdmin, 
+      canManageRecords 
+    }}>
       {children}
     </AuthContext.Provider>
   );

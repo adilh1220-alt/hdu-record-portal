@@ -7,6 +7,9 @@ import { exportAccessSlipPDF } from '../services/pdfService';
 import ConfirmModal from '../components/ConfirmModal';
 import Modal from '../components/Modal';
 import { TableSkeleton, LoadingSpinner } from '../components/LoadingSpinner';
+import BiometricConfigPanel from '../components/BiometricConfigPanel';
+import BiometricAuditLogTab from '../components/BiometricAuditLogTab';
+import { webAuthnService } from '../services/webAuthnService';
 import { 
   Share2, 
   Download, 
@@ -23,12 +26,22 @@ import {
   Printer, 
   Sparkles,
   Lock,
-  Smartphone
+  Smartphone,
+  Fingerprint,
+  Shield,
+  KeyRound,
+  UserCheck,
+  UserX,
+  History,
+  Activity
 } from 'lucide-react';
 
 type SortDirection = 'asc' | 'desc';
+type UserManagementTab = 'DIRECTORY' | 'BIOMETRIC_SETUP' | 'BIOMETRIC_LOGS' | 'FACILITY_LOGS';
 
 const UserManagement: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<UserManagementTab>('DIRECTORY');
+  const [activeSideLogTab, setActiveSideLogTab] = useState<'GENERAL' | 'BIOMETRIC'>('GENERAL');
   const [users, setUsers] = useState<AuthUser[]>([]);
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,6 +75,10 @@ const UserManagement: React.FC = () => {
   const [copiedField, setCopiedField] = useState<'password' | 'all' | 'link' | 'txt' | null>(null);
   const [showDirectShareMenu, setShowDirectShareMenu] = useState(false);
 
+  // Biometric states
+  const [selectedBiometricClinicianUid, setSelectedBiometricClinicianUid] = useState<string | null>(null);
+  const [enrolledBiometricUids, setEnrolledBiometricUids] = useState<Set<string>>(new Set());
+
   // Confirmation states
   const [isUpdateConfirmOpen, setUpdateConfirmOpen] = useState(false);
   const [pendingUpdateUser, setPendingUpdateUser] = useState<AuthUser | null>(null);
@@ -70,11 +87,50 @@ const UserManagement: React.FC = () => {
   const [isActivateConfirmOpen, setActivateConfirmOpen] = useState(false);
   const [pendingActivateUid, setPendingActivateUid] = useState<string | null>(null);
 
-  const { currentUser } = useAuth();
+  const { currentUser, registeredBiometrics, refreshBiometricCredentials } = useAuth();
 
   useEffect(() => {
     loadData();
+    refreshBiometricData();
   }, [maxLogs]);
+
+  useEffect(() => {
+    if (registeredBiometrics) {
+      setEnrolledBiometricUids(new Set(registeredBiometrics.map(c => c.userUid)));
+    }
+  }, [registeredBiometrics]);
+
+  const refreshBiometricData = async () => {
+    try {
+      const creds = await refreshBiometricCredentials();
+      setEnrolledBiometricUids(new Set(creds.map(c => c.userUid)));
+    } catch (e) {
+      console.warn('Failed to load biometric credentials list:', e);
+    }
+  };
+
+  const handleBiometricAuditLog = async (action: string, targetUser: string, details: string) => {
+    try {
+      await userService.addAuditLog({
+        action,
+        performedBy: currentUser?.displayName || 'System Admin',
+        targetUser,
+        details
+      });
+      await refreshLogs();
+    } catch (e) {}
+  };
+
+  const handleSelectClinicianForBiometrics = (uid: string) => {
+    setSelectedBiometricClinicianUid(uid);
+    setActiveTab('BIOMETRIC_SETUP');
+    setTimeout(() => {
+      const element = document.getElementById('biometric-configuration-terminal');
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 150);
+  };
 
   const loadData = async () => {
     try {
@@ -399,94 +455,81 @@ const UserManagement: React.FC = () => {
   const ACTION_TYPES = ['ALL', 'User Registered', 'Role Updated', 'User Deactivated', 'User Activated'];
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 max-w-7xl mx-auto pb-12">
+    <div className="space-y-6 animate-in fade-in duration-500 max-w-7xl mx-auto pb-12">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-slate-800 tracking-tight uppercase">Personnel & Access Control</h1>
-          <p className="text-slate-500 text-sm mt-1 font-medium">Configure medical staff accounts and monitor administrative activity</p>
+          <p className="text-slate-500 text-sm mt-1 font-medium">Configure medical staff accounts, biometric passkeys, and monitor authentication security logs</p>
         </div>
       </header>
 
-      <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="bg-slate-50 px-6 py-4 border-b border-slate-200">
-          <h2 className="text-[10px] font-black text-slate-700 uppercase tracking-[0.2em] flex items-center gap-2">
-            <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
-            Account Registration Terminal
-          </h2>
-        </div>
-        <form onSubmit={handleCreateUser} className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <div className="space-y-1">
-            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Legal Full Name</label>
-            <input
-              type="text"
-              required
-              placeholder="e.g. DR. ADAM REED"
-              className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-100 outline-none transition-all text-[11px] font-bold uppercase"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value.toUpperCase())}
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Medical Email</label>
-            <input
-              type="email"
-              required
-              placeholder="personnel@hospital.org"
-              className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-100 outline-none transition-all text-[11px] font-bold"
-              value={newEmail}
-              onChange={(e) => setNewEmail(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Assigned Unit</label>
-            <select
-              className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-100 outline-none transition-all text-[11px] font-black uppercase bg-white cursor-pointer"
-              value={newAssignedUnit}
-              onChange={(e) => setNewAssignedUnit(e.target.value)}
-            >
-              <option value="">No Specific Unit</option>
-              <option value="HDU">High Dependency (HDU)</option>
-              <option value="ICU">Intensive Care (ICU)</option>
-              <option value="TRANSPLANT">Transplant Bay</option>
-              <option value="4th-WARD">Ward</option>
-              <option value="WARD5">5th Floor Ward</option>
-              <option value="ENDOSCOPY">Endoscopy Reporting</option>
-            </select>
-          </div>
-          <div className="space-y-1">
-            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Access Level</label>
-            <div className="flex gap-2">
-              <select
-                className="flex-1 px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-100 outline-none transition-all text-[11px] font-black uppercase bg-white cursor-pointer"
-                value={newRole}
-                onChange={(e) => setNewRole(e.target.value as any)}
-              >
-                <option value="Staff">Staff</option>
-                <option value="Consultant">Consultant</option>
-                <option value="Admin">Admin</option>
-              </select>
-              <button
-                type="submit"
-                disabled={creating || !newName || !newEmail}
-                className={`px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${
-                  creating 
-                    ? 'bg-slate-100 text-slate-400 cursor-wait' 
-                    : (!newName || !newEmail) 
-                      ? 'bg-slate-100 text-slate-300 cursor-not-allowed' 
-                      : 'bg-red-600 text-white hover:bg-red-700 active:scale-95 shadow-lg shadow-red-100'
-                }`}
-              >
-                {creating ? (
-                  <div className="w-4 h-4 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
-                ) : (
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" /></svg>
-                )}
-                <span>Register</span>
-              </button>
-            </div>
-          </div>
-        </form>
-      </section>
+      {/* Top Navigation Tabs */}
+      <div className="flex items-center gap-2 p-1.5 bg-slate-100/90 rounded-2xl border border-slate-200/80 overflow-x-auto no-scrollbar shadow-inner">
+        <button
+          type="button"
+          onClick={() => setActiveTab('DIRECTORY')}
+          className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
+            activeTab === 'DIRECTORY'
+              ? 'bg-white text-slate-900 shadow-sm border border-slate-200/80 ring-1 ring-slate-900/5'
+              : 'text-slate-500 hover:text-slate-800 hover:bg-white/50'
+          }`}
+        >
+          <UserCheck className="w-4 h-4 text-red-600" />
+          <span>Staff Directory</span>
+          <span className="ml-1 px-2 py-0.5 rounded-full text-[9px] bg-slate-100 text-slate-700 font-mono font-bold">
+            {users.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('BIOMETRIC_SETUP')}
+          className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
+            activeTab === 'BIOMETRIC_SETUP'
+              ? 'bg-white text-slate-900 shadow-sm border border-slate-200/80 ring-1 ring-blue-500/20'
+              : 'text-slate-500 hover:text-slate-800 hover:bg-white/50'
+          }`}
+        >
+          <KeyRound className="w-4 h-4 text-blue-600" />
+          <span>Passkeys & Scanner Setup</span>
+          <span className="ml-1 px-2 py-0.5 rounded-full text-[9px] bg-blue-50 text-blue-700 font-mono font-bold">
+            {enrolledBiometricUids.size} Enrolled
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('BIOMETRIC_LOGS')}
+          className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
+            activeTab === 'BIOMETRIC_LOGS'
+              ? 'bg-white text-slate-900 shadow-sm border border-slate-200/80 ring-2 ring-emerald-500/30'
+              : 'text-slate-500 hover:text-slate-800 hover:bg-white/50'
+          }`}
+        >
+          <Fingerprint className="w-4 h-4 text-emerald-600" />
+          <span>Biometric Auth Logs</span>
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[8px] bg-emerald-100 text-emerald-800 font-bold uppercase tracking-tight">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            Live
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('FACILITY_LOGS')}
+          className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
+            activeTab === 'FACILITY_LOGS'
+              ? 'bg-white text-slate-900 shadow-sm border border-slate-200/80 ring-1 ring-slate-900/5'
+              : 'text-slate-500 hover:text-slate-800 hover:bg-white/50'
+          }`}
+        >
+          <Shield className="w-4 h-4 text-slate-600" />
+          <span>Facility Audit Trail</span>
+          <span className="ml-1 px-2 py-0.5 rounded-full text-[9px] bg-slate-100 text-slate-600 font-mono font-bold">
+            {logs.length}
+          </span>
+        </button>
+      </div>
 
       {message && (
         <div className={`p-4 rounded-xl border flex items-center justify-between animate-in slide-in-from-top-2 shadow-sm ${
@@ -508,224 +551,82 @@ const UserManagement: React.FC = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full">
-          <div className="bg-slate-50 px-6 py-5 border-b border-slate-200 flex items-center justify-between">
-            <h2 className="text-[10px] font-black text-slate-700 uppercase tracking-[0.2em]">Medical Staff Directory</h2>
-            <span className="text-[10px] bg-slate-900 text-white px-3 py-1 rounded-full font-black tracking-tighter">
-              FACILITY POOL: {users.length}
-            </span>
-          </div>
-          <div className="overflow-x-auto">
-            {loading ? (
-              <TableSkeleton rows={6} cols={4} />
-            ) : (
-              <table className="w-full text-left">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-black text-slate-500 uppercase tracking-widest select-none">
-                    <th 
-                      className="px-6 py-5 cursor-pointer hover:bg-slate-100 transition-colors group"
-                      onClick={() => handleUserSort('displayName')}
-                    >
-                      <div className="flex items-center">
-                        <span>Staff Identity</span>
-                        <SortIndicator active={userSortConfig.key === 'displayName'} direction={userSortConfig.direction} />
-                      </div>
-                    </th>
-                    <th 
-                      className="px-6 py-5 text-center cursor-pointer hover:bg-slate-100 transition-colors group"
-                      onClick={() => handleUserSort('status')}
-                    >
-                      <div className="flex items-center justify-center">
-                        <span>Status</span>
-                        <SortIndicator active={userSortConfig.key === 'status'} direction={userSortConfig.direction} />
-                      </div>
-                    </th>
-                    <th 
-                      className="px-6 py-5 cursor-pointer hover:bg-slate-100 transition-colors group"
-                      onClick={() => handleUserSort('role')}
-                    >
-                      <div className="flex items-center">
-                        <span>Role</span>
-                        <SortIndicator active={userSortConfig.key === 'role'} direction={userSortConfig.direction} />
-                      </div>
-                    </th>
-                    <th 
-                      className="px-6 py-5 cursor-pointer hover:bg-slate-100 transition-colors group"
-                      onClick={() => handleUserSort('assignedUnit' as any)}
-                    >
-                      <div className="flex items-center">
-                        <span>Assigned Unit</span>
-                        <SortIndicator active={userSortConfig.key === 'assignedUnit' as any} direction={userSortConfig.direction} />
-                      </div>
-                    </th>
-                    <th className="px-6 py-5 text-right bg-slate-50">Operations</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-[11px] font-bold text-slate-700 uppercase">
-                  {sortedUsers.map((user) => (
-                    <tr key={user.uid} className={`hover:bg-slate-50/50 transition-colors group ${user.status === 'Left' ? 'bg-slate-50/30' : ''}`}>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs border ${
-                            user.status === 'Left' ? 'bg-slate-100 text-slate-400 border-slate-200' : 'bg-red-50 text-red-600 border-red-100'
-                          }`}>
-                            {user.displayName?.[0] || '?'}
-                          </div>
-                          <div>
-                            <p className={`font-black tracking-tight ${user.status === 'Left' ? 'text-slate-400' : 'text-slate-900'}`}>{user.displayName}</p>
-                            <p className="text-[9px] text-slate-400 font-bold lowercase italic">{user.email}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex justify-center">
-                          {user.status === 'Left' ? (
-                            <span className="inline-flex items-center gap-1.5 bg-red-50 text-red-700 text-[7px] font-black px-2.5 py-1 rounded-full tracking-widest uppercase border border-red-100">
-                              <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                              DEACTIVATED
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 text-[7px] font-black px-2.5 py-1 rounded-full tracking-widest uppercase border border-emerald-100">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                              ACTIVE
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <select
-                          value={user.role}
-                          disabled={user.status === 'Left' || (user.uid === currentUser?.uid && currentUser?.role === 'Admin')}
-                          onChange={(e) => handleRoleChange(user.uid, e.target.value)}
-                          className={`text-[10px] font-black uppercase border rounded-lg px-3 py-1.5 outline-none transition-all bg-white cursor-pointer ${
-                            (user.status === 'Left' || (user.uid === currentUser?.uid && currentUser?.role === 'Admin')) ? 'border-slate-100 text-slate-400 bg-slate-50 cursor-not-allowed' : 'border-slate-200 focus:ring-2 focus:ring-red-100 hover:border-slate-300'
-                          }`}
-                        >
-                          <option value="Staff">Staff</option>
-                          <option value="Consultant">Consultant</option>
-                          <option value="Admin">Admin</option>
-                        </select>
-                      </td>
-                      <td className="px-6 py-4">
-                        <select
-                          value={user.assignedUnit || ''}
-                          disabled={user.status === 'Left' || (user.uid === currentUser?.uid && currentUser?.role === 'Admin')}
-                          onChange={(e) => handleUnitChange(user.uid, e.target.value)}
-                          className={`text-[10px] font-black uppercase border rounded-lg px-2.5 py-1.5 outline-none transition-all bg-white cursor-pointer ${
-                            (user.status === 'Left' || (user.uid === currentUser?.uid && currentUser?.role === 'Admin')) 
-                              ? 'border-slate-100 text-slate-400 bg-slate-50 cursor-not-allowed' 
-                              : 'border-slate-200 focus:ring-2 focus:ring-red-100 hover:border-slate-300'
-                          }`}
-                        >
-                          <option value="">No Specific Unit</option>
-                          <option value="HDU">HDU</option>
-                          <option value="ICU">ICU</option>
-                          <option value="TRANSPLANT">Transplant Bay</option>
-                          <option value="4th-WARD">Ward</option>
-                          <option value="WARD5">5th Floor Ward</option>
-                          <option value="ENDOSCOPY">Endoscopy Reporting</option>
-                        </select>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end space-x-1 opacity-0 group-hover:opacity-100 transition-all">
-                          <button
-                            onClick={() => generateExistingUserSlip(user)}
-                            className="p-2 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-all active:scale-95"
-                            title="Re-issue Credentials Slip"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                          </button>
-                          
-                          {/* Account Action Buttons */}
-                          {user.status === 'Active' ? (
-                            <>
-                              <button
-                                disabled={updatingId === user.uid || (user.uid === currentUser?.uid && currentUser?.role === 'Admin')}
-                                onClick={() => triggerUpdateFlow(user)}
-                                className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
-                                  updatingId === user.uid 
-                                    ? 'bg-slate-100 text-slate-400 cursor-wait' 
-                                    : 'bg-slate-900 text-white hover:bg-slate-800 active:scale-95 shadow-md'
-                                }`}
-                              >
-                                {updatingId === user.uid ? 'Syncing...' : 'Update'}
-                              </button>
-                              <button
-                                disabled={user.uid === currentUser?.uid && currentUser?.role === 'Admin'}
-                                onClick={() => { setPendingDeactivateUid(user.uid); setDeactivateConfirmOpen(true); }}
-                                className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest border border-red-200 text-red-600 hover:bg-red-50 transition-all active:scale-95 ${
-                                  (user.uid === currentUser?.uid && currentUser?.role === 'Admin') ? 'invisible' : ''
-                                }`}
-                                title="Deactivate Account"
-                              >
-                                Deactivate
-                              </button>
-                            </>
-                          ) : (
-                            <button
-                              onClick={() => { setPendingActivateUid(user.uid); setActivateConfirmOpen(true); }}
-                              className="px-6 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest bg-emerald-600 text-white hover:bg-emerald-700 active:scale-95 shadow-lg shadow-emerald-100 transition-all"
-                            >
-                              Activate
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
+      {/* TAB 1: BIOMETRIC AUTH LOGS */}
+      {activeTab === 'BIOMETRIC_LOGS' && (
+        <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <BiometricAuditLogTab onRefreshEnrolled={refreshBiometricData} />
         </div>
+      )}
 
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-[700px]">
-          <div className="bg-slate-900 px-6 py-5 border-b border-slate-800 flex items-center justify-between">
-            <h2 className="text-[10px] font-black text-slate-100 uppercase tracking-[0.2em] flex items-center gap-2">
-              <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
-              Facility Audit Logs
-            </h2>
+      {/* TAB 2: BIOMETRIC SETUP */}
+      {activeTab === 'BIOMETRIC_SETUP' && (
+        <section id="biometric-configuration-terminal" className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <BiometricConfigPanel
+            users={users}
+            currentUser={currentUser}
+            selectedClinicianUid={selectedBiometricClinicianUid}
+            onAuditLog={handleBiometricAuditLog}
+            onCredentialsChange={refreshBiometricData}
+          />
+        </section>
+      )}
+
+      {/* TAB 3: FULL FACILITY AUDIT TRAIL */}
+      {activeTab === 'FACILITY_LOGS' && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="bg-slate-900 px-6 py-5 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-red-500/20 border border-red-500/30 flex items-center justify-center text-red-400">
+                <Shield className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-xs font-black text-slate-100 uppercase tracking-[0.2em]">
+                  Facility Administrative Audit Trail
+                </h2>
+                <p className="text-[10px] text-slate-400 font-medium">Immutable chronological records of account management and role modifications</p>
+              </div>
+            </div>
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
-                <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Limit:</label>
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Query Limit:</label>
                 <select 
                   value={maxLogs}
                   onChange={(e) => setMaxLogs(Number(e.target.value))}
-                  className="bg-slate-800 text-slate-200 border border-slate-700 px-2 py-1 rounded text-[8px] font-black outline-none focus:ring-1 focus:ring-red-500 cursor-pointer"
+                  className="bg-slate-800 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-lg text-[10px] font-black outline-none focus:ring-1 focus:ring-red-500 cursor-pointer"
                 >
-                  <option value={25}>25</option>
-                  <option value={50}>50</option>
-                  <option value={100}>100</option>
-                  <option value={200}>200</option>
+                  <option value={25}>25 Events</option>
+                  <option value={50}>50 Events</option>
+                  <option value={100}>100 Events</option>
+                  <option value={200}>200 Events</option>
                 </select>
               </div>
               <button 
                 onClick={refreshLogs} 
-                className="p-1.5 text-slate-400 hover:text-white transition-colors rounded-lg hover:bg-slate-800"
+                className="p-2 text-slate-400 hover:text-white transition-colors rounded-lg bg-slate-800 hover:bg-slate-700 cursor-pointer flex items-center gap-1.5 text-[10px] font-black uppercase"
                 title="Refresh Logs"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                <span>Refresh</span>
               </button>
             </div>
           </div>
           
-          <div className="p-4 bg-slate-50 border-b border-slate-200 space-y-3">
-            <div className="space-y-1.5">
-              <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Sort Strategy</label>
+          <div className="p-4 bg-slate-50 border-b border-slate-200 grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="space-y-1">
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Sort Key</label>
               <div className="flex gap-1 overflow-x-auto pb-1 no-scrollbar">
                 {[
-                  { key: 'action', label: 'By Action' },
-                  { key: 'performedBy', label: 'By Actor' },
-                  { key: 'timestamp', label: 'Chronological' }
+                  { key: 'action', label: 'Action' },
+                  { key: 'performedBy', label: 'Actor' },
+                  { key: 'timestamp', label: 'Time' }
                 ].map(btn => (
                   <button
                     key={btn.key}
                     onClick={() => handleLogSort(btn.key as keyof AuditLog)}
-                    className={`px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-tighter whitespace-nowrap transition-all border ${
+                    className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-tighter whitespace-nowrap transition-all border cursor-pointer ${
                       logSortConfig.key === btn.key 
-                        ? 'bg-slate-900 text-white border-slate-900 shadow-md' 
-                        : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
+                        ? 'bg-slate-900 text-white border-slate-900 shadow-sm' 
+                        : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
                     }`}
                   >
                     {btn.label} {logSortConfig.key === btn.key && (logSortConfig.direction === 'asc' ? '↑' : '↓')}
@@ -733,78 +634,515 @@ const UserManagement: React.FC = () => {
                 ))}
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="col-span-2 space-y-1">
-                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Filter Action</label>
-                <select 
-                  value={logActionFilter}
-                  onChange={(e) => setLogActionFilter(e.target.value)}
-                  className="w-full text-[10px] font-black uppercase p-2 border border-slate-200 rounded-lg bg-white outline-none focus:ring-1 focus:ring-red-200"
-                >
-                  {ACTION_TYPES.map(type => <option key={type} value={type}>{type.toUpperCase()}</option>)}
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">From</label>
-                <input 
-                  type="date" 
-                  value={logStartDate}
-                  onChange={(e) => setLogStartDate(e.target.value)}
-                  className="w-full text-[10px] font-bold p-1.5 border border-slate-200 rounded-lg outline-none"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">To</label>
-                <input 
-                  type="date" 
-                  value={logEndDate}
-                  onChange={(e) => setLogEndDate(e.target.value)}
-                  className="w-full text-[10px] font-bold p-1.5 border border-slate-200 rounded-lg outline-none"
-                />
-              </div>
+            <div className="space-y-1">
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Filter Action</label>
+              <select 
+                value={logActionFilter}
+                onChange={(e) => setLogActionFilter(e.target.value)}
+                className="w-full text-[10px] font-bold uppercase p-2 border border-slate-200 rounded-lg bg-white outline-none focus:ring-1 focus:ring-red-200 cursor-pointer"
+              >
+                {ACTION_TYPES.map(type => <option key={type} value={type}>{type.toUpperCase()}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Start Date</label>
+              <input 
+                type="date" 
+                value={logStartDate}
+                onChange={(e) => setLogStartDate(e.target.value)}
+                className="w-full text-[10px] font-bold p-1.5 border border-slate-200 rounded-lg outline-none bg-white"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">End Date</label>
+              <input 
+                type="date" 
+                value={logEndDate}
+                onChange={(e) => setLogEndDate(e.target.value)}
+                className="w-full text-[10px] font-bold p-1.5 border border-slate-200 rounded-lg outline-none bg-white"
+              />
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/30">
+          <div className="overflow-y-auto max-h-[600px] p-4 space-y-3 bg-slate-50/50">
             {sortedAndFilteredLogs.length === 0 ? (
               <div className="text-center py-20 flex flex-col items-center gap-3">
                 <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-300 border border-slate-200">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                  <FileText className="w-6 h-6" />
                 </div>
-                <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">No matching logs.</p>
+                <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">No matching administrative logs found.</p>
               </div>
             ) : (
-              sortedAndFilteredLogs.map((log) => (
-                <div key={log.id} className="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm hover:border-red-100 transition-all group animate-in slide-in-from-bottom-2">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className={`text-[7px] font-black uppercase tracking-widest px-2 py-0.5 rounded border ${
-                      log.action.includes('Registered') ? 'bg-green-50 text-green-700 border-green-100' : log.action.includes('Deactivated') ? 'bg-amber-50 text-amber-700 border-amber-100' : 'bg-blue-50 text-blue-700 border-blue-100'
-                    }`}>
-                      {log.action}
-                    </span>
-                    <span className="text-[8px] text-slate-400 font-black uppercase">
-                      {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {sortedAndFilteredLogs.map((log) => (
+                  <div key={log.id} className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm hover:border-slate-300 transition-all">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className={`text-[8px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded border ${
+                        log.action.includes('Registered') ? 'bg-green-50 text-green-700 border-green-200' : log.action.includes('Deactivated') ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-blue-50 text-blue-700 border-blue-200'
+                      }`}>
+                        {log.action}
+                      </span>
+                      <span className="text-[9px] text-slate-400 font-mono font-bold">
+                        {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                      </span>
+                    </div>
+                    <p className="text-xs font-black text-slate-800 tracking-tight">
+                      {log.performedBy} <span className="font-bold text-slate-400">modified</span> {log.targetUser}
+                    </p>
+                    <p className="text-[10px] text-slate-600 mt-1.5 font-medium leading-relaxed italic bg-slate-50 p-2 rounded-lg border border-slate-100">
+                      "{log.details}"
+                    </p>
+                    <div className="mt-2.5 text-[8px] text-slate-400 font-black uppercase tracking-widest flex items-center gap-1.5 border-t border-slate-100 pt-2">
+                      <History className="w-3 h-3 text-slate-400" />
+                      {new Date(log.timestamp).toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
+                    </div>
                   </div>
-                  <p className="text-[11px] font-black text-slate-800 tracking-tight leading-tight">
-                    {log.performedBy} <span className="font-bold text-slate-400">updated</span> {log.targetUser}
-                  </p>
-                  <p className="text-[9px] text-slate-500 mt-2 font-medium leading-relaxed italic">
-                    "{log.details}"
-                  </p>
-                  <div className="mt-3 text-[7px] text-slate-300 font-black uppercase tracking-widest flex items-center gap-1.5 border-t border-slate-50 pt-2">
-                    <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2-2v12a2 2 0 002 2z" /></svg>
-                    {new Date(log.timestamp).toLocaleDateString()}
-                  </div>
-                </div>
-              ))
+                ))}
+              </div>
             )}
           </div>
-          <div className="p-4 bg-slate-900 border-t border-slate-800 text-center">
-             <p className="text-[8px] text-slate-500 font-black uppercase tracking-[0.2em]">Medical Security Operations Center</p>
+          <div className="p-4 bg-slate-900 border-t border-slate-800 flex items-center justify-between text-[9px] text-slate-400 font-black uppercase tracking-wider">
+             <span>Hospital Identity & Governance Subsystem</span>
+             <span className="font-mono text-slate-500">{sortedAndFilteredLogs.length} Records displayed</span>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* TAB 4: STAFF DIRECTORY & PROVISIONING */}
+      {activeTab === 'DIRECTORY' && (
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+              <h2 className="text-[10px] font-black text-slate-700 uppercase tracking-[0.2em] flex items-center gap-2">
+                <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
+                Account Registration Terminal
+              </h2>
+              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Single-Action Provisioning</span>
+            </div>
+            <form onSubmit={handleCreateUser} className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="space-y-1">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Legal Full Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. DR. ADAM REED"
+                  className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-100 outline-none transition-all text-[11px] font-bold uppercase"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value.toUpperCase())}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Medical Email</label>
+                <input
+                  type="email"
+                  required
+                  placeholder="personnel@hospital.org"
+                  className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-100 outline-none transition-all text-[11px] font-bold"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Assigned Unit</label>
+                <select
+                  className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-100 outline-none transition-all text-[11px] font-black uppercase bg-white cursor-pointer"
+                  value={newAssignedUnit}
+                  onChange={(e) => setNewAssignedUnit(e.target.value)}
+                >
+                  <option value="">No Specific Unit</option>
+                  <option value="HDU">High Dependency (HDU)</option>
+                  <option value="ICU">Intensive Care (ICU)</option>
+                  <option value="TRANSPLANT">Transplant Bay</option>
+                  <option value="4th-WARD">Ward</option>
+                  <option value="WARD5">5th Floor Ward</option>
+                  <option value="ENDOSCOPY">Endoscopy Reporting</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Access Level</label>
+                <div className="flex gap-2">
+                  <select
+                    className="flex-1 px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-100 outline-none transition-all text-[11px] font-black uppercase bg-white cursor-pointer"
+                    value={newRole}
+                    onChange={(e) => setNewRole(e.target.value as any)}
+                  >
+                    <option value="Staff">Staff</option>
+                    <option value="Consultant">Consultant</option>
+                    <option value="Admin">Admin</option>
+                  </select>
+                  <button
+                    type="submit"
+                    disabled={creating || !newName || !newEmail}
+                    className={`px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${
+                      creating 
+                        ? 'bg-slate-100 text-slate-400 cursor-wait' 
+                        : (!newName || !newEmail) 
+                          ? 'bg-slate-100 text-slate-300 cursor-not-allowed' 
+                          : 'bg-red-600 text-white hover:bg-red-700 active:scale-95 shadow-lg shadow-red-100 cursor-pointer'
+                    }`}
+                  >
+                    {creating ? (
+                      <div className="w-4 h-4 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
+                    ) : (
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" /></svg>
+                    )}
+                    <span>Register</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+          </section>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full">
+              <div className="bg-slate-50 px-6 py-5 border-b border-slate-200 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <h2 className="text-[10px] font-black text-slate-700 uppercase tracking-[0.2em]">Medical Staff Directory</h2>
+                  <span className="text-[10px] bg-slate-900 text-white px-3 py-1 rounded-full font-black tracking-tighter">
+                    FACILITY POOL: {users.length}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('BIOMETRIC_SETUP')}
+                  className="text-[9px] font-black text-blue-600 hover:text-blue-800 uppercase tracking-wider flex items-center gap-1.5 cursor-pointer bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors"
+                >
+                  <Fingerprint className="w-3.5 h-3.5" />
+                  <span>Configure Biometrics</span>
+                </button>
+              </div>
+              <div className="overflow-x-auto">
+                {loading ? (
+                  <TableSkeleton rows={6} cols={4} />
+                ) : (
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-black text-slate-500 uppercase tracking-widest select-none">
+                        <th 
+                          className="px-6 py-5 cursor-pointer hover:bg-slate-100 transition-colors group"
+                          onClick={() => handleUserSort('displayName')}
+                        >
+                          <div className="flex items-center">
+                            <span>Staff Identity</span>
+                            <SortIndicator active={userSortConfig.key === 'displayName'} direction={userSortConfig.direction} />
+                          </div>
+                        </th>
+                        <th 
+                          className="px-6 py-5 text-center cursor-pointer hover:bg-slate-100 transition-colors group"
+                          onClick={() => handleUserSort('status')}
+                        >
+                          <div className="flex items-center justify-center">
+                            <span>Status</span>
+                            <SortIndicator active={userSortConfig.key === 'status'} direction={userSortConfig.direction} />
+                          </div>
+                        </th>
+                        <th 
+                          className="px-6 py-5 cursor-pointer hover:bg-slate-100 transition-colors group"
+                          onClick={() => handleUserSort('role')}
+                        >
+                          <div className="flex items-center">
+                            <span>Role</span>
+                            <SortIndicator active={userSortConfig.key === 'role'} direction={userSortConfig.direction} />
+                          </div>
+                        </th>
+                        <th 
+                          className="px-6 py-5 cursor-pointer hover:bg-slate-100 transition-colors group"
+                          onClick={() => handleUserSort('assignedUnit' as any)}
+                        >
+                          <div className="flex items-center">
+                            <span>Assigned Unit</span>
+                            <SortIndicator active={userSortConfig.key === 'assignedUnit' as any} direction={userSortConfig.direction} />
+                          </div>
+                        </th>
+                        <th className="px-6 py-5 text-right bg-slate-50">Operations</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-[11px] font-bold text-slate-700 uppercase">
+                      {sortedUsers.map((user) => (
+                        <tr key={user.uid} className={`hover:bg-slate-50/50 transition-colors group ${user.status === 'Left' ? 'bg-slate-50/30' : ''}`}>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs border ${
+                                user.status === 'Left' ? 'bg-slate-100 text-slate-400 border-slate-200' : 'bg-red-50 text-red-600 border-red-100'
+                              }`}>
+                                {user.displayName?.[0] || '?'}
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <p className={`font-black tracking-tight ${user.status === 'Left' ? 'text-slate-400' : 'text-slate-900'}`}>{user.displayName}</p>
+                                  {enrolledBiometricUids.has(user.uid) && (
+                                    <span className="inline-flex items-center gap-1 text-[7px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full" title="WebAuthn Fingerprint Enrolled & Active">
+                                      <Fingerprint className="w-2.5 h-2.5 text-emerald-600" />
+                                      PASSKEY
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-[9px] text-slate-400 font-bold lowercase italic">{user.email}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex justify-center">
+                              {user.status === 'Left' ? (
+                                <span className="inline-flex items-center gap-1.5 bg-red-50 text-red-700 text-[7px] font-black px-2.5 py-1 rounded-full tracking-widest uppercase border border-red-100">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                                  DEACTIVATED
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 text-[7px] font-black px-2.5 py-1 rounded-full tracking-widest uppercase border border-emerald-100">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                  ACTIVE
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <select
+                              value={user.role}
+                              disabled={user.status === 'Left' || (user.uid === currentUser?.uid && currentUser?.role === 'Admin')}
+                              onChange={(e) => handleRoleChange(user.uid, e.target.value)}
+                              className={`text-[10px] font-black uppercase border rounded-lg px-3 py-1.5 outline-none transition-all bg-white cursor-pointer ${
+                                (user.status === 'Left' || (user.uid === currentUser?.uid && currentUser?.role === 'Admin')) ? 'border-slate-100 text-slate-400 bg-slate-50 cursor-not-allowed' : 'border-slate-200 focus:ring-2 focus:ring-red-100 hover:border-slate-300'
+                              }`}
+                            >
+                              <option value="Staff">Staff</option>
+                              <option value="Consultant">Consultant</option>
+                              <option value="Admin">Admin</option>
+                            </select>
+                          </td>
+                          <td className="px-6 py-4">
+                            <select
+                              value={user.assignedUnit || ''}
+                              disabled={user.status === 'Left' || (user.uid === currentUser?.uid && currentUser?.role === 'Admin')}
+                              onChange={(e) => handleUnitChange(user.uid, e.target.value)}
+                              className={`text-[10px] font-black uppercase border rounded-lg px-2.5 py-1.5 outline-none transition-all bg-white cursor-pointer ${
+                                (user.status === 'Left' || (user.uid === currentUser?.uid && currentUser?.role === 'Admin')) 
+                                  ? 'border-slate-100 text-slate-400 bg-slate-50 cursor-not-allowed' 
+                                  : 'border-slate-200 focus:ring-2 focus:ring-red-100 hover:border-slate-300'
+                              }`}
+                            >
+                              <option value="">No Specific Unit</option>
+                              <option value="HDU">HDU</option>
+                              <option value="ICU">ICU</option>
+                              <option value="TRANSPLANT">Transplant Bay</option>
+                              <option value="4th-WARD">Ward</option>
+                              <option value="WARD5">5th Floor Ward</option>
+                              <option value="ENDOSCOPY">Endoscopy Reporting</option>
+                            </select>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex items-center justify-end space-x-1 opacity-0 group-hover:opacity-100 transition-all">
+                              <button
+                                onClick={() => handleSelectClinicianForBiometrics(user.uid)}
+                                className={`p-2 rounded-lg transition-all active:scale-95 cursor-pointer ${
+                                  enrolledBiometricUids.has(user.uid)
+                                    ? 'text-emerald-600 hover:bg-emerald-50'
+                                    : 'text-slate-400 hover:text-red-600 hover:bg-red-50'
+                                }`}
+                                title={enrolledBiometricUids.has(user.uid) ? "Manage Enrolled Passkey" : "Register Clinician Fingerprint"}
+                              >
+                                <Fingerprint className="w-4 h-4" />
+                              </button>
+
+                              <button
+                                onClick={() => generateExistingUserSlip(user)}
+                                className="p-2 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-all active:scale-95 cursor-pointer"
+                                title="Re-issue Credentials Slip"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                              </button>
+                              
+                              {/* Account Action Buttons */}
+                              {user.status === 'Active' ? (
+                                <>
+                                  <button
+                                    disabled={updatingId === user.uid || (user.uid === currentUser?.uid && currentUser?.role === 'Admin')}
+                                    onClick={() => triggerUpdateFlow(user)}
+                                    className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all cursor-pointer ${
+                                      updatingId === user.uid 
+                                        ? 'bg-slate-100 text-slate-400 cursor-wait' 
+                                        : 'bg-slate-900 text-white hover:bg-slate-800 active:scale-95 shadow-md'
+                                    }`}
+                                  >
+                                    {updatingId === user.uid ? 'Syncing...' : 'Update'}
+                                  </button>
+                                  <button
+                                    disabled={user.uid === currentUser?.uid && currentUser?.role === 'Admin'}
+                                    onClick={() => { setPendingDeactivateUid(user.uid); setDeactivateConfirmOpen(true); }}
+                                    className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest border border-red-200 text-red-600 hover:bg-red-50 transition-all active:scale-95 cursor-pointer ${
+                                      (user.uid === currentUser?.uid && currentUser?.role === 'Admin') ? 'invisible' : ''
+                                    }`}
+                                    title="Deactivate Account"
+                                  >
+                                    Deactivate
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  onClick={() => { setPendingActivateUid(user.uid); setActivateConfirmOpen(true); }}
+                                  className="px-6 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest bg-emerald-600 text-white hover:bg-emerald-700 active:scale-95 shadow-lg shadow-emerald-100 transition-all cursor-pointer"
+                                >
+                                  Activate
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+
+            {/* Side Audit Log */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-[700px]">
+              <div className="bg-slate-900 px-5 py-4 border-b border-slate-800 flex items-center justify-between">
+                <div className="flex items-center gap-1.5 bg-slate-800 p-1 rounded-xl border border-slate-700">
+                  <button
+                    type="button"
+                    onClick={() => setActiveSideLogTab('GENERAL')}
+                    className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                      activeSideLogTab === 'GENERAL'
+                        ? 'bg-red-600 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Facility Audit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('BIOMETRIC_LOGS')}
+                    className="px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider text-emerald-400 hover:bg-slate-700/60 transition-all cursor-pointer flex items-center gap-1"
+                  >
+                    <Fingerprint className="w-3 h-3 text-emerald-400" />
+                    <span>Biometric Logs</span>
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={refreshLogs} 
+                    className="p-1.5 text-slate-400 hover:text-white transition-colors rounded-lg hover:bg-slate-800 cursor-pointer"
+                    title="Refresh Logs"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                  </button>
+                </div>
+              </div>
+              
+              <div className="p-3.5 bg-slate-50 border-b border-slate-200 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Sort Strategy</label>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('FACILITY_LOGS')}
+                    className="text-[8px] font-black text-red-600 hover:underline uppercase tracking-wider flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>Full Log Viewer</span>
+                    <ExternalLink className="w-2.5 h-2.5" />
+                  </button>
+                </div>
+                <div className="flex gap-1 overflow-x-auto pb-1 no-scrollbar">
+                  {[
+                    { key: 'action', label: 'By Action' },
+                    { key: 'performedBy', label: 'By Actor' },
+                    { key: 'timestamp', label: 'Chronological' }
+                  ].map(btn => (
+                    <button
+                      key={btn.key}
+                      onClick={() => handleLogSort(btn.key as keyof AuditLog)}
+                      className={`px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-tighter whitespace-nowrap transition-all border cursor-pointer ${
+                        logSortConfig.key === btn.key 
+                          ? 'bg-slate-900 text-white border-slate-900 shadow-md' 
+                          : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      {btn.label} {logSortConfig.key === btn.key && (logSortConfig.direction === 'asc' ? '↑' : '↓')}
+                    </button>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="col-span-2 space-y-1">
+                    <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Filter Action</label>
+                    <select 
+                      value={logActionFilter}
+                      onChange={(e) => setLogActionFilter(e.target.value)}
+                      className="w-full text-[10px] font-black uppercase p-2 border border-slate-200 rounded-lg bg-white outline-none focus:ring-1 focus:ring-red-200 cursor-pointer"
+                    >
+                      {ACTION_TYPES.map(type => <option key={type} value={type}>{type.toUpperCase()}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">From</label>
+                    <input 
+                      type="date" 
+                      value={logStartDate}
+                      onChange={(e) => setLogStartDate(e.target.value)}
+                      className="w-full text-[10px] font-bold p-1.5 border border-slate-200 rounded-lg outline-none bg-white"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">To</label>
+                    <input 
+                      type="date" 
+                      value={logEndDate}
+                      onChange={(e) => setLogEndDate(e.target.value)}
+                      className="w-full text-[10px] font-bold p-1.5 border border-slate-200 rounded-lg outline-none bg-white"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/30">
+                {sortedAndFilteredLogs.length === 0 ? (
+                  <div className="text-center py-20 flex flex-col items-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-300 border border-slate-200">
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                    </div>
+                    <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">No matching logs.</p>
+                  </div>
+                ) : (
+                  sortedAndFilteredLogs.map((log) => (
+                    <div key={log.id} className="p-3.5 bg-white rounded-2xl border border-slate-200 shadow-sm hover:border-red-100 transition-all group">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className={`text-[7px] font-black uppercase tracking-widest px-2 py-0.5 rounded border ${
+                          log.action.includes('Registered') ? 'bg-green-50 text-green-700 border-green-100' : log.action.includes('Deactivated') ? 'bg-amber-50 text-amber-700 border-amber-100' : 'bg-blue-50 text-blue-700 border-blue-100'
+                        }`}>
+                          {log.action}
+                        </span>
+                        <span className="text-[8px] text-slate-400 font-black uppercase">
+                          {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <p className="text-[11px] font-black text-slate-800 tracking-tight leading-tight">
+                        {log.performedBy} <span className="font-bold text-slate-400">updated</span> {log.targetUser}
+                      </p>
+                      <p className="text-[9px] text-slate-500 mt-1.5 font-medium leading-relaxed italic">
+                        "{log.details}"
+                      </p>
+                      <div className="mt-2 text-[7px] text-slate-300 font-black uppercase tracking-widest flex items-center gap-1.5 border-t border-slate-50 pt-1.5">
+                        <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2-2v12a2 2 0 002 2z" /></svg>
+                        {new Date(log.timestamp).toLocaleDateString()}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              <div className="p-3 bg-slate-900 border-t border-slate-800 flex items-center justify-between">
+                 <p className="text-[8px] text-slate-500 font-black uppercase tracking-[0.2em]">Security Console</p>
+                 <button
+                   type="button"
+                   onClick={() => setActiveTab('BIOMETRIC_LOGS')}
+                   className="text-[8px] text-emerald-400 font-black uppercase tracking-wider hover:underline flex items-center gap-1 cursor-pointer"
+                 >
+                   <Fingerprint className="w-2.5 h-2.5" />
+                   <span>Biometric Telemetry</span>
+                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Modal 
         isOpen={isSlipModalOpen} 

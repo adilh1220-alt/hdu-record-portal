@@ -172,15 +172,30 @@ export const ClinicalSummaryShareModal: React.FC<ClinicalSummaryShareModalProps>
   // WhatsApp computation
   const activePrefix = selectedCountryCode === 'custom' ? customCountryCode : selectedCountryCode;
   const sanitizedLocalNumber = sanitizeLocalNumber(phoneNumber, activePrefix);
-  const fullWhatsAppNumber = `${activePrefix}${sanitizedLocalNumber}`;
+  const fullWhatsAppNumber = sanitizedLocalNumber ? `${activePrefix}${sanitizedLocalNumber}` : '';
   const digitsOnly = fullWhatsAppNumber.replace(/[^\d]/g, '');
 
+  const pdfShareMessage = `📄 *Official Medical Report PDF*\nPatient: *${patient?.name || endoscopy?.name || 'Patient'}* (MR: ${patient?.regNo || endoscopy?.regNo || 'N/A'})\n_Attached: Official Clinical Report PDF_`;
+
   const whatsappDirectUrl = digitsOnly
-    ? `https://api.whatsapp.com/send?phone=${digitsOnly}&text=${encodeURIComponent(messageBody)}`
-    : `https://api.whatsapp.com/send?text=${encodeURIComponent(messageBody)}`;
+    ? `https://wa.me/${digitsOnly}?text=${encodeURIComponent(pdfShareMessage)}`
+    : `https://wa.me/?text=${encodeURIComponent(pdfShareMessage)}`;
 
   const handleLaunchWhatsApp = () => {
-    window.open(whatsappDirectUrl, '_blank', 'noopener,noreferrer');
+    try {
+      const win = window.open(whatsappDirectUrl, '_blank', 'noopener,noreferrer');
+      if (!win || win.closed || typeof win.closed === 'undefined') {
+        const tempA = document.createElement('a');
+        tempA.href = whatsappDirectUrl;
+        tempA.target = '_blank';
+        tempA.rel = 'noopener noreferrer';
+        document.body.appendChild(tempA);
+        tempA.click();
+        document.body.removeChild(tempA);
+      }
+    } catch (err) {
+      console.warn('Failed to open WhatsApp window:', err);
+    }
   };
 
   // Gmail Web Composer
@@ -208,31 +223,30 @@ export const ClinicalSummaryShareModal: React.FC<ClinicalSummaryShareModalProps>
       }
 
       if (!fileObj) {
-        handleLaunchWhatsApp();
-        return;
+        throw new Error('Could not generate PDF document');
       }
 
-      // Check if Web Share API with Files is supported (mobile Android Chrome, iOS Safari, etc.)
+      // 1. Mobile First: If device supports native file sharing (Android Chrome, iOS Safari),
+      // share the PDF document file directly into WhatsApp without text dump or broken redirects
       if (typeof navigator !== 'undefined' && navigator.share && navigator.canShare && navigator.canShare({ files: [fileObj.file] })) {
         try {
           await navigator.share({
             files: [fileObj.file],
-            title: subjectText || (endoscopy ? `Endoscopy Report - ${endoscopy.name}` : `Clinical Summary - ${patient?.name}`),
-            text: messageBody
+            title: fileObj.filename
           });
-          setShareFeedback('Report PDF sent to WhatsApp via device picker!');
+          setShareFeedback('Official PDF report shared to WhatsApp!');
           setTimeout(() => setShareFeedback(null), 4500);
           return;
         } catch (err: any) {
           if (err.name === 'AbortError') {
             return;
           }
-          console.warn('Native share with file aborted or not available, falling back:', err);
+          console.warn('Native file share cancelled or unsupported, trying direct link fallback:', err);
         }
       }
 
-      // Fallback for Desktop / WhatsApp Web:
-      // Trigger instant direct download of the PDF so the user has the file immediately ready, then open WhatsApp chat
+      // 2. Direct Chat with Number (Desktop or browser without native file share):
+      // Download the PDF once for the user to attach, and open the clean WhatsApp chat
       const url = URL.createObjectURL(fileObj.blob);
       const link = document.createElement('a');
       link.href = url;
@@ -240,14 +254,36 @@ export const ClinicalSummaryShareModal: React.FC<ClinicalSummaryShareModalProps>
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
 
-      handleLaunchWhatsApp();
-      setShareFeedback('PDF generated & WhatsApp opened! Attach the downloaded PDF to your chat.');
+      // Open WhatsApp chat in a safe new tab without breaking the current app view
+      const briefNote = `📄 *Official Medical Report PDF*\nPatient: *${patient?.name || endoscopy?.name || 'Patient'}*\nMR: ${patient?.regNo || endoscopy?.regNo || 'N/A'}`;
+      const targetUrl = digitsOnly
+        ? `https://wa.me/${digitsOnly}?text=${encodeURIComponent(briefNote)}`
+        : `https://api.whatsapp.com/send?text=${encodeURIComponent(briefNote)}`;
+
+      try {
+        const win = window.open(targetUrl, '_blank', 'noopener,noreferrer');
+        if (!win || win.closed || typeof win.closed === 'undefined') {
+          // If popup blocked, create a temporary link click instead of window.location.href to avoid breaking iframe
+          const tempA = document.createElement('a');
+          tempA.href = targetUrl;
+          tempA.target = '_blank';
+          tempA.rel = 'noopener noreferrer';
+          document.body.appendChild(tempA);
+          tempA.click();
+          document.body.removeChild(tempA);
+        }
+      } catch (err) {
+        console.warn('Failed to open WhatsApp window:', err);
+      }
+
+      setShareFeedback('PDF Report downloaded! WhatsApp chat opened to attach the PDF.');
       setTimeout(() => setShareFeedback(null), 5500);
     } catch (err: any) {
       console.error('Error generating PDF for WhatsApp:', err);
-      handleLaunchWhatsApp();
+      setShareFeedback('Failed to generate PDF. Please try Download PDF button.');
+      setTimeout(() => setShareFeedback(null), 4000);
     } finally {
       setIsSharingPDF(false);
     }
@@ -293,7 +329,7 @@ export const ClinicalSummaryShareModal: React.FC<ClinicalSummaryShareModalProps>
       <Modal 
         isOpen={isOpen} 
         onClose={onClose} 
-        title={endoscopy ? "Share Endoscopy Procedure Report & Findings" : "Share Clinical Summary & Messages"}
+        hideHeader={true}
         maxWidth="max-w-4xl"
       >
         <div className="space-y-4">
@@ -495,14 +531,14 @@ export const ClinicalSummaryShareModal: React.FC<ClinicalSummaryShareModalProps>
                     )}
                   </button>
 
-                  {/* Text-only WhatsApp Link fallback */}
+                  {/* Direct wa.me Link fallback */}
                   <button
                     type="button"
                     onClick={handleLaunchWhatsApp}
                     className="w-full py-1.5 px-3 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700/80 font-bold text-[11px] rounded-xl transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer"
                   >
                     <ExternalLink className="w-3 h-3 text-emerald-600" />
-                    <span>Send Text Summary Only</span>
+                    <span>Open Direct wa.me Chat Link</span>
                   </button>
                 </div>
               </div>
@@ -543,29 +579,6 @@ export const ClinicalSummaryShareModal: React.FC<ClinicalSummaryShareModalProps>
                     <span>Default Mail</span>
                   </button>
                 </div>
-              </div>
-
-              {/* Download / Export Options */}
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={handleDownloadTxt}
-                  className="py-2 px-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 text-slate-700 dark:text-slate-200 font-bold text-[10px] rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer"
-                >
-                  <FileText className="w-3.5 h-3.5 text-teal-600" />
-                  <span>{copiedField === 'txt' ? 'Downloaded!' : 'Save as .TXT'}</span>
-                </button>
-
-                {(patient || endoscopy) && (
-                  <button
-                    type="button"
-                    onClick={handleDownloadPDF}
-                    className="py-2 px-3 bg-slate-900 dark:bg-slate-700 text-white hover:bg-slate-800 font-bold text-[10px] rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer"
-                  >
-                    <Download className="w-3.5 h-3.5 text-red-400" />
-                    <span>Download PDF</span>
-                  </button>
-                )}
               </div>
             </div>
           </div>

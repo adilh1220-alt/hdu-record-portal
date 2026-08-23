@@ -659,7 +659,7 @@ const SafetyIncidentsPage: React.FC = () => {
       i.patientName,
       i.regNo,
       i.category,
-      UNIT_DETAILS[i.unit].label,
+      UNIT_DETAILS[i.unit]?.label || i.unit || 'HDU',
       i.reportedBy,
       i.description ? i.description.replace(/<[^>]*>/g, '') : 'N/A'
     ]);
@@ -915,8 +915,8 @@ const SafetyIncidentsPage: React.FC = () => {
                       </span>
                     </td>
                     <td className="px-4 py-4">
-                      <span className={`px-2.5 py-1 rounded-lg text-[8px] font-black text-white shadow-sm ${UNIT_DETAILS[i.unit].color}`}>
-                        {UNIT_DETAILS[i.unit].label}
+                      <span className={`px-2.5 py-1 rounded-lg text-[8px] font-black text-white shadow-sm ${UNIT_DETAILS[i.unit]?.color || 'bg-slate-700'}`}>
+                        {UNIT_DETAILS[i.unit]?.label || i.unit || 'Unit'}
                       </span>
                     </td>
                     <td className="px-4 py-4">

@@ -11,6 +11,9 @@ export type ActivityAction =
   | 'AUTH_FAILED' 
   | 'SESSION_RESTORE' 
   | 'PASSWORD_CHANGE'
+  | 'BIOMETRIC_ENROLLED'
+  | 'BIOMETRIC_FAILED'
+  | 'BIOMETRIC_REVOKED'
   | 'CONFIG_PERSIST' 
   | 'CONFIG_FAIL'
   | 'STORAGE_SYNC';
@@ -103,7 +106,7 @@ export const activityService = {
 
   // Dedicated Auth & Session Event Logger
   logAuthEvent: async (
-    action: 'AUTH_LOGIN' | 'AUTH_LOGOUT' | 'AUTH_SIGNUP' | 'AUTH_FAILED' | 'SESSION_RESTORE' | 'PASSWORD_CHANGE',
+    action: 'AUTH_LOGIN' | 'AUTH_LOGOUT' | 'AUTH_SIGNUP' | 'AUTH_FAILED' | 'SESSION_RESTORE' | 'PASSWORD_CHANGE' | 'BIOMETRIC_ENROLLED' | 'BIOMETRIC_FAILED' | 'BIOMETRIC_REVOKED',
     details: string,
     email: string,
     role?: string,
@@ -116,7 +119,10 @@ export const activityService = {
       AUTH_SIGNUP: 'User Registration',
       AUTH_FAILED: 'Auth Security Challenge',
       SESSION_RESTORE: 'Session Recovery',
-      PASSWORD_CHANGE: 'Security Credential'
+      PASSWORD_CHANGE: 'Security Credential',
+      BIOMETRIC_ENROLLED: 'Passkey Registration',
+      BIOMETRIC_FAILED: 'Passkey Challenge Failed',
+      BIOMETRIC_REVOKED: 'Passkey Revocation'
     };
 
     const combinedMetadata = {

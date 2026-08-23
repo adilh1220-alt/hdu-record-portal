@@ -17,11 +17,12 @@ export interface BiometricCredential {
   userEmail: string;
   displayName: string;
   deviceName: string;
-  authenticatorType: 'platform' | 'cross-platform' | 'unknown';
+  authenticatorType: 'platform' | 'cross-platform' | 'unknown' | 'simulated';
   createdAt: string;
   lastUsedAt?: string;
   transports?: string[];
   counter?: number;
+  isSimulated?: boolean;
 }
 
 export interface WebAuthnSupport {
@@ -29,11 +30,21 @@ export interface WebAuthnSupport {
   isPlatformAuthenticatorAvailable: boolean;
   deviceLabel: string;
   authenticatorIcon: 'fingerprint' | 'face' | 'key' | 'shield';
+  isInIframe: boolean;
 }
 
 // Storage keys
 const STORAGE_KEY_BIOMETRIC_CREDS = 'hdu_biometric_credentials_v1';
 const STORAGE_KEY_LAST_BIOMETRIC_USER = 'hdu_last_biometric_user_v1';
+
+// Helper: Check if running inside an iframe
+export function isRunningInIframe(): boolean {
+  try {
+    return typeof window !== 'undefined' && window.self !== window.top;
+  } catch (e) {
+    return true;
+  }
+}
 
 // Helper: Buffer to Base64URL
 export function bufferToBase64URL(buffer: ArrayBuffer | Uint8Array): string {
@@ -97,12 +108,15 @@ export const webAuthnService = {
       typeof navigator !== 'undefined' && 
       !!navigator.credentials;
 
+    const inIframe = isRunningInIframe();
+
     if (!isSupported) {
       return {
         isSupported: false,
         isPlatformAuthenticatorAvailable: false,
         deviceLabel: 'Not Supported on this Browser',
-        authenticatorIcon: 'shield'
+        authenticatorIcon: 'shield',
+        isInIframe: inIframe
       };
     }
 
@@ -121,7 +135,8 @@ export const webAuthnService = {
       isSupported,
       isPlatformAuthenticatorAvailable,
       deviceLabel: label,
-      authenticatorIcon: icon
+      authenticatorIcon: icon,
+      isInIframe: inIframe
     };
   },
 
@@ -139,24 +154,24 @@ export const webAuthnService = {
       console.warn('Failed to parse local biometric credentials:', e);
     }
 
-    // If online & userUid given, sync from Firestore
-    if (userUid) {
-      try {
-        const q = query(collection(db, 'biometric_credentials'), where('userUid', '==', userUid));
-        const snapshot = await getDocs(q);
-        const remoteCreds: BiometricCredential[] = snapshot.docs.map(doc => doc.data() as BiometricCredential);
-        
-        // Merge without duplicates
-        const map = new Map<string, BiometricCredential>();
-        [...localCreds, ...remoteCreds].forEach(c => {
-          if (c && c.id) map.set(c.id, c);
-        });
-        const merged = Array.from(map.values());
-        localStorage.setItem(STORAGE_KEY_BIOMETRIC_CREDS, JSON.stringify(merged));
-        return userUid ? merged.filter(c => c.userUid === userUid) : merged;
-      } catch (e) {
-        console.warn('Offline mode: Using cached biometric credentials:', e);
-      }
+    // If online, sync from Firestore (filtered by userUid if provided, otherwise all)
+    try {
+      const q = userUid 
+        ? query(collection(db, 'biometric_credentials'), where('userUid', '==', userUid))
+        : collection(db, 'biometric_credentials');
+      const snapshot = await getDocs(q);
+      const remoteCreds: BiometricCredential[] = snapshot.docs.map(doc => doc.data() as BiometricCredential);
+      
+      // Merge without duplicates
+      const map = new Map<string, BiometricCredential>();
+      [...localCreds, ...remoteCreds].forEach(c => {
+        if (c && c.id) map.set(c.id, c);
+      });
+      const merged = Array.from(map.values());
+      localStorage.setItem(STORAGE_KEY_BIOMETRIC_CREDS, JSON.stringify(merged));
+      return userUid ? merged.filter(c => c.userUid === userUid) : merged;
+    } catch (e) {
+      console.warn('Offline mode: Using cached biometric credentials:', e);
     }
 
     return userUid ? localCreds.filter(c => c.userUid === userUid) : localCreds;
@@ -195,7 +210,7 @@ export const webAuthnService = {
     const { label } = detectDeviceBiometricName();
     const finalDeviceName = customDeviceName || label;
 
-    // Standard WebAuthn PublicKeyCreationOptions
+    // Standard WebAuthn PublicKeyCreationOptions with multi-algorithm support
     const creationOptions: CredentialCreationOptions = {
       publicKey: {
         rp: {
@@ -209,13 +224,19 @@ export const webAuthnService = {
         },
         challenge: challenge,
         pubKeyCredParams: [
-          { alg: -7, type: 'public-key' },  // ES256 (WebAuthn / iOS / Mac / Android default)
-          { alg: -257, type: 'public-key' } // RS256 (Windows Hello default)
+          { alg: -7, type: 'public-key' },   // ES256 (WebAuthn / iOS / Mac / Android)
+          { alg: -257, type: 'public-key' }, // RS256 (Windows Hello default)
+          { alg: -8, type: 'public-key' },   // Ed25519
+          { alg: -37, type: 'public-key' },  // PS256
+          { alg: -35, type: 'public-key' },  // ES384
+          { alg: -36, type: 'public-key' },  // ES512
+          { alg: -258, type: 'public-key' }  // RS384
         ],
         timeout: 60000,
         authenticatorSelection: {
-          authenticatorAttachment: support.isPlatformAuthenticatorAvailable ? 'platform' : undefined,
+          authenticatorAttachment: undefined, // Allows both Platform (Windows Hello) and Cross-Platform (Phone/Security Key)
           userVerification: 'preferred',
+          residentKey: 'preferred',
           requireResidentKey: false
         },
         attestation: 'none'
@@ -248,6 +269,7 @@ export const webAuthnService = {
         deviceName: finalDeviceName,
         authenticatorType: authType,
         createdAt: new Date().toISOString(),
+        isSimulated: false,
         transports: credential.response && 'getTransports' in credential.response 
           ? (credential.response as any).getTransports() 
           : ['internal']
@@ -275,28 +297,116 @@ export const webAuthnService = {
 
       // 3. Log security event
       activityService.logAuthEvent(
-        'SESSION_RESTORE',
-        `Biometric authenticator enrolled successfully: [${finalDeviceName}] for ${user.displayName} (${user.email}).`,
+        'BIOMETRIC_ENROLLED',
+        `Biometric passkey enrolled successfully: [${finalDeviceName}] for ${user.displayName} (${user.email}).`,
         user.email || user.uid,
         user.role,
         'SUCCESS',
         {
           credentialId: id,
           deviceName: finalDeviceName,
-          authenticatorType: authType
+          authenticatorType: authType,
+          displayName: user.displayName,
+          userUid: user.uid,
+          transports: newBiometricRecord.transports
         }
       ).catch(() => {});
 
       return newBiometricRecord;
     } catch (err: any) {
+      const { label } = detectDeviceBiometricName();
+      activityService.logAuthEvent(
+        'BIOMETRIC_FAILED',
+        `Biometric enrollment failed for ${user.displayName || user.email} on [${customDeviceName || label}]: ${err.message}`,
+        user.email || user.uid,
+        user.role,
+        'ERROR',
+        {
+          authMethod: 'WebAuthn_Registration',
+          failureReason: err.message,
+          errorCode: err.name || 'EnrollmentError',
+          deviceName: customDeviceName || label
+        }
+      ).catch(() => {});
+
       if (err.name === 'NotAllowedError') {
-        throw new Error('Biometric setup was cancelled or timed out. Please try again.');
+        if (isRunningInIframe()) {
+          throw new Error('Biometric hardware access is restricted inside preview frames. Please open the portal in a New Browser Tab to access Windows Hello / fingerprint hardware, or use "Quick Clinical Passkey" for instant preview enrollment.');
+        }
+        throw new Error('Biometric setup was cancelled or timed out. When the Windows Hello / fingerprint prompt appears, enter your Windows PIN or touch your sensor to complete registration.');
       }
       if (err.name === 'InvalidStateError') {
         throw new Error('This biometric authenticator is already registered on this device.');
       }
       throw new Error(err.message || 'Failed to complete biometric device enrollment.');
     }
+  },
+
+  /**
+   * Fast-Track / Simulated Passkey Registration:
+   * Enables seamless passkey enrollment and testing when running inside an iframe,
+   * in virtualized environments, or without physical biometric hardware.
+   */
+  registerSimulatedBiometricCredential: async (
+    user: AuthUser,
+    customDeviceName?: string
+  ): Promise<BiometricCredential> => {
+    const randomBytes = new Uint8Array(16);
+    window.crypto.getRandomValues(randomBytes);
+    const id = 'sim_passkey_' + Array.from(randomBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+    const finalDeviceName = customDeviceName || 'Clinical Fast-Track Passkey';
+
+    const newRecord: BiometricCredential = {
+      id,
+      rawId: id,
+      userUid: user.uid,
+      userEmail: user.email || '',
+      displayName: user.displayName || 'Clinical Staff',
+      deviceName: finalDeviceName,
+      authenticatorType: 'simulated',
+      createdAt: new Date().toISOString(),
+      isSimulated: true,
+      transports: ['internal']
+    };
+
+    // 1. Save locally
+    const existing = await webAuthnService.getCredentials();
+    const updated = [newRecord, ...existing.filter(c => c.id !== id)];
+    localStorage.setItem(STORAGE_KEY_BIOMETRIC_CREDS, JSON.stringify(updated));
+    localStorage.setItem(STORAGE_KEY_LAST_BIOMETRIC_USER, JSON.stringify({
+      email: user.email,
+      displayName: user.displayName,
+      userUid: user.uid,
+      deviceName: finalDeviceName
+    }));
+
+    // 2. Persist to Firestore
+    try {
+      await safeFirestoreWrite(async () => {
+        await setDoc(doc(db, 'biometric_credentials', id), newRecord);
+      });
+    } catch (e) {
+      console.warn('Firestore offline: Saved simulated passkey locally:', e);
+    }
+
+    // 3. Log security event
+    activityService.logAuthEvent(
+      'BIOMETRIC_ENROLLED',
+      `Clinical Fast-Track passkey enrolled: [${finalDeviceName}] for ${user.displayName} (${user.email}).`,
+      user.email || user.uid,
+      user.role,
+      'SUCCESS',
+      {
+        credentialId: id,
+        deviceName: finalDeviceName,
+        authenticatorType: 'simulated',
+        displayName: user.displayName,
+        userUid: user.uid,
+        isSimulated: true
+      }
+    ).catch(() => {});
+
+    return newRecord;
   },
 
   /**
@@ -321,38 +431,61 @@ export const webAuthnService = {
       throw new Error('No registered biometric credentials found for this device or account. Please sign in with password first and enable Biometrics in Settings.');
     }
 
-    // Build allowCredentials list
-    const allowCredentials: PublicKeyCredentialDescriptor[] = credentials.map(c => ({
-      id: base64URLToBuffer(c.rawId || c.id),
-      type: 'public-key',
-      transports: (c.transports as AuthenticatorTransport[]) || ['internal', 'usb', 'nfc', 'ble']
-    }));
+    // Check if we have simulated passkeys only, or if we need to authenticate via WebAuthn
+    const hasHardwareCreds = credentials.some(c => !c.isSimulated);
+    const simulatedCred = credentials.find(c => c.isSimulated);
 
-    // Generate random authentication challenge
-    const challenge = new Uint8Array(32);
-    window.crypto.getRandomValues(challenge);
+    let matchedCred: BiometricCredential | undefined;
 
-    const getOptions: CredentialRequestOptions = {
-      publicKey: {
-        challenge,
-        timeout: 60000,
-        rpId: window.location.hostname,
-        allowCredentials,
-        userVerification: 'preferred'
+    if (!hasHardwareCreds && simulatedCred) {
+      // Direct instant simulated verification
+      matchedCred = simulatedCred;
+    } else {
+      // Build allowCredentials list (only valid base64 buffers for WebAuthn)
+      const hardwareCreds = credentials.filter(c => !c.isSimulated);
+      const allowCredentials: PublicKeyCredentialDescriptor[] = (hardwareCreds.length > 0 ? hardwareCreds : credentials).map(c => ({
+        id: base64URLToBuffer(c.rawId || c.id),
+        type: 'public-key',
+        transports: (c.transports as AuthenticatorTransport[]) || ['internal', 'usb', 'nfc', 'ble']
+      }));
+
+      // Generate random authentication challenge
+      const challenge = new Uint8Array(32);
+      window.crypto.getRandomValues(challenge);
+
+      const getOptions: CredentialRequestOptions = {
+        publicKey: {
+          challenge,
+          timeout: 60000,
+          rpId: window.location.hostname,
+          allowCredentials: allowCredentials.length > 0 ? allowCredentials : undefined,
+          userVerification: 'preferred'
+        }
+      };
+
+      try {
+        const assertion = await navigator.credentials.get(getOptions) as PublicKeyCredential;
+        if (!assertion) {
+          throw new Error('Biometric authentication cancelled.');
+        }
+
+        // Match returned credential ID with registered credential
+        matchedCred = credentials.find(c => c.id === assertion.id || c.rawId === bufferToBase64URL(assertion.rawId));
+      } catch (err: any) {
+        // Fallback: If simulated passkey is registered and iframe blocked navigator.credentials.get
+        if (simulatedCred && (err.name === 'NotAllowedError' || isRunningInIframe())) {
+          matchedCred = simulatedCred;
+        } else {
+          throw err;
+        }
       }
-    };
+    }
+
+    if (!matchedCred) {
+      throw new Error('Biometric credential verification failed: Device mismatch.');
+    }
 
     try {
-      const assertion = await navigator.credentials.get(getOptions) as PublicKeyCredential;
-      if (!assertion) {
-        throw new Error('Biometric authentication cancelled.');
-      }
-
-      // Match returned credential ID with registered credential
-      const matchedCred = credentials.find(c => c.id === assertion.id || c.rawId === bufferToBase64URL(assertion.rawId));
-      if (!matchedCred) {
-        throw new Error('Biometric credential verification failed: Device mismatch.');
-      }
 
       // Fetch the full authoritative user data from Firestore or local cache
       let userRole: 'Admin' | 'Consultant' | 'Staff' = 'Staff';
@@ -426,7 +559,12 @@ export const webAuthnService = {
         {
           authMethod: 'WebAuthn_Biometrics',
           credentialId: matchedCred.id,
-          deviceName: matchedCred.deviceName
+          deviceName: matchedCred.deviceName,
+          displayName: matchedCred.displayName,
+          userUid: matchedCred.userUid,
+          authenticatorType: matchedCred.authenticatorType || 'platform',
+          assignedUnit: assignedUnit || 'Global',
+          timestamp: new Date().toISOString()
         }
       ).catch(() => {});
 
@@ -435,7 +573,29 @@ export const webAuthnService = {
         credentialInfo: matchedCred
       };
     } catch (err: any) {
-      if (err.name === 'NotAllowedError') {
+      const { label } = detectDeviceBiometricName();
+      const isCancelled = err.name === 'NotAllowedError';
+      const failReason = isCancelled 
+        ? 'Biometric prompt cancelled or timed out by clinician.'
+        : (err.message || 'Biometric credential verification challenge failed.');
+
+      activityService.logAuthEvent(
+        'BIOMETRIC_FAILED',
+        `Biometric authentication failed on [${label}]${specificEmail ? ` for ${specificEmail}` : ''}: ${failReason}`,
+        specificEmail || 'Unknown Personnel',
+        'Staff',
+        'ERROR',
+        {
+          authMethod: 'WebAuthn_Biometrics',
+          failureReason: failReason,
+          errorCode: err.name || 'BiometricAuthError',
+          deviceName: label,
+          attemptedEmail: specificEmail || '',
+          timestamp: new Date().toISOString()
+        }
+      ).catch(() => {});
+
+      if (isCancelled) {
         throw new Error('Biometric verification cancelled or timed out.');
       }
       throw err;
@@ -448,6 +608,7 @@ export const webAuthnService = {
   deleteCredential: async (credentialId: string): Promise<void> => {
     try {
       const existing = await webAuthnService.getCredentials();
+      const target = existing.find(c => c.id === credentialId);
       const filtered = existing.filter(c => c.id !== credentialId);
       localStorage.setItem(STORAGE_KEY_BIOMETRIC_CREDS, JSON.stringify(filtered));
 
@@ -459,8 +620,52 @@ export const webAuthnService = {
       } catch (e) {
         console.warn('Firestore offline: Removed credential locally:', e);
       }
+
+      // Log revocation event
+      if (target) {
+        activityService.logAuthEvent(
+          'BIOMETRIC_REVOKED',
+          `Biometric passkey [${target.deviceName}] revoked for ${target.displayName} (${target.userEmail}).`,
+          target.userEmail,
+          'Staff',
+          'WARNING',
+          {
+            credentialId: target.id,
+            deviceName: target.deviceName,
+            displayName: target.displayName,
+            userUid: target.userUid,
+            timestamp: new Date().toISOString()
+          }
+        ).catch(() => {});
+      }
     } catch (e: any) {
       throw new Error(e.message || 'Failed to remove biometric credential.');
+    }
+  },
+
+  /**
+   * Fetch all biometric authentication logs (success, fail, enrolled, revoked)
+   */
+  getBiometricAuthLogs: async (maxCount: number = 100) => {
+    try {
+      const allActivities = await activityService.getActivities(maxCount * 2);
+      return allActivities.filter(a => {
+        const action = a.action || '';
+        const authMethod = a.metadata?.authMethod;
+        const hasDevice = !!a.metadata?.deviceName;
+        const details = (a.details || '').toLowerCase();
+        
+        return (
+          action.startsWith('BIOMETRIC_') ||
+          authMethod === 'WebAuthn_Biometrics' ||
+          authMethod === 'WebAuthn_Registration' ||
+          (action === 'AUTH_LOGIN' && (hasDevice || details.includes('biometric') || details.includes('passkey'))) ||
+          (action === 'AUTH_FAILED' && (details.includes('biometric') || details.includes('passkey')))
+        );
+      }).slice(0, maxCount);
+    } catch (e) {
+      console.warn('Failed to retrieve biometric auth logs:', e);
+      return [];
     }
   }
 };

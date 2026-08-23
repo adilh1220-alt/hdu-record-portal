@@ -1739,7 +1739,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
                 </div>
                 <div className="flex items-center gap-1 justify-start">
                   <Building className="w-3 h-3 text-red-600" />
-                  <span>Unit Focus: {selectedUnit === 'ALL' ? 'FACILITY-WIDE' : UNIT_DETAILS[selectedUnit].label}</span>
+                  <span>Unit Focus: {selectedUnit === 'ALL' ? 'FACILITY-WIDE' : (UNIT_DETAILS[selectedUnit]?.label || selectedUnit)}</span>
                 </div>
               </div>
             </div>
@@ -1751,7 +1751,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
               {getReportTitle()}
             </h2>
             <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">
-              This clinical summary compiles verified entries recorded in The Kidney Centre Medical Records for {selectedUnit === 'ALL' ? 'all operational units' : `the ${UNIT_DETAILS[selectedUnit].label} unit`}. This is a privileged medical report for clinical auditing, inpatient handovers, and physician reviews.
+              This clinical summary compiles verified entries recorded in The Kidney Centre Medical Records for {selectedUnit === 'ALL' ? 'all operational units' : `the ${UNIT_DETAILS[selectedUnit]?.label || selectedUnit} unit`}. This is a privileged medical report for clinical auditing, inpatient handovers, and physician reviews.
             </p>
           </div>
 
@@ -1761,7 +1761,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
               <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 print-bg-slate">
                 <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Inpatient Census</p>
                 <p className="text-lg font-bold text-slate-900 mt-0.5">{summaryStats.totalAdmitted} <span className="text-[10px] font-bold text-slate-400">Admitted</span></p>
-                <p className="text-[8px] text-slate-400 mt-1">Acuity Occupancy: {selectedUnit === 'ALL' ? '-' : `${((summaryStats.totalAdmitted / UNIT_DETAILS[selectedUnit].capacity) * 100).toFixed(0)}%`}</p>
+                <p className="text-[8px] text-slate-400 mt-1">Acuity Occupancy: {selectedUnit === 'ALL' ? '-' : `${((summaryStats.totalAdmitted / (UNIT_DETAILS[selectedUnit]?.capacity || 10)) * 100).toFixed(0)}%`}</p>
               </div>
 
               <div className="p-3 bg-red-50/50 rounded-lg border border-red-100 print-bg-red">
@@ -1868,10 +1868,10 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
                         </div>
                         <div className="space-y-0.5 text-[9px]">
                           <p className="font-bold text-slate-800">
-                            Unit Scope: {selectedUnit === 'ALL' ? 'All Units' : UNIT_DETAILS[selectedUnit].label}
+                            Unit Scope: {selectedUnit === 'ALL' ? 'All Units' : (UNIT_DETAILS[selectedUnit]?.label || selectedUnit)}
                           </p>
                           <p className="text-slate-500 font-mono">
-                            Admitted: {summaryStats.totalAdmitted} / Capacity: {selectedUnit === 'ALL' ? '120 Beds' : `${UNIT_DETAILS[selectedUnit].capacity} Beds`}
+                            Admitted: {summaryStats.totalAdmitted} / Capacity: {selectedUnit === 'ALL' ? '120 Beds' : `${UNIT_DETAILS[selectedUnit]?.capacity || 10} Beds`}
                           </p>
                           <p className="text-[8px] text-slate-400">
                             Continuous monitoring beds actively assigned

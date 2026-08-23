@@ -48,7 +48,26 @@ class OfflineService {
   // --- 1. Service Worker Initialization ---
   public async registerServiceWorker(): Promise<void> {
     if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
-      console.warn('[OfflineService] Service worker not supported in environment.');
+      return;
+    }
+
+    // In development mode or local dev server, active service workers intercept Vite module loading
+    // and cause dual-instance React dispatcher errors. Purge caches and unregister SW in development.
+    if (import.meta.env.DEV || window.location.hostname === 'localhost') {
+      try {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (const reg of registrations) {
+          await reg.unregister();
+        }
+        if ('caches' in window) {
+          const keys = await caches.keys();
+          for (const key of keys) {
+            await caches.delete(key);
+          }
+        }
+      } catch (err) {
+        // non-fatal
+      }
       return;
     }
 

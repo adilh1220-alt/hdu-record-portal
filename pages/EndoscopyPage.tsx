@@ -23,11 +23,12 @@ import { VoiceDictationButton } from '../components/VoiceDictationButton';
 import { EndoscopyReportPreviewSheet } from '../components/EndoscopyReportPreviewSheet';
 import WhatsAppDispatchModal, { COUNTRY_CODES, sanitizeLocalNumber } from '../components/WhatsAppDispatchModal';
 import ClinicalSummaryShareModal from '../components/ClinicalSummaryShareModal';
-import { Share2 } from 'lucide-react';
+import { Share2, Download, HardDrive, FolderDown } from 'lucide-react';
 import { ActiveFiltersBar } from '../components/ActiveFiltersBar';
 import { EndoscopyAnalyticsDashboard } from '../components/EndoscopyAnalyticsDashboard';
 import { TableSkeleton, ButtonSpinner, DynamicRoundedLoader } from '../components/LoadingSpinner';
 import { GastroScopeIcon } from '../components/GastroScopeIcon';
+import { CameraView, triggerLocalFileDownload } from '../components/CameraView';
 
 type SortKey = keyof EndoscopyRecord;
 type SortDirection = 'asc' | 'desc';
@@ -1665,6 +1666,36 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
     }
   };
 
+  const handleDownloadReportImage = (img: { id: string; url: string; title: string }) => {
+    const cleanReg = (formRegNo || '').trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+    const cleanName = (formName || '').trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+    const cleanTitle = (img.title || 'Image').trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+    const timeStr = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '_');
+    
+    const parts = [];
+    if (cleanReg) parts.push(cleanReg);
+    if (cleanName) parts.push(cleanName);
+    parts.push(cleanTitle);
+    parts.push(timeStr);
+    
+    const filename = `${parts.join('_')}.jpg`;
+    triggerLocalFileDownload(img.url, filename);
+    showToast(`Downloaded ${img.title} to PC`, "success");
+  };
+
+  const handleDownloadAllReportImages = () => {
+    if (formImages.length === 0) {
+      showToast("No clinical images to download.", "info");
+      return;
+    }
+    formImages.forEach((img, idx) => {
+      setTimeout(() => {
+        handleDownloadReportImage(img);
+      }, idx * 250);
+    });
+    showToast(`Downloading all ${formImages.length} images to your PC...`, "success");
+  };
+
   const handleFormValidationFailure = () => {
     setShowValidationErrors(true);
     
@@ -3055,8 +3086,20 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
             </div>
           </div>
 
-          {/* RIGHT COLUMN: Media Panel & Camera Captures (Col-Span-4) */}
+          {/* RIGHT COLUMN: Media Panel, Live Camera Feed & Captures (Col-Span-4) */}
           <div className="lg:col-span-4 flex flex-col space-y-6">
+            {/* Live Camera Feed Component */}
+            <CameraView 
+              procedureType={formProcedure}
+              patientRegNo={formRegNo}
+              patientName={formName}
+              currentImageCount={formImages.length}
+              maxImagesReached={formImages.length >= 4}
+              onCapture={(base64, suggestedTitle) => {
+                handleSaveCroppedImage(base64, suggestedTitle);
+              }}
+            />
+
             <div className="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col space-y-4 flex-1 shadow-sm">
               <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                 <div className="flex items-center space-x-2">
@@ -3066,9 +3109,23 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                   </svg>
                   <h4 className="text-[10px] font-bold text-slate-800 uppercase tracking-wider">Endoscope Camera Images</h4>
                 </div>
-                <span className="bg-indigo-50 text-indigo-600 border border-indigo-100 px-2.5 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider">
-                  {formImages.length} / 4 Captured
-                </span>
+                
+                <div className="flex items-center space-x-2">
+                  {formImages.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleDownloadAllReportImages}
+                      className="px-2 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-full text-[8px] font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer shadow-sm"
+                      title="Download all attached report images to PC"
+                    >
+                      <Download className="w-2.5 h-2.5" />
+                      Save All to PC
+                    </button>
+                  )}
+                  <span className="bg-indigo-50 text-indigo-600 border border-indigo-100 px-2.5 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider">
+                    {formImages.length} / 4 Captured
+                  </span>
+                </div>
               </div>
 
               {/* Upload Dropzone */}
@@ -3142,6 +3199,14 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                       </div>
                     </div>
                     <div className="flex items-center space-x-1 flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadReportImage(img)}
+                        className="p-1.5 text-slate-400 hover:text-emerald-600 rounded-lg hover:bg-emerald-50 transition-colors cursor-pointer"
+                        title="Download image to PC"
+                      >
+                        <Download className="w-4 h-4" />
+                      </button>
                       <button
                         type="button"
                         onClick={() => setImageToCrop({ id: img.id, base64: imageBase64Cache[img.id] || img.url, title: img.title })}

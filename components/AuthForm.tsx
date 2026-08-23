@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ClipboardList, Fingerprint, Shield, Sparkles, KeyRound, CheckCircle2 } from 'lucide-react';
+import { ClipboardList, Fingerprint, Shield, Sparkles, KeyRound, CheckCircle2, HelpCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { userService } from '../services/userService';
 import { authService } from '../services/authService';
 import { webAuthnService, WebAuthnSupport } from '../services/webAuthnService';
+import BiometricWalkthroughModal from './BiometricWalkthroughModal';
 import Modal from './Modal';
 
 const AuthForm: React.FC = () => {
@@ -30,6 +31,7 @@ const AuthForm: React.FC = () => {
   const [resetLoading, setResetLoading] = useState(false);
   const [resetMessage, setResetMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [showInactivityAlert, setShowInactivityAlert] = useState(false);
+  const [showBiometricGuide, setShowBiometricGuide] = useState(false);
 
   const { login, loginWithBiometrics } = useAuth();
 
@@ -280,6 +282,20 @@ const AuthForm: React.FC = () => {
                 </div>
               )}
 
+              <div className="flex items-center justify-between px-1 text-[10px]">
+                <button
+                  type="button"
+                  onClick={() => setShowBiometricGuide(true)}
+                  className="text-slate-400 hover:text-slate-600 flex items-center gap-1 font-bold transition-colors cursor-pointer"
+                >
+                  <HelpCircle className="w-3 h-3 text-red-500" />
+                  <span>Moto G54 & Fingerprint Setup Guide</span>
+                </button>
+                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">
+                  FIDO2 Biometrics
+                </span>
+              </div>
+
               <div className="relative flex py-2 items-center">
                 <div className="flex-grow border-t border-slate-200" />
                 <span className="flex-shrink mx-3 text-[9px] font-black uppercase tracking-widest text-slate-400">
@@ -431,6 +447,16 @@ const AuthForm: React.FC = () => {
           </form>
         </div>
       </Modal>
+
+      {/* Biometric Guide & Walkthrough Modal */}
+      <BiometricWalkthroughModal
+        isOpen={showBiometricGuide}
+        onClose={() => setShowBiometricGuide(false)}
+        support={biometricSupport}
+        onStartEnrollment={() => {
+          setShowBiometricGuide(false);
+        }}
+      />
     </div>
   );
 };

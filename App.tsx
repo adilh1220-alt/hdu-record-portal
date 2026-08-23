@@ -130,10 +130,10 @@ const MainAppContent: React.FC = () => {
             <header className="flex justify-between items-end">
               <div>
                 <h1 className="text-2xl font-black text-slate-800 tracking-tight uppercase">In-Patient Census</h1>
-                <p className="text-slate-500 text-sm font-medium">For <span className="text-slate-900 font-bold">{UNIT_DETAILS[activeUnit].label}</span></p>
+                <p className="text-slate-500 text-sm font-medium">For <span className="text-slate-900 font-bold">{UNIT_DETAILS[activeUnit]?.label || activeUnit || 'HDU'}</span></p>
               </div>
-              <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest text-white shadow-sm ${UNIT_DETAILS[activeUnit].color}`}>
-                Active Unit: {activeUnit}
+              <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest text-white shadow-sm ${UNIT_DETAILS[activeUnit]?.color || 'bg-slate-700'}`}>
+                Active Unit: {activeUnit || 'HDU'}
               </div>
             </header>
             <PatientTable />

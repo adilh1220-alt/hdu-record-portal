@@ -262,7 +262,7 @@ const TasksPage: React.FC = () => {
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-slate-800 tracking-tight uppercase">Task Terminal</h1>
-          <p className="text-slate-500 text-sm font-medium">Procedural checklist and nursing orders for <span className="text-slate-900 font-bold">{UNIT_DETAILS[activeUnit].label}</span></p>
+          <p className="text-slate-500 text-sm font-medium">Procedural checklist and nursing orders for <span className="text-slate-900 font-bold">{UNIT_DETAILS[activeUnit]?.label || activeUnit || 'HDU'}</span></p>
         </div>
         
         <div className="flex items-center gap-3">

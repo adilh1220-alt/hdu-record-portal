@@ -326,7 +326,7 @@ const Dashboard: React.FC = () => {
   );
 
   const occupancyRate = useMemo(() => {
-    const capacity = UNIT_DETAILS[activeUnit].capacity;
+    const capacity = UNIT_DETAILS[activeUnit]?.capacity || 10;
     return Math.min(100, Math.round((currentActiveCount / capacity) * 100));
   }, [currentActiveCount, activeUnit]);
 
@@ -335,9 +335,9 @@ const Dashboard: React.FC = () => {
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
-             <h2 className="text-2xl font-black text-slate-800 dark:text-slate-100 tracking-tight uppercase">{UNIT_DETAILS[activeUnit].label} Dashboard</h2>
-             <span className={`px-3 py-1 rounded text-[8px] font-black text-white uppercase tracking-widest ${UNIT_DETAILS[activeUnit].color}`}>
-               Unit: {activeUnit}
+             <h2 className="text-2xl font-black text-slate-800 dark:text-slate-100 tracking-tight uppercase">{UNIT_DETAILS[activeUnit]?.label || activeUnit || 'Unit'} Dashboard</h2>
+             <span className={`px-3 py-1 rounded text-[8px] font-black text-white uppercase tracking-widest ${UNIT_DETAILS[activeUnit]?.color || 'bg-slate-700'}`}>
+               Unit: {activeUnit || 'HDU'}
              </span>
           </div>
           <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Performance tracking for fiscal year {selectedYear}</p>
@@ -419,14 +419,14 @@ const Dashboard: React.FC = () => {
               title="Unit Census" 
               value={activeCount} 
               subText={`Admitted in ${selectedYear}`}
-              color={UNIT_DETAILS[activeUnit].color}
+              color={UNIT_DETAILS[activeUnit]?.color || 'bg-red-600'}
               icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>}
             />
             <StatCard 
               title="Bed Occupancy" 
               value={occupancyRate} 
               suffix="%"
-              subText={`${currentActiveCount} / ${UNIT_DETAILS[activeUnit].capacity} Beds Occupied`}
+              subText={`${currentActiveCount} / ${UNIT_DETAILS[activeUnit]?.capacity || 10} Beds Occupied`}
               color="bg-blue-600"
               icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>}
             />

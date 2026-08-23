@@ -3,7 +3,8 @@ import Modal from './Modal';
 import { authService } from '../services/authService';
 import { useAuth } from '../contexts/AuthContext';
 import EmailConnectionDiagnostic from './EmailConnectionDiagnostic';
-import { Shield, Activity, Fingerprint, Plus, Trash2, CheckCircle2, AlertCircle, Smartphone, Laptop, Key } from 'lucide-react';
+import BiometricWalkthroughModal from './BiometricWalkthroughModal';
+import { Shield, Activity, Fingerprint, Plus, Trash2, CheckCircle2, AlertCircle, Smartphone, Laptop, Key, HelpCircle, ExternalLink, Zap } from 'lucide-react';
 import { webAuthnService, BiometricCredential, WebAuthnSupport } from '../services/webAuthnService';
 
 interface SettingsModalProps {
@@ -89,8 +90,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   const [isRegisteringBio, setIsRegisteringBio] = useState(false);
   const [bioActionMessage, setBioActionMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [customDeviceLabel, setCustomDeviceLabel] = useState('');
+  const [showWalkthrough, setShowWalkthrough] = useState(false);
 
-  const { currentUser, loginWithBiometrics } = useAuth();
+  const { 
+    currentUser, 
+    loginWithBiometrics, 
+    registerBiometrics, 
+    revokeBiometrics, 
+    checkBiometricSupport, 
+    refreshBiometricCredentials, 
+    registeredBiometrics,
+    biometricSupport: ctxSupport
+  } = useAuth();
 
   // Load Biometric status & credentials on open
   useEffect(() => {
@@ -101,11 +112,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const loadBiometricsData = async () => {
     try {
-      const support = await webAuthnService.checkSupport();
+      const support = await checkBiometricSupport();
       setBiometricSupport(support);
+      const allCreds = await refreshBiometricCredentials();
       if (currentUser?.uid) {
-        const creds = await webAuthnService.getCredentials(currentUser.uid);
-        setEnrolledCreds(creds);
+        setEnrolledCreds(allCreds.filter(c => c.userUid === currentUser.uid));
       }
     } catch (e) {
       console.warn('Failed to load biometrics data:', e);
@@ -118,7 +129,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     setBioActionMessage(null);
 
     try {
-      const cred = await webAuthnService.registerBiometricCredential(
+      const cred = await registerBiometrics(
         currentUser, 
         customDeviceLabel.trim() || undefined
       );
@@ -136,6 +147,36 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     } finally {
       setIsRegisteringBio(false);
     }
+  };
+
+  const handleRegisterSimulatedBiometric = async () => {
+    if (!currentUser) return;
+    setIsRegisteringBio(true);
+    setBioActionMessage(null);
+
+    try {
+      const cred = await webAuthnService.registerSimulatedBiometricCredential(
+        currentUser,
+        customDeviceLabel.trim() || `${currentUser.displayName || 'Doctor'} Fast-Track Passkey`
+      );
+      setBioActionMessage({
+        text: `Successfully registered Fast-Track Passkey [${cred.deviceName}]! You can now test 1-tap sign-in instantly.`,
+        type: 'success'
+      });
+      setCustomDeviceLabel('');
+      await loadBiometricsData();
+    } catch (err: any) {
+      setBioActionMessage({
+        text: err.message || 'Failed to register passkey.',
+        type: 'error'
+      });
+    } finally {
+      setIsRegisteringBio(false);
+    }
+  };
+
+  const handleOpenInNewTab = () => {
+    window.open(window.location.href, '_blank');
   };
 
   const handleTestBiometric = async () => {
@@ -158,7 +199,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   const handleDeleteBiometric = async (id: string, name: string) => {
     if (!confirm(`Are you sure you want to remove the biometric authenticator "${name}"?`)) return;
     try {
-      await webAuthnService.deleteCredential(id);
+      await revokeBiometrics(id);
       setBioActionMessage({
         text: `Removed authenticator "${name}".`,
         type: 'success'
@@ -357,6 +398,29 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
         {activeTab === 'biometrics' && (
           <div className="space-y-6">
+            {/* Iframe Detection Notice Banner */}
+            {biometricSupport?.isInIframe && (
+              <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-800 dark:text-amber-200 animate-in fade-in">
+                <div className="flex items-start gap-2.5">
+                  <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                  <div className="text-xs">
+                    <span className="font-black">Preview Frame Detected: </span>
+                    <span className="font-medium text-slate-600 dark:text-slate-300">
+                      Windows Hello and hardware biometric prompts require a standalone browser window.
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleOpenInNewTab}
+                  className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shrink-0 transition-colors shadow-xs cursor-pointer"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Open in New Tab</span>
+                </button>
+              </div>
+            )}
+
             {/* Biometric Capability Status Card */}
             <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white border border-slate-700 shadow-md">
               <div className="flex items-start gap-3.5">
@@ -375,9 +439,19 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                   <p className="text-[11px] text-slate-300 font-medium mt-1 leading-relaxed">
                     Register your device's biometric sensor (Touch ID, Face ID, Windows Hello, Android Fingerprint) for instant, encrypted 1-tap login into The Kidney Centre portal without typing passwords.
                   </p>
-                  <div className="mt-3 flex items-center gap-2 text-[10px] font-bold text-slate-400">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    <span>Hardware Sensor: {biometricSupport?.deviceLabel || 'Biometric Authenticator Ready'}</span>
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      <span>Hardware Sensor: {biometricSupport?.deviceLabel || 'Biometric Authenticator Ready'}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowWalkthrough(true)}
+                      className="px-2.5 py-1 rounded-lg bg-red-600/30 hover:bg-red-600/50 text-red-200 hover:text-white text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition-colors border border-red-500/40 cursor-pointer"
+                    >
+                      <Smartphone className="w-3 h-3 text-red-400" />
+                      <span>Moto G54 / Mobile Guide</span>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -385,51 +459,81 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
             {/* Action Feedback message */}
             {bioActionMessage && (
-              <div className={`p-3.5 rounded-xl text-xs font-bold flex items-start gap-2.5 animate-in fade-in border ${
+              <div className={`p-4 rounded-xl text-xs font-bold space-y-2 animate-in fade-in border ${
                 bioActionMessage.type === 'success' 
                   ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
                   : 'bg-red-50 text-red-800 border-red-200'
               }`}>
-                {bioActionMessage.type === 'success' ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                ) : (
-                  <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-                )}
-                <p className="flex-1 leading-snug">{bioActionMessage.text}</p>
+                <div className="flex items-start gap-2.5">
+                  {bioActionMessage.type === 'success' ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                  )}
+                  <div className="flex-1 leading-snug">
+                    <p>{bioActionMessage.text}</p>
+                    {bioActionMessage.type === 'error' && (
+                      <div className="mt-2 text-[11px] font-normal text-slate-700 bg-white/70 p-2.5 rounded-lg border border-red-100 space-y-1">
+                        <p className="font-bold text-red-900">Recommended Next Steps:</p>
+                        <ul className="list-disc list-inside space-y-0.5 text-slate-600">
+                          <li>Click <strong>Open in New Tab</strong> if you want to use your physical Windows PIN / scanner.</li>
+                          <li>Or click <strong>⚡ Quick Passkey (1-Click)</strong> below to test the instant biometric workflow right now in preview.</li>
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
 
             {/* Device Enrollment Action */}
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
-              <h5 className="text-[10px] font-black text-slate-600 uppercase tracking-widest">
-                Enroll This Terminal / Authenticator
-              </h5>
-              <div className="flex flex-col sm:flex-row gap-2">
+              <div className="flex items-center justify-between">
+                <h5 className="text-[10px] font-black text-slate-600 uppercase tracking-widest">
+                  Enroll This Terminal / Authenticator
+                </h5>
+                <span className="text-[9px] text-slate-400 font-bold">Choose Hardware or Instant Demo</span>
+              </div>
+              
+              <div className="space-y-2.5">
                 <input
                   type="text"
                   placeholder={`Device Label (e.g. ${biometricSupport?.deviceLabel || 'My Laptop'})`}
                   value={customDeviceLabel}
                   onChange={(e) => setCustomDeviceLabel(e.target.value)}
-                  className="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-medium outline-none focus:ring-2 focus:ring-red-100"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-medium outline-none focus:ring-2 focus:ring-red-100"
                 />
-                <button
-                  type="button"
-                  onClick={handleRegisterBiometric}
-                  disabled={isRegisteringBio}
-                  className="py-2.5 px-4 bg-red-600 hover:bg-red-700 disabled:bg-slate-300 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 shrink-0 cursor-pointer"
-                >
-                  {isRegisteringBio ? (
-                    <>
-                      <div className="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                      <span>Touch Sensor Now...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Plus className="w-4 h-4" />
-                      <span>Enroll Sensor</span>
-                    </>
-                  )}
-                </button>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={handleRegisterBiometric}
+                    disabled={isRegisteringBio}
+                    className="py-2.5 px-4 bg-red-600 hover:bg-red-700 disabled:bg-slate-300 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    {isRegisteringBio ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                        <span>Touch Sensor Now...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="w-4 h-4" />
+                        <span>Enroll Sensor (Windows/Touch)</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleRegisterSimulatedBiometric}
+                    disabled={isRegisteringBio}
+                    className="py-2.5 px-4 bg-slate-800 hover:bg-slate-900 disabled:bg-slate-300 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Zap className="w-4 h-4 text-amber-400" />
+                    <span>⚡ Quick Passkey (1-Click)</span>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -507,6 +611,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
           </div>
         )}
       </div>
+
+      <BiometricWalkthroughModal
+        isOpen={showWalkthrough}
+        onClose={() => setShowWalkthrough(false)}
+        support={biometricSupport}
+        onStartEnrollment={() => {
+          setShowWalkthrough(false);
+        }}
+      />
     </Modal>
   );
 };

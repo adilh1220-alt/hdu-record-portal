@@ -90,14 +90,14 @@ export const shareActiveReportViaWhatsApp = async (
     const fullNumber = sanitizedNumber ? `${activePrefix}${sanitizedNumber}` : '';
     const digitsOnly = fullNumber.replace(/[^\d]/g, '');
 
-    // Default message payload if none passed
+    // Default message payload: Clean PDF document link reference without textual assembly details
     const defaultText = customMessage || (
       record 
-        ? `🏥 *THE KIDNEY CENTRE - ENDOSCOPY REPORT*\n\nDear *${record.name.toUpperCase()}*,\nYour endoscopy report (${record.procedure || 'Procedure'}) is ready.\n\n• MR Number: ${record.regNo}\n• Date: ${record.date}\n• Attending Doctor: Dr. ${record.doctor}\n• Diagnosis: ${record.diagnosis || 'Clinical Exam Completed'}\n\n📄 *Attached: Official PDF Report*`
-        : `🏥 *THE KIDNEY CENTRE - PATIENT CLINICAL SUMMARY*\n\nPatient: *${patient?.name || 'Patient'}*\nMR No: ${patient?.regNo || 'N/A'}\nUnit: ${patient?.unit || 'HDU'}\n\n📄 *Attached: Official Clinical Summary PDF*`
+        ? `📄 *Official Medical Report PDF*\nPatient: *${record.name.toUpperCase()}* (MR: ${record.regNo})\n_Attached: Official Endoscopy Procedure Report PDF_`
+        : `📄 *Official Clinical Summary PDF*\nPatient: *${patient?.name || 'Patient'}* (MR: ${patient?.regNo || 'N/A'})\n_Attached: Official Patient Clinical Summary PDF_`
     );
 
-    // 2. Try Native Mobile Web Share API with attached PDF file
+    // 2. Native Mobile Web Share API with attached PDF file (Primary for Android & iOS mobile)
     if (
       typeof navigator !== 'undefined' &&
       navigator.share &&
@@ -107,14 +107,13 @@ export const shareActiveReportViaWhatsApp = async (
       try {
         await navigator.share({
           files: [file],
-          title: `Report - ${record?.name || patient?.name || 'Clinical Report'}`,
-          text: defaultText
+          title: filename
         });
 
         return {
           success: true,
           method: 'native_share_file',
-          message: 'Report PDF shared directly with WhatsApp via system share sheet.',
+          message: 'Official Report PDF shared directly to WhatsApp/device.',
           filename,
           pdfBlob: blob
         };
@@ -128,16 +127,15 @@ export const shareActiveReportViaWhatsApp = async (
             pdfBlob: blob
           };
         }
-        console.warn('Native share with file failed, proceeding with fallback:', shareErr);
+        console.warn('Native share file failed or fell back:', shareErr);
       }
     }
 
-    // 3. Fallback: Direct WhatsApp protocol launch + instant file buffer ready
+    // 3. Desktop / Web fallback: Download PDF once and launch WhatsApp chat with clean direct wa.me link
     const whatsappUrl = digitsOnly
-      ? `https://api.whatsapp.com/send?phone=${digitsOnly}&text=${encodeURIComponent(defaultText)}`
-      : `https://api.whatsapp.com/send?text=${encodeURIComponent(defaultText)}`;
+      ? `https://wa.me/${digitsOnly}?text=${encodeURIComponent(defaultText)}`
+      : `https://wa.me/?text=${encodeURIComponent(defaultText)}`;
 
-    // Trigger instant browser download so user has the file right on their device/clipboard ready to attach
     const url = URL.createObjectURL(blob);
     const downloadLink = document.createElement('a');
     downloadLink.href = url;
@@ -145,20 +143,31 @@ export const shareActiveReportViaWhatsApp = async (
     document.body.appendChild(downloadLink);
     downloadLink.click();
     document.body.removeChild(downloadLink);
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
 
-    // Open WhatsApp Web / App
-    window.open(whatsappUrl, '_blank');
+    try {
+      const win = window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+      if (!win || win.closed || typeof win.closed === 'undefined') {
+        const tempA = document.createElement('a');
+        tempA.href = whatsappUrl;
+        tempA.target = '_blank';
+        tempA.rel = 'noopener noreferrer';
+        document.body.appendChild(tempA);
+        tempA.click();
+        document.body.removeChild(tempA);
+      }
+    } catch {
+      console.warn('Failed to open WhatsApp window');
+    }
 
     return {
       success: true,
       method: 'whatsapp_web_fallback',
-      message: 'PDF report generated and WhatsApp opened ready to send!',
+      message: `PDF generated and WhatsApp opened for +${digitsOnly || 'contact'}!`,
       filename,
       pdfBlob: blob,
       directUrl: whatsappUrl
     };
-
   } catch (error: any) {
     console.error('Error in shareActiveReportViaWhatsApp:', error);
     return {

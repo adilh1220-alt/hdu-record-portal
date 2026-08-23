@@ -221,20 +221,10 @@ export const WhatsAppDispatchModal: React.FC<WhatsAppDispatchModalProps> = ({
   const fullWhatsAppNumber = `${activePrefix}${sanitizedLocalNumber}`;
   const digitsOnly = fullWhatsAppNumber.replace(/[^\d]/g, '');
 
-  const fallbackTemplateMessage = `🏥 *THE KIDNEY CENTRE ENDOSCOPY REPORT*
+  const fallbackTemplateMessage = `📄 *Official Endoscopy Procedure Report PDF*
 
-Dear *${record.name.toUpperCase()}*,
-Your endoscopy procedure report is compiled and ready.
-
-• *MR Number:* ${record.regNo}
-• *Procedure:* ${record.procedure}
-• *Date:* ${record.date} ${record.time ? `@ ${record.time}` : ''}
-• *Attending Doctor:* Dr. ${record.doctor}
-• *Diagnosis:* ${record.diagnosis || 'Diagnostic exam completed.'}
-
-📄 *Recommendations:* ${record.recommendations || 'Please follow up with your consulting clinician.'}
-
-_This automated message was sent via The Kidney Centre Gateway._`;
+Patient: *${record.name.toUpperCase()}* (MR: ${record.regNo})
+_Attached: Official Clinical Report PDF Document_`;
 
   const effectiveMessage = customMessageBody || fallbackTemplateMessage;
 
@@ -453,7 +443,7 @@ _This automated message was sent via The Kidney Centre Gateway._`;
       return;
     }
 
-    const targetUrl = directWhatsAppApiUrl || directWaMeUrl;
+    const targetUrl = directWaMeUrl || directWhatsAppApiUrl;
     try {
       const win = window.open(targetUrl, '_blank', 'noopener,noreferrer');
       if (!win || win.closed || typeof win.closed === 'undefined') {

@@ -14,6 +14,7 @@ import { MonthlyDepartmentReportSchedulerModal } from './MonthlyDepartmentReport
 import { EmailConnectionDiagnosticModal } from './EmailConnectionDiagnosticModal';
 import { SmtpConfigModal } from './SmtpConfigModal';
 import { UnifiedEmailHubModal } from './UnifiedEmailHubModal';
+import { BreadcrumbNav } from './BreadcrumbNav';
 import { db } from '../services/firebaseConfig';
 import { onSnapshotsInSync } from 'firebase/firestore';
 import { getEffectiveLogoBase64, getLogoSettings, saveLogoSettings, getLogoUrlWithCacheBust } from '../services/pdfService';
@@ -430,11 +431,11 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
                   onClick={() => setActiveUnit(unit)}
                   className={`py-2 px-1 rounded-lg text-[9px] font-black transition-all border leading-tight ${
                     activeUnit === unit 
-                      ? `${UNIT_DETAILS[unit].color} text-white border-transparent shadow-lg scale-105` 
+                      ? `${UNIT_DETAILS[unit]?.color || 'bg-slate-700'} text-white border-transparent shadow-lg scale-105` 
                       : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 hover:border-slate-300'
                   }`}
                 >
-                  {UNIT_DETAILS[unit].label}
+                  {UNIT_DETAILS[unit]?.label || unit}
                 </button>
               ))}
             </div>
@@ -724,14 +725,21 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
           </div>
           <div className="flex items-center space-x-2">
             <FirebaseSyncIndicator isCompact={true} />
-            <span className={`px-2 py-1 text-[10px] font-black rounded uppercase tracking-wider ${UNIT_DETAILS[activeUnit].color} text-white shadow-sm`}>
-              {UNIT_DETAILS[activeUnit].label}
+            <span className={`px-2 py-1 text-[10px] font-black rounded uppercase tracking-wider ${UNIT_DETAILS[activeUnit]?.color || 'bg-slate-700'} text-white shadow-sm`}>
+              {UNIT_DETAILS[activeUnit]?.label || activeUnit || 'Unit'}
             </span>
           </div>
         </header>
 
         {/* Main Content */}
         <main className="flex-1 overflow-y-auto relative p-6 md:p-8 print:p-0 print:overflow-visible">
+          {/* Breadcrumb Navigation Trail */}
+          <BreadcrumbNav 
+            activeTab={activeTab} 
+            setActiveTab={setActiveTab} 
+            activeUnit={activeUnit} 
+          />
+
           {/* Custom High-Fidelity Print Header */}
           <div className="hidden print:block border-b-2 border-red-600 pb-4 mb-6">
             <div className="flex justify-between items-end">

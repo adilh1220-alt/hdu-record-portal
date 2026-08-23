@@ -693,8 +693,8 @@ const MortalityPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-black text-slate-800 tracking-tight uppercase">{activeUnit} Mortality Archive</h1>
-        <p className="text-slate-500 text-sm font-medium italic">Secure clinical repository for historical {UNIT_DETAILS[activeUnit].label} records</p>
+        <h1 className="text-2xl font-black text-slate-800 tracking-tight uppercase">{activeUnit || 'HDU'} Mortality Archive</h1>
+        <p className="text-slate-500 text-sm font-medium italic">Secure clinical repository for historical {UNIT_DETAILS[activeUnit]?.label || activeUnit || 'HDU'} records</p>
       </header>
 
       <div className="flex flex-col gap-4">

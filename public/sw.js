@@ -53,6 +53,22 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Bypass dev-server modules, Vite internals, node_modules, and HMR to avoid React dual-instance collisions
+  if (
+    url.pathname.includes('/@vite/') ||
+    url.pathname.includes('/@id/') ||
+    url.pathname.includes('/@fs/') ||
+    url.pathname.includes('/node_modules/') ||
+    url.pathname.endsWith('.tsx') ||
+    url.pathname.endsWith('.ts') ||
+    url.pathname.endsWith('.jsx') ||
+    url.pathname.endsWith('.js') ||
+    url.search.includes('import') ||
+    url.search.includes('t=')
+  ) {
+    return;
+  }
+
   // A. Handle API requests (Health / Cloud functions / Data)
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(
