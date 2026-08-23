@@ -51,44 +51,19 @@ class OfflineService {
       return;
     }
 
-    // In development mode or local dev server, active service workers intercept Vite module loading
-    // and cause dual-instance React dispatcher errors. Purge caches and unregister SW in development.
-    if (import.meta.env.DEV || window.location.hostname === 'localhost') {
-      try {
-        const registrations = await navigator.serviceWorker.getRegistrations();
-        for (const reg of registrations) {
-          await reg.unregister();
-        }
-        if ('caches' in window) {
-          const keys = await caches.keys();
-          for (const key of keys) {
-            await caches.delete(key);
-          }
-        }
-      } catch (err) {
-        // non-fatal
-      }
-      return;
-    }
-
     try {
-      const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
-      this.swRegistration = reg;
-      console.log('[OfflineService] Service Worker registered successfully with scope:', reg.scope);
-
-      // Check SW update
-      reg.addEventListener('updatefound', () => {
-        const installingWorker = reg.installing;
-        if (installingWorker) {
-          installingWorker.addEventListener('statechange', () => {
-            if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              console.log('[OfflineService] New service worker version available.');
-            }
-          });
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      for (const reg of registrations) {
+        await reg.unregister();
+      }
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        for (const key of keys) {
+          await caches.delete(key);
         }
-      });
+      }
     } catch (err) {
-      console.error('[OfflineService] Service worker registration failed:', err);
+      // non-fatal
     }
   }
 
