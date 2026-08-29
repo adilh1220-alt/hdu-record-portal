@@ -420,6 +420,7 @@ export const MessageTemplateManagerModal: React.FC<MessageTemplateManagerModalPr
                 All Templates ({templates.length})
               </button>
               {Object.entries(CATEGORY_META).map(([catKey, meta]) => {
+                if (!meta) return null;
                 const count = templates.filter(t => t.category === catKey).length;
                 return (
                   <button
@@ -428,12 +429,12 @@ export const MessageTemplateManagerModal: React.FC<MessageTemplateManagerModalPr
                     onClick={() => setActiveCategoryFilter(catKey)}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all whitespace-nowrap ${
                       activeCategoryFilter === catKey
-                        ? `${meta.bg} ${meta.color} font-black ring-1 ring-current shadow-xs`
+                        ? `${meta.bg || 'bg-slate-100'} ${meta.color || 'text-slate-800'} font-black ring-1 ring-current shadow-xs`
                         : 'bg-slate-100 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
                     }`}
                   >
-                    <span>{meta.icon}</span>
-                    <span>{meta.label}</span>
+                    <span>{meta.icon || '📝'}</span>
+                    <span>{meta.label || catKey}</span>
                     <span className="text-[10px] opacity-75 font-mono">({count})</span>
                   </button>
                 );
@@ -756,7 +757,7 @@ export const MessageTemplateManagerModal: React.FC<MessageTemplateManagerModalPr
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 max-h-[58vh] overflow-y-auto pr-1">
                 {filteredTemplates.map(tpl => {
-                  const meta = CATEGORY_META[tpl.category] || CATEGORY_META.custom;
+                  const meta = (tpl.category && CATEGORY_META[tpl.category]) || CATEGORY_META.custom || { label: 'Custom', color: 'text-slate-700', bg: 'bg-slate-100', icon: '📝' };
                   const isDefault = tpl.isDefault;
 
                   return (

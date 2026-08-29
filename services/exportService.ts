@@ -5,6 +5,24 @@
 const clean = (val: any) => `"${String(val || '').replace(/"/g, '""')}"`;
 
 /**
+ * Dispatches a global toast event to notify the user of a completed export/download.
+ */
+const triggerExportToast = (message: string) => {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent('app:toast', {
+        detail: {
+          message,
+          type: 'success',
+          title: 'Export Complete',
+          duration: 4000
+        }
+      })
+    );
+  }
+};
+
+/**
  * Generates and triggers a download for a CSV file.
  * @param filename Name of the file (without extension)
  * @param headers Array of column headers
@@ -21,12 +39,15 @@ export const downloadCSV = (filename: string, headers: string[], rows: any[][]) 
   const url = URL.createObjectURL(blob);
   
   const timestamp = new Date().toISOString().split('T')[0];
+  const finalFilename = `${filename.replace(/\s+/g, '_').toLowerCase()}_${timestamp}.csv`;
   link.setAttribute("href", url);
-  link.setAttribute("download", `${filename.replace(/\s+/g, '_').toLowerCase()}_${timestamp}.csv`);
+  link.setAttribute("download", finalFilename);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
+
+  triggerExportToast(`CSV file "${finalFilename}" successfully exported and downloaded.`);
 };
 
 /**
@@ -81,11 +102,14 @@ export const downloadExcel = (filename: string, headers: string[], rows: any[][]
   const url = URL.createObjectURL(blob);
   
   const timestamp = new Date().toISOString().split('T')[0];
+  const finalFilename = `${filename.replace(/\s+/g, '_').toLowerCase()}_${timestamp}.xls`;
   link.setAttribute("href", url);
-  link.setAttribute("download", `${filename.replace(/\s+/g, '_').toLowerCase()}_${timestamp}.xls`);
+  link.setAttribute("download", finalFilename);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
+
+  triggerExportToast(`Excel spreadsheet "${finalFilename}" successfully exported and downloaded.`);
 };
 

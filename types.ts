@@ -66,6 +66,8 @@ export interface Patient {
   transferHistory?: TransferLog[];
   whatsappNumber?: string;
   emailAddress?: string;
+  createdBy?: string;
+  createdAt?: string;
 }
 
 export interface InventoryItem {
@@ -79,6 +81,8 @@ export interface InventoryItem {
   expiryDate: string;
   lastUpdated: string;
   notes?: string;
+  createdBy?: string;
+  createdAt?: string;
 }
 
 export interface EndoscopyImage {
@@ -133,6 +137,8 @@ export interface EndoscopyRecord {
   emailAddress?: string;
   dispatchHistory?: DispatchLog[];
   images?: EndoscopyImage[];
+  createdBy?: string;
+  createdAt?: string;
 }
 
 export type TaskPriority = 'High' | 'Medium' | 'Low';

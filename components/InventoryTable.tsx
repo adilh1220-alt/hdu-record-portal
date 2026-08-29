@@ -245,7 +245,8 @@ const InventoryTable: React.FC = () => {
       const matchesSearch = !combinedQuery || 
         i.name.toLowerCase().includes(combinedQuery) || 
         i.category.toLowerCase().includes(combinedQuery) ||
-        (i.notes && i.notes.toLowerCase().includes(combinedQuery));
+        (i.notes && i.notes.toLowerCase().includes(combinedQuery)) ||
+        (i.createdBy && i.createdBy.toLowerCase().includes(combinedQuery));
 
       const matchesCategory = selectedCategory === 'ALL' || i.category === selectedCategory;
       
@@ -388,6 +389,7 @@ const InventoryTable: React.FC = () => {
 
     setIsSaving(true);
     try {
+      const currentDisplayName = currentUser?.displayName || currentUser?.email || 'Staff';
       const itemData = {
         name: itemName.trim().toUpperCase(),
         category: category,
@@ -399,6 +401,8 @@ const InventoryTable: React.FC = () => {
         lastUpdated: new Date().toISOString(),
         unit_location: activeUnit,
         unit: activeUnit,
+        createdBy: editingItem?.createdBy || currentDisplayName,
+        createdAt: editingItem?.createdAt || new Date().toISOString()
       };
 
       if (editingItem) {
@@ -438,13 +442,14 @@ const InventoryTable: React.FC = () => {
 
   const handleExport = (opts: any) => {
     const reportTitle = `${activeUnit} Stock Records`;
-    const headers = ['Item Name', 'Category', 'Stock', 'Min', 'Unit', 'Last Updated', 'Expiry Date'];
+    const headers = ['Item Name', 'Category', 'Stock', 'Min', 'Unit', 'Recorded By', 'Last Updated', 'Expiry Date'];
     const rows = sortedAndFiltered.map(i => [
       i.name, 
       i.category, 
       i.quantity, 
       i.minThreshold, 
       i.measurementUnit, 
+      i.createdBy || 'Staff',
       i.lastUpdated,
       i.expiryDate
     ]);
@@ -624,7 +629,7 @@ const InventoryTable: React.FC = () => {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
           {loading || isFetchingFilter ? (
-            <TableSkeleton rows={7} cols={5} />
+            <TableSkeleton rows={7} cols={7} />
           ) : (
             <table className="w-full text-left border-separate border-spacing-0">
               <thead className="bg-slate-100 text-slate-700 sticky top-0 z-10 shadow-xs border-b border-slate-200">
@@ -641,6 +646,9 @@ const InventoryTable: React.FC = () => {
                   </th>
                   <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-center cursor-pointer hover:bg-slate-200/80 transition-colors border-b border-slate-200" onClick={() => handleSort('lastUpdated')}>
                     <div className="flex items-center justify-center">Updated <SortIndicator column="lastUpdated" /></div>
+                  </th>
+                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest cursor-pointer hover:bg-slate-200/80 transition-colors border-b border-slate-200" onClick={() => handleSort('createdBy')}>
+                    <div className="flex items-center">Recorded By <SortIndicator column="createdBy" /></div>
                   </th>
                   <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-right bg-slate-100 text-slate-700 border-b border-slate-200">Actions</th>
                 </tr>
@@ -694,6 +702,16 @@ const InventoryTable: React.FC = () => {
                           {item.lastUpdated ? new Date(item.lastUpdated).toLocaleDateString() : 'N/A'}
                         </span>
                       </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-1.5" title={item.createdBy ? `Recorded by ${item.createdBy}` : 'Recorded by Staff'}>
+                          <div className="w-5 h-5 rounded-full bg-slate-100 border border-slate-200 text-slate-700 flex items-center justify-center text-[8.5px] font-black shrink-0">
+                            {(item.createdBy || 'Staff').charAt(0).toUpperCase()}
+                          </div>
+                          <span className="text-slate-800 font-bold text-[9px] truncate max-w-[110px]">
+                            {item.createdBy || 'Staff'}
+                          </span>
+                        </div>
+                      </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end space-x-1 opacity-0 group-hover:opacity-100 transition-all">
                           {canManageRecords && (
@@ -712,7 +730,7 @@ const InventoryTable: React.FC = () => {
                   );
                 })}
                 {sortedAndFiltered.length === 0 && (
-                  <tr><td colSpan={6} className="px-6 py-20 text-center text-slate-400 italic font-medium">No stock records found for this criteria.</td></tr>
+                  <tr><td colSpan={7} className="px-6 py-20 text-center text-slate-400 italic font-medium">No stock records found for this criteria.</td></tr>
                 )}
               </tbody>
             </table>
@@ -724,7 +742,7 @@ const InventoryTable: React.FC = () => {
         {viewingItem && (
           <div className="space-y-6">
             <h4 className="text-lg font-black text-slate-800 uppercase tracking-tight">{viewingItem.name}</h4>
-            <div className="grid grid-cols-2 gap-4 py-4 border-y border-slate-100">
+            <div className="grid grid-cols-3 gap-4 py-4 border-y border-slate-100">
               <div className="text-center">
                 <p className="text-[9px] font-black text-slate-400 uppercase mb-1 tracking-widest">STOCK</p>
                 <p className="text-base font-black text-slate-800">{viewingItem.quantity} {viewingItem.measurementUnit}</p>
@@ -732,6 +750,10 @@ const InventoryTable: React.FC = () => {
               <div className="text-center border-l border-slate-100">
                 <p className="text-[9px] font-black text-slate-400 uppercase mb-1 tracking-widest">EXPIRY</p>
                 <p className={`text-base font-black ${getExpiryStatus(viewingItem.expiryDate) !== 'OK' ? 'text-red-600' : 'text-slate-800'}`}>{viewingItem.expiryDate}</p>
+              </div>
+              <div className="text-center border-l border-slate-100">
+                <p className="text-[9px] font-black text-slate-400 uppercase mb-1 tracking-widest">LOGGED BY</p>
+                <p className="text-xs font-black text-slate-800 truncate">{viewingItem.createdBy || 'Staff'}</p>
               </div>
             </div>
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 min-h-[100px]">

@@ -34,6 +34,7 @@ interface MortalityFormProps {
 }
 
 const MortalityForm = React.memo(({ editingPatient, autoSerialNo, onSave, isSaving, activeUnit }: MortalityFormProps) => {
+  const { currentUser } = useAuth();
   const STORAGE_KEY = editingPatient 
     ? `hdu_draft_mortality_${activeUnit}_edit_${editingPatient.id}`
     : `hdu_draft_mortality_${activeUnit}`;
@@ -160,7 +161,9 @@ const MortalityForm = React.memo(({ editingPatient, autoSerialNo, onSave, isSavi
       codeStatus: formCodeStatus as CodeStatus,
       consultant: formConsultant,
       status: PatientStatus.DECEASED,
-      lengthOfStay: los
+      lengthOfStay: los,
+      createdBy: editingPatient?.createdBy || currentUser?.displayName || currentUser?.email || 'Staff',
+      createdAt: editingPatient?.createdAt || new Date().toISOString()
     });
   };
 
@@ -549,7 +552,8 @@ const MortalityPage: React.FC = () => {
         p.name.toLowerCase().includes(combinedQuery) || 
         p.regNo.toLowerCase().includes(combinedQuery) ||
         (p.consultant && p.consultant.toLowerCase().includes(combinedQuery)) ||
-        (p.category && p.category.toLowerCase().includes(combinedQuery));
+        (p.category && p.category.toLowerCase().includes(combinedQuery)) ||
+        (p.createdBy && p.createdBy.toLowerCase().includes(combinedQuery));
       
       const expiryDateStr = p.dischargeDate || '';
       if (!expiryDateStr && (effectiveStart || effectiveEnd)) return false;
@@ -655,7 +659,13 @@ const MortalityPage: React.FC = () => {
     setIsSaving(true);
     try {
       const patientRef = patientData.id ? doc(db, 'mortality_records', patientData.id) : doc(collection(db, 'mortality_records'));
-      const finalData = { ...patientData, id: patientRef.id };
+      const currentDisplayName = currentUser?.displayName || currentUser?.email || 'Staff';
+      const finalData = { 
+        ...patientData, 
+        id: patientRef.id,
+        createdBy: patientData.createdBy || currentDisplayName,
+        createdAt: patientData.createdAt || new Date().toISOString()
+      };
       await setDoc(patientRef, finalData);
       
       const actionType = patientData.id ? 'MODIFY' : 'CREATE';
@@ -865,6 +875,9 @@ const MortalityPage: React.FC = () => {
                   <th className="px-6 py-4 w-20 text-center cursor-pointer hover:bg-slate-200/80 transition-colors border-b border-slate-200" onClick={() => handleSort('lengthOfStay')}>
                     <div className="flex items-center justify-center">LOS <SortIndicator column="lengthOfStay" /></div>
                   </th>
+                  <th className="px-6 py-4 w-32 cursor-pointer hover:bg-slate-200/80 transition-colors border-b border-slate-200" onClick={() => handleSort('createdBy')}>
+                    <div className="flex items-center">Recorded By <SortIndicator column="createdBy" /></div>
+                  </th>
                   <th className="px-6 py-4 w-24 text-right bg-slate-100 border-b border-slate-200">Action</th>
                 </tr>
               </thead>
@@ -903,6 +916,16 @@ const MortalityPage: React.FC = () => {
                     <td className="px-6 py-4 truncate">{p.consultant}</td>
                     <td className="px-6 py-4 text-center text-slate-500 font-mono">{p.dischargeDate}</td>
                     <td className="px-6 py-4 text-center text-red-600 bg-red-50/20">{p.lengthOfStay}d</td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-1.5" title={p.createdBy ? `Recorded by ${p.createdBy}` : 'Recorded by Staff'}>
+                        <div className="w-5 h-5 rounded-full bg-slate-100 border border-slate-200 text-slate-700 flex items-center justify-center text-[8.5px] font-black shrink-0">
+                          {(p.createdBy || 'Staff').charAt(0).toUpperCase()}
+                        </div>
+                        <span className="text-slate-800 font-bold text-[9px] truncate max-w-[110px]">
+                          {p.createdBy || 'Staff'}
+                        </span>
+                      </div>
+                    </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end space-x-1 opacity-0 group-hover:opacity-100 transition-all">
                         {canManageRecords && (
@@ -920,7 +943,7 @@ const MortalityPage: React.FC = () => {
                   </tr>
                 ))}
                 {sortedAndFiltered.length === 0 && (
-                  <tr><td colSpan={7} className="px-6 py-20 text-center text-slate-400 italic font-medium">No archived records match your criteria.</td></tr>
+                  <tr><td colSpan={8} className="px-6 py-20 text-center text-slate-400 italic font-medium">No archived records match your criteria.</td></tr>
                 )}
               </tbody>
             </table>

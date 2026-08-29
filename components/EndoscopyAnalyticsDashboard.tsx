@@ -18,8 +18,8 @@ import {
 // Custom Volume Tooltip ensuring Total Procedures always appears at the end
 const CustomVolumeTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
-    const specificItems = payload.filter((p: any) => p.dataKey !== 'total');
-    const totalItem = payload.find((p: any) => p.dataKey === 'total');
+    const specificItems = payload.filter((p: any) => p && p.dataKey !== 'total');
+    const totalItem = payload.find((p: any) => p && p.dataKey === 'total');
 
     return (
       <div className="bg-white p-3 border border-slate-200 rounded-xl shadow-xl text-xs font-bold space-y-2 min-w-[210px]">
@@ -27,23 +27,27 @@ const CustomVolumeTooltip = ({ active, payload, label }: any) => {
           {label}
         </p>
         <div className="space-y-1.5">
-          {specificItems.map((entry: any, index: number) => (
-            <div key={`item-${index}`} className="flex items-center justify-between gap-4 text-slate-700">
-              <span className="flex items-center gap-1.5 font-bold">
-                <span className="w-2.5 h-2.5 rounded-full inline-block shrink-0" style={{ backgroundColor: entry.stroke || entry.color || entry.fill }} />
-                <span>{entry.name}:</span>
-              </span>
-              <span className="font-black text-slate-900 font-mono">{entry.value}</span>
-            </div>
-          ))}
+          {specificItems.map((entry: any, index: number) => {
+            if (!entry) return null;
+            const itemBg = entry.stroke || entry.color || entry.fill || '#3b82f6';
+            return (
+              <div key={`item-${index}`} className="flex items-center justify-between gap-4 text-slate-700">
+                <span className="flex items-center gap-1.5 font-bold">
+                  <span className="w-2.5 h-2.5 rounded-full inline-block shrink-0" style={{ backgroundColor: itemBg }} />
+                  <span>{entry.name || 'Procedure'}:</span>
+                </span>
+                <span className="font-black text-slate-900 font-mono">{entry.value ?? 0}</span>
+              </div>
+            );
+          })}
         </div>
         {totalItem && (
           <div className="pt-2 border-t border-slate-200 flex items-center justify-between gap-4 text-orange-800 font-black">
             <span className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full inline-block shrink-0 bg-orange-500" />
-              <span>{totalItem.name}:</span>
+              <span>{totalItem.name || 'Total'}:</span>
             </span>
-            <span className="text-orange-900 text-sm font-extrabold font-mono">{totalItem.value}</span>
+            <span className="text-orange-900 text-sm font-extrabold font-mono">{totalItem.value ?? 0}</span>
           </div>
         )}
       </div>
@@ -59,7 +63,7 @@ interface EndoscopyAnalyticsDashboardProps {
 }
 
 type TimeFrame = 'all' | 'ytd' | '6m' | '3m';
-type ProcedureFilter = 'all' | 'upper_gi' | 'lower_gi' | 'pulmonary';
+type ProcedureFilter = 'all' | 'upper_gi' | 'lower_gi' | 'sigmoidoscopy' | 'pulmonary';
 
 // Color palette for charts (Vibrant theme with Orange & Pink accent, no green)
 const COLORS = [
@@ -236,7 +240,12 @@ export const EndoscopyAnalyticsDashboard: React.FC<EndoscopyAnalyticsDashboardPr
     } else if (procedureFilter === 'lower_gi') {
       result = result.filter(r => {
         const p = (r.procedure || '').toLowerCase();
-        return p.includes('colon') || p.includes('sigmo') || p.includes('lower') || p.includes('recto');
+        return (p.includes('colon') || p.includes('lower') || p.includes('recto')) && !p.includes('sigmo');
+      });
+    } else if (procedureFilter === 'sigmoidoscopy') {
+      result = result.filter(r => {
+        const p = (r.procedure || '').toLowerCase();
+        return p.includes('sigmo');
       });
     } else if (procedureFilter === 'pulmonary') {
       result = result.filter(r => {
@@ -354,7 +363,7 @@ export const EndoscopyAnalyticsDashboard: React.FC<EndoscopyAnalyticsDashboardPr
 
   // Chart 1: Monthly Procedure Volumes Trend
   const monthlyVolumeData = useMemo(() => {
-    const monthMap: Record<string, { month: string; total: number; upperGI: number; lowerGI: number; bronchoscopy: number; sortKey: string }> = {};
+    const monthMap: Record<string, { month: string; total: number; upperGI: number; lowerGI: number; sigmoidoscopy: number; bronchoscopy: number; sortKey: string }> = {};
 
     filteredRecords.forEach(r => {
       if (!r.date) return;
@@ -372,6 +381,7 @@ export const EndoscopyAnalyticsDashboard: React.FC<EndoscopyAnalyticsDashboardPr
           total: 0,
           upperGI: 0,
           lowerGI: 0,
+          sigmoidoscopy: 0,
           bronchoscopy: 0,
           sortKey
         };
@@ -382,7 +392,9 @@ export const EndoscopyAnalyticsDashboard: React.FC<EndoscopyAnalyticsDashboardPr
       const p = (r.procedure || '').toLowerCase();
       if (p.includes('egd') || p.includes('esophag') || p.includes('gastros') || p.includes('upper')) {
         monthMap[sortKey].upperGI += 1;
-      } else if (p.includes('colon') || p.includes('sigmo') || p.includes('lower') || p.includes('recto')) {
+      } else if (p.includes('sigmo')) {
+        monthMap[sortKey].sigmoidoscopy += 1;
+      } else if (p.includes('colon') || p.includes('lower') || p.includes('recto')) {
         monthMap[sortKey].lowerGI += 1;
       } else if (p.includes('bronch') || p.includes('lung')) {
         monthMap[sortKey].bronchoscopy += 1;
@@ -486,12 +498,12 @@ export const EndoscopyAnalyticsDashboard: React.FC<EndoscopyAnalyticsDashboardPr
       const p = (r.procedure || '').toLowerCase();
       if (p.includes('egd') || p.includes('esophag') || p.includes('gastros') || p.includes('upper')) {
         categories['Upper GI (EGD)'] += 1;
+      } else if (p.includes('sigmo')) {
+        categories['Sigmoidoscopy'] += 1;
       } else if (p.includes('colon') || p.includes('lower')) {
         categories['Lower GI (Colonoscopy)'] += 1;
       } else if (p.includes('bronch') || p.includes('lung')) {
         categories['Flexible Bronchoscopy'] += 1;
-      } else if (p.includes('sigmo')) {
-        categories['Sigmoidoscopy'] += 1;
       } else {
         categories['Other Endoscopy'] += 1;
       }
@@ -621,6 +633,7 @@ export const EndoscopyAnalyticsDashboard: React.FC<EndoscopyAnalyticsDashboardPr
               <option value="all">All Procedure Types</option>
               <option value="upper_gi">Upper GI (EGD)</option>
               <option value="lower_gi">Lower GI (Colonoscopy)</option>
+              <option value="sigmoidoscopy">Sigmoidoscopy</option>
               <option value="pulmonary">Flexible Bronchoscopy</option>
             </select>
 
@@ -908,13 +921,19 @@ export const EndoscopyAnalyticsDashboard: React.FC<EndoscopyAnalyticsDashboardPr
                   <Bar 
                     dataKey="lowerGI" 
                     name="Lower GI (Colonoscopy)" 
+                    fill="#ec4899" 
+                    radius={[4, 4, 0, 0]} 
+                  />
+                  <Bar 
+                    dataKey="sigmoidoscopy" 
+                    name="Sigmoidoscopy" 
                     fill="#f59e0b" 
                     radius={[4, 4, 0, 0]} 
                   />
                   <Bar 
                     dataKey="bronchoscopy" 
                     name="Flexible Bronchoscopy" 
-                    fill="#ec4899" 
+                    fill="#8b5cf6" 
                     radius={[4, 4, 0, 0]} 
                   />
                   <Bar 

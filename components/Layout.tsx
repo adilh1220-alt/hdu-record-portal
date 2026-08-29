@@ -357,7 +357,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
 
       {/* Sidebar */}
       <aside 
-        className={`bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-all duration-300 flex flex-col z-50 shrink-0
+        className={`bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-[width,transform] duration-200 ease-in-out flex flex-col z-50 shrink-0 select-none
           fixed inset-y-0 left-0 md:relative
           ${isSidebarOpen 
             ? 'w-64 translate-x-0' 
@@ -365,54 +365,61 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
           }
         `}
       >
-        <div className={`p-4 flex flex-col border-b border-slate-100 dark:border-slate-800 gap-2.5`}>
-          <div className={`flex items-center ${isSidebarOpen ? 'justify-between' : 'justify-center'}`}>
-            <div 
-              className={`flex items-center space-x-2.5 overflow-hidden ${!isSidebarOpen && 'hidden'}`}
-            >
-              {sidebarLogo ? (
-                <img 
-                  key={getLogoSettings().updatedAt || Date.now()}
-                  src={getLogoUrlWithCacheBust(sidebarLogo)} 
-                  alt="Hospital Logo" 
-                  style={{ width: `${sidebarLogoWidth}px`, height: 'auto', maxHeight: `${sidebarLogoWidth}px` }}
-                  className="object-contain drop-shadow-sm transition-all"
-                />
-              ) : null}
-              <div className="flex flex-col min-w-0">
-                <span className="text-slate-900 dark:text-slate-100 font-bold text-[11px] tracking-tight leading-tight whitespace-nowrap">Record Management Portal</span>
-                <span className="text-[7.5px] font-bold uppercase text-red-600 dark:text-red-400 tracking-tight leading-tight mt-0.5 whitespace-nowrap">Endoscopy & HDU Clinical System</span>
-              </div>
-            </div>
-
-            {!isSidebarOpen && (
-              <div className="p-1">
+        <div className="p-3 border-b border-slate-100 dark:border-slate-800 flex flex-col justify-center min-h-[64px]">
+          {isSidebarOpen ? (
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center space-x-2.5 overflow-hidden min-w-0">
                 {sidebarLogo ? (
                   <img 
                     key={getLogoSettings().updatedAt || Date.now()}
                     src={getLogoUrlWithCacheBust(sidebarLogo)} 
                     alt="Hospital Logo" 
-                    style={{ width: `${Math.round(sidebarLogoWidth * 0.9)}px`, height: 'auto', maxHeight: `${Math.round(sidebarLogoWidth * 0.9)}px` }}
-                    className="object-contain transition-all"
+                    style={{ width: `${sidebarLogoWidth}px`, height: 'auto', maxHeight: `${sidebarLogoWidth}px` }}
+                    className="object-contain drop-shadow-xs shrink-0"
                   />
                 ) : (
-                  <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 text-red-600 flex items-center justify-center font-black text-xs shrink-0 tracking-tighter">
+                  <div className="w-8 h-8 rounded-lg bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 flex items-center justify-center font-black text-xs shrink-0 tracking-tight">
                     TKC
                   </div>
                 )}
+                <div className="flex flex-col min-w-0">
+                  <span className="text-slate-900 dark:text-slate-100 font-bold text-[11px] tracking-tight leading-tight truncate">Record Management Portal</span>
+                  <span className="text-[7.5px] font-bold uppercase text-red-600 dark:text-red-400 tracking-tight leading-tight mt-0.5 truncate">Endoscopy & HDU System</span>
+                </div>
               </div>
-            )}
 
-            <button 
-              onClick={() => setSidebarOpen(!isSidebarOpen)} 
-              className="text-slate-400 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-all shrink-0"
-              title={isSidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
-            >
-              <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16m-7 6h7" />
-              </svg>
-            </button>
-          </div>
+              <button 
+                onClick={() => setSidebarOpen(false)} 
+                className="text-slate-400 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0 cursor-pointer"
+                title="Collapse Sidebar"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                </svg>
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center">
+              <button 
+                onClick={() => setSidebarOpen(true)} 
+                className="w-11 h-11 flex items-center justify-center rounded-xl bg-slate-50 dark:bg-slate-800/80 hover:bg-red-50 dark:hover:bg-red-950/30 text-slate-500 hover:text-red-600 dark:text-slate-400 dark:hover:text-red-400 transition-all border border-slate-200/60 dark:border-slate-700/60 group cursor-pointer shadow-2xs"
+                title="Click to Expand Sidebar"
+              >
+                {sidebarLogo ? (
+                  <img 
+                    key={getLogoSettings().updatedAt || Date.now()}
+                    src={getLogoUrlWithCacheBust(sidebarLogo)} 
+                    alt="Hospital Logo" 
+                    className="w-7 h-7 object-contain group-hover:scale-110 transition-transform"
+                  />
+                ) : (
+                  <svg className="w-5 h-5 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16m-7 6h7" />
+                  </svg>
+                )}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Firebase Sync status (shown below branding header) */}

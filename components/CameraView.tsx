@@ -430,8 +430,10 @@ export const CameraView: React.FC<CameraViewProps> = ({
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
       // Render all saved annotations
-      const allItems = previewItem ? [...annotations, previewItem] : annotations;
-      allItems.forEach(item => renderAnnotationItem(ctx, item));
+      const allItems = previewItem ? [...(annotations || []).filter(Boolean), previewItem] : (annotations || []).filter(Boolean);
+      allItems.forEach(item => {
+        if (item) renderAnnotationItem(ctx, item);
+      });
     };
     img.src = editingImage.base64;
   };
@@ -451,11 +453,13 @@ export const CameraView: React.FC<CameraViewProps> = ({
     }
   }, [editingImage, annotations]);
 
-  const renderAnnotationItem = (ctx: CanvasRenderingContext2D, item: AnnotationItem) => {
+  const renderAnnotationItem = (ctx: CanvasRenderingContext2D, item: AnnotationItem | null | undefined) => {
+    if (!item) return;
+    const safeColor = item.color || '#ef4444';
     ctx.save();
-    ctx.strokeStyle = item.color;
-    ctx.fillStyle = item.color;
-    ctx.lineWidth = item.lineWidth;
+    ctx.strokeStyle = safeColor;
+    ctx.fillStyle = safeColor;
+    ctx.lineWidth = item.lineWidth || 3;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
@@ -475,7 +479,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
 
       // Draw arrowhead at endX, endY
       const angle = Math.atan2(item.endY - item.startY, item.endX - item.startX);
-      const headlen = item.lineWidth * 4 + 10;
+      const headlen = (item.lineWidth || 3) * 4 + 10;
       ctx.beginPath();
       ctx.moveTo(item.endX, item.endY);
       ctx.lineTo(
@@ -499,7 +503,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
       ctx.stroke();
 
       // Soft semi-transparent highlight inside ring
-      ctx.fillStyle = `${item.color}22`;
+      ctx.fillStyle = `${safeColor}22`;
       ctx.fill();
     } else if (item.type === 'caliper' && item.startX !== undefined && item.startY !== undefined && item.endX !== undefined && item.endY !== undefined) {
       // Measurement Caliper Line
@@ -531,7 +535,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
       ctx.beginPath();
       ctx.roundRect(midX - textWidth / 2 - 8, midY - 14, textWidth + 16, 26, 6);
       ctx.fill();
-      ctx.strokeStyle = item.color;
+      ctx.strokeStyle = safeColor;
       ctx.lineWidth = 1.5;
       ctx.stroke();
 
@@ -580,11 +584,11 @@ export const CameraView: React.FC<CameraViewProps> = ({
       ctx.beginPath();
       ctx.roundRect(item.startX - 6, item.startY - 22, textWidth + 12, 30, 6);
       ctx.fill();
-      ctx.strokeStyle = item.color;
+      ctx.strokeStyle = safeColor;
       ctx.lineWidth = 1.5;
       ctx.stroke();
 
-      ctx.fillStyle = item.color;
+      ctx.fillStyle = safeColor;
       ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
       ctx.fillText(label, item.startX, item.startY - 18);

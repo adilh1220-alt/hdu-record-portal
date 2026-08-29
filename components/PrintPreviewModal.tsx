@@ -67,7 +67,9 @@ import {
   Trash2,
   MapPin,
   Phone,
-  Smartphone
+  Smartphone,
+  Contrast,
+  Sun
 } from 'lucide-react';
 
 interface PrintPreviewModalProps {
@@ -120,6 +122,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
   const [includeMetrics, setIncludeMetrics] = useState(true);
   const [includeLogo, setIncludeLogo] = useState(true);
   const [includeIdentifiers, setIncludeIdentifiers] = useState(true);
+  const [highContrastMode, setHighContrastMode] = useState<boolean>(true);
 
   // Custom Logo Configuration States
   const [logoSettings, setLogoSettingsState] = useState<LogoSettings>(getLogoSettings());
@@ -1227,6 +1230,33 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
               </div>
               {includeIdentifiers ? <CheckSquare className="w-4 h-4 text-red-500 shrink-0" /> : <Square className="w-4 h-4 text-slate-600 shrink-0" />}
             </button>
+
+            {/* High-Contrast Print-Mode Toggle Card */}
+            <div className="p-3 bg-slate-950/70 rounded-xl border border-slate-800 space-y-2 mt-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Contrast className="w-4 h-4 text-amber-400" />
+                  <span className="text-xs font-bold text-slate-200">High-Contrast Print Mode</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setHighContrastMode(!highContrastMode)}
+                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    highContrastMode ? 'bg-red-600' : 'bg-slate-700'
+                  }`}
+                  aria-label="Toggle High-Contrast Print Mode"
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                      highContrastMode ? 'translate-x-4' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+              <p className="text-[10px] text-slate-400 leading-tight">
+                Optimized for pure white backgrounds, solid black text, crisp table borders, and laser printer ink-conservation.
+              </p>
+            </div>
           </div>
 
           {/* 5. Column Visibility Toggles */}
@@ -1516,6 +1546,28 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
               </button>
             ))}
 
+            {/* High-Contrast Print-Mode Quick Toggle Button */}
+            <div className="relative ml-1 pl-1 border-l border-slate-700">
+              <button
+                type="button"
+                onClick={() => setHighContrastMode(!highContrastMode)}
+                title="Toggle High-Contrast Print Optimization (White background & solid black text)"
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center space-x-1.5 border ${
+                  highContrastMode
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-xs'
+                    : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white hover:bg-slate-750'
+                }`}
+              >
+                <Contrast className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">High Contrast</span>
+                <span className={`text-[8px] font-black uppercase px-1.5 py-0.2 rounded font-mono ${
+                  highContrastMode ? 'bg-amber-400 text-slate-950' : 'bg-slate-700 text-slate-300'
+                }`}>
+                  {highContrastMode ? 'ON' : 'OFF'}
+                </span>
+              </button>
+            </div>
+
             {/* Print Options Dropdown Popover Button */}
             <div className="relative ml-2 pl-2 border-l border-slate-700">
               <button
@@ -1687,7 +1739,11 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
         {/* High-Fidelity Sheet styled like A4 dimensions */}
         <div 
           id="clinical-print-preview-sheet"
-          className="bg-white text-slate-900 w-full max-w-[21cm] min-h-[29.7cm] shadow-2xl border border-slate-700 rounded-lg p-6 md:p-10 font-sans mx-auto transition-all"
+          data-print-mode={highContrastMode ? "true" : "false"}
+          data-print-contrast={highContrastMode ? "high" : "standard"}
+          className={`bg-white text-slate-900 w-full max-w-[21cm] min-h-[29.7cm] shadow-2xl border border-slate-700 rounded-lg p-6 md:p-10 font-sans mx-auto transition-all ${
+            highContrastMode ? 'high-contrast-print print-mode' : ''
+          }`}
         >
           {/* Header Area */}
           {includeLogo && (

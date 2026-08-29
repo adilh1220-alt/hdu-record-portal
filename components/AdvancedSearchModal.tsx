@@ -282,8 +282,10 @@ export const AdvancedSearchModal: React.FC<AdvancedSearchModalProps> = ({ active
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {severityOptions.map((opt) => {
+                if (!opt) return null;
                 const IconComponent = opt.icon;
                 const isSelected = severity === opt.id;
+                const optColor = opt.color || 'bg-slate-50 text-slate-700 border-slate-200';
                 return (
                   <button
                     key={opt.id}
@@ -292,7 +294,7 @@ export const AdvancedSearchModal: React.FC<AdvancedSearchModalProps> = ({ active
                     className={`p-3 rounded-xl border text-left transition-all flex items-start justify-between ${
                       isSelected
                         ? 'ring-2 ring-slate-900 border-slate-900 shadow-sm bg-slate-900 text-white'
-                        : `${opt.color} hover:brightness-95`
+                        : `${optColor} hover:brightness-95`
                     }`}
                   >
                     <div className="flex items-center gap-2.5">

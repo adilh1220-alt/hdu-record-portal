@@ -1,5 +1,19 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ClipboardList, Fingerprint, Shield, Sparkles, KeyRound, CheckCircle2, HelpCircle } from 'lucide-react';
+import { 
+  ClipboardList, 
+  Fingerprint, 
+  Shield, 
+  Sparkles, 
+  KeyRound, 
+  CheckCircle2, 
+  HelpCircle,
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  LogIn,
+  ArrowRight
+} from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { userService } from '../services/userService';
 import { authService } from '../services/authService';
@@ -183,24 +197,23 @@ const AuthForm: React.FC = () => {
         </div>
       )}
 
-      <div className={`w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden transition-all duration-300 ${shake ? 'animate-shake' : 'animate-in fade-in zoom-in'}`}>
-        <div className="bg-slate-100 p-10 text-center border-b border-slate-200">
-          <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-sm border border-slate-200">
-            <ClipboardList className="w-8 h-8 text-red-600" />
+      <div className={`w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden transition-all duration-300 ${shake ? 'animate-shake' : 'animate-in fade-in zoom-in'}`}>
+        <div className="bg-slate-100/80 px-6 py-4 sm:py-5 text-center border-b border-slate-200">
+          <div className="w-11 h-11 bg-white rounded-xl flex items-center justify-center mx-auto mb-2.5 shadow-xs border border-slate-200">
+            <ClipboardList className="w-5 h-5 text-red-600" />
           </div>
-          <h2 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 uppercase">RECORD MANAGEMENT PORTAL</h2>
-          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.2em] mt-3">Authorized Clinical Personnel Only</p>
+          <h2 className="text-lg sm:text-xl font-black tracking-tight text-slate-900 uppercase">RECORD MANAGEMENT PORTAL</h2>
         </div>
 
-        <div className="p-8">
+        <div className="p-5 sm:p-6">
           {showInactivityAlert && (
-            <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
-              <svg className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5 animate-in fade-in slide-in-from-top-2 duration-300">
+              <svg className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
               <div className="flex-1">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-black uppercase text-amber-800 tracking-wider">Session Expired</h4>
+                  <h4 className="text-[11px] font-black uppercase text-amber-800 tracking-wider">Session Expired</h4>
                   <button 
                     onClick={() => setShowInactivityAlert(false)} 
                     className="text-amber-500 hover:text-amber-700 p-0.5 rounded transition-colors"
@@ -211,7 +224,7 @@ const AuthForm: React.FC = () => {
                     </svg>
                   </button>
                 </div>
-                <p className="text-[11px] font-semibold text-amber-700 mt-1 leading-relaxed">
+                <p className="text-[10px] font-semibold text-amber-700 mt-0.5 leading-relaxed">
                   You were automatically signed out after 15 minutes of inactivity for compliance and patient-data security.
                 </p>
               </div>
@@ -220,28 +233,28 @@ const AuthForm: React.FC = () => {
 
           {/* Biometric WebAuthn Fast Login Section */}
           {biometricSupport?.isSupported && (
-            <div className="mb-6 space-y-3">
+            <div className="mb-4 space-y-2.5">
               <button
                 type="button"
                 onClick={handleBiometricLogin}
                 disabled={biometricLoading || loading}
-                className={`w-full p-4 rounded-2xl border transition-all duration-200 flex items-center gap-3.5 relative overflow-hidden group cursor-pointer shadow-md active:scale-95 ${
+                className={`w-full p-3 rounded-xl border transition-all duration-200 flex items-center gap-3 relative overflow-hidden group cursor-pointer shadow-xs active:scale-95 ${
                   hasEnrolledCreds || lastBiometricUser
                     ? 'bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white border-slate-700 hover:border-red-500/50 shadow-slate-900/20'
                     : 'bg-white hover:bg-slate-50 text-slate-800 border-slate-300 hover:border-slate-400'
                 }`}
               >
-                <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${
                   hasEnrolledCreds || lastBiometricUser
-                    ? 'bg-gradient-to-br from-red-500 to-rose-600 text-white shadow-md shadow-red-500/30'
+                    ? 'bg-gradient-to-br from-red-500 to-rose-600 text-white shadow-xs shadow-red-500/30'
                     : 'bg-slate-100 text-slate-700'
                 }`}>
-                  <Fingerprint className={`w-6 h-6 ${biometricLoading ? 'animate-pulse text-white' : ''}`} />
+                  <Fingerprint className={`w-5 h-5 ${biometricLoading ? 'animate-pulse text-white' : ''}`} />
                 </div>
 
                 <div className="flex-1 text-left min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[11px] font-black uppercase tracking-wider truncate">
+                    <span className="text-[10px] font-black uppercase tracking-wider truncate">
                       {biometricLoading 
                         ? 'Verifying Biometrics...' 
                         : lastBiometricUser 
@@ -249,7 +262,7 @@ const AuthForm: React.FC = () => {
                           : 'Sign In with Biometrics'
                       }
                     </span>
-                    <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${
+                    <span className={`text-[7px] font-bold px-1 py-0.5 rounded uppercase tracking-wider ${
                       hasEnrolledCreds || lastBiometricUser
                         ? 'bg-red-500/20 text-red-300 border border-red-500/30'
                         : 'bg-slate-100 text-slate-600'
@@ -258,7 +271,7 @@ const AuthForm: React.FC = () => {
                     </span>
                   </div>
 
-                  <p className={`text-[10px] truncate mt-0.5 font-medium ${
+                  <p className={`text-[9px] truncate font-medium ${
                     hasEnrolledCreds || lastBiometricUser ? 'text-slate-300' : 'text-slate-500'
                   }`}>
                     {lastBiometricUser 
@@ -269,36 +282,36 @@ const AuthForm: React.FC = () => {
                 </div>
 
                 {biometricLoading ? (
-                  <div className="w-5 h-5 border-2 border-red-400/30 border-t-red-500 rounded-full animate-spin shrink-0" />
+                  <div className="w-4 h-4 border-2 border-red-400/30 border-t-red-500 rounded-full animate-spin shrink-0" />
                 ) : (
-                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-ping shrink-0" title="Biometric Authenticator Ready" />
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping shrink-0" title="Biometric Authenticator Ready" />
                 )}
               </button>
 
               {biometricFeedback && (
-                <div className="p-2.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-bold flex items-center gap-2 animate-in fade-in">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <div className="p-2 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-[11px] font-bold flex items-center gap-2 animate-in fade-in">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                   <span>{biometricFeedback}</span>
                 </div>
               )}
 
-              <div className="flex items-center justify-between px-1 text-[10px]">
+              <div className="flex items-center justify-between px-1 text-[9px]">
                 <button
                   type="button"
                   onClick={() => setShowBiometricGuide(true)}
                   className="text-slate-400 hover:text-slate-600 flex items-center gap-1 font-bold transition-colors cursor-pointer"
                 >
-                  <HelpCircle className="w-3 h-3 text-red-500" />
+                  <HelpCircle className="w-2.5 h-2.5 text-red-500" />
                   <span>Moto G54 & Fingerprint Setup Guide</span>
                 </button>
-                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">
+                <span className="text-[8px] text-slate-400 font-bold uppercase tracking-wider">
                   FIDO2 Biometrics
                 </span>
               </div>
 
-              <div className="relative flex py-2 items-center">
+              <div className="relative flex py-1 items-center">
                 <div className="flex-grow border-t border-slate-200" />
-                <span className="flex-shrink mx-3 text-[9px] font-black uppercase tracking-widest text-slate-400">
+                <span className="flex-shrink mx-2.5 text-[8px] font-black uppercase tracking-widest text-slate-400">
                   Or use medical password
                 </span>
                 <div className="flex-grow border-t border-slate-200" />
@@ -306,39 +319,51 @@ const AuthForm: React.FC = () => {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-slate-700 uppercase tracking-widest ml-1">Email Address</label>
-              <input
-                type="email"
-                required
-                className="w-full px-4 py-3.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-red-100 outline-none transition-all text-sm font-medium bg-slate-50/50"
-                placeholder="staff@hospital.org"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-1.5 group">
+              <label className="text-[9px] font-bold text-slate-700 uppercase tracking-widest ml-1 flex items-center gap-1.5">
+                <span>Email Address</span>
+              </label>
+              <div className="relative flex items-center">
+                <div className="absolute left-3.5 pointer-events-none text-slate-400 group-focus-within:text-red-500 transition-colors">
+                  <Mail className="w-4 h-4" />
+                </div>
+                <input
+                  type="email"
+                  required
+                  className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-red-500 focus:ring-2 focus:ring-red-100/80 outline-none transition-all text-xs font-medium bg-slate-50/50 hover:bg-white focus:bg-white text-slate-800 placeholder:text-slate-400 shadow-2xs"
+                  placeholder="staff@hospital.org"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
             </div>
 
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 group">
               <div className="flex justify-between items-center ml-1">
-                <label className="text-[10px] font-bold text-slate-700 uppercase tracking-widest">Security Credentials</label>
+                <label className="text-[9px] font-bold text-slate-700 uppercase tracking-widest flex items-center gap-1.5">
+                  <span>Security Credentials</span>
+                </label>
                 <button 
                   type="button"
                   onClick={() => {
                     setResetEmail(email);
                     setIsResetModalOpen(true);
                   }}
-                  className="text-[9px] font-black text-red-600 uppercase tracking-widest hover:text-red-700 transition-colors"
+                  className="text-[8px] font-black text-red-600 uppercase tracking-widest hover:text-red-700 hover:underline transition-colors cursor-pointer"
                 >
                   Forgot Password?
                 </button>
               </div>
-              <div className="relative">
+              <div className="relative flex items-center">
+                <div className="absolute left-3.5 pointer-events-none text-slate-400 group-focus-within:text-red-500 transition-colors">
+                  <Lock className="w-4 h-4" />
+                </div>
                 <input
                   ref={passwordRef}
                   type={showPassword ? "text" : "password"}
                   required
-                  className="w-full px-4 py-3.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-red-100 outline-none transition-all pr-12 text-sm font-medium bg-slate-50/50"
+                  className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-200 focus:border-red-500 focus:ring-2 focus:ring-red-100/80 outline-none transition-all text-xs font-medium bg-slate-50/50 hover:bg-white focus:bg-white text-slate-800 placeholder:text-slate-400 shadow-2xs"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -346,18 +371,13 @@ const AuthForm: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-900 transition-colors"
+                  className="absolute right-3 p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
                   aria-label={showPassword ? "Hide password" : "Show password"}
                 >
                   {showPassword ? (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
-                    </svg>
+                    <EyeOff className="w-4 h-4" />
                   ) : (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
+                    <Eye className="w-4 h-4" />
                   )}
                 </button>
               </div>
@@ -366,26 +386,25 @@ const AuthForm: React.FC = () => {
             <button
               type="submit"
               disabled={loading}
-              className={`w-full py-4 rounded-xl font-black text-[10px] uppercase tracking-[0.2em] text-white shadow-xl transition-all ${
+              className={`w-full py-3 px-4 rounded-xl font-black text-[11px] uppercase tracking-[0.18em] text-white shadow-md transition-all flex items-center justify-center gap-2 group cursor-pointer ${
                 loading 
                   ? 'bg-slate-300 cursor-not-allowed shadow-none' 
-                  : 'bg-red-500 hover:bg-red-600 active:scale-[0.98] shadow-red-200'
+                  : 'bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 active:scale-[0.98] shadow-red-500/20 hover:shadow-lg hover:shadow-red-500/25'
               }`}
             >
-              {loading ? 'Authenticating...' : 'LOGIN'}
+              {loading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                  <span>Authenticating...</span>
+                </>
+              ) : (
+                <>
+                  <span>Login to Portal</span>
+                  <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                </>
+              )}
             </button>
           </form>
-
-          <div className="mt-8 text-center">
-            <p className="text-slate-400 text-[9px] font-bold uppercase tracking-widest leading-relaxed">
-              Confidential Medical Information System<br/>Unauthorized access is strictly prohibited.
-            </p>
-          </div>
-        </div>
-
-        <div className="p-6 bg-slate-50 border-t border-slate-100 flex items-center justify-center space-x-2">
-          <svg className="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-          <span className="text-[9px] text-slate-400 font-black uppercase tracking-[0.2em]">Encrypted Clinical Network</span>
         </div>
       </div>
 

@@ -95,7 +95,7 @@ export const BreadcrumbNav: React.FC<BreadcrumbProps> = ({
   };
 
   const CurrentIcon = currentMeta.icon;
-  const unitInfo = UNIT_DETAILS[activeUnit] || { label: activeUnit, color: 'bg-slate-700' };
+  const unitInfo = (activeUnit && UNIT_DETAILS[activeUnit]) ? UNIT_DETAILS[activeUnit] : { label: activeUnit || 'General', color: 'bg-slate-700' };
 
   return (
     <nav
@@ -159,11 +159,11 @@ export const BreadcrumbNav: React.FC<BreadcrumbProps> = ({
           Unit:
         </span>
         <span
-          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider text-white shadow-2xs ${unitInfo.color}`}
-          title={`Active Clinical Ward: ${unitInfo.label}`}
+          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider text-white shadow-2xs ${unitInfo?.color || 'bg-slate-700'}`}
+          title={`Active Clinical Ward: ${unitInfo?.label || 'General'}`}
         >
           <span className="w-1.5 h-1.5 rounded-full bg-white/80 animate-pulse" />
-          {unitInfo.label}
+          {unitInfo?.label || 'General'}
         </span>
       </div>
     </nav>

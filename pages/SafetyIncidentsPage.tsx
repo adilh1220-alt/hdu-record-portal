@@ -176,7 +176,7 @@ const IncidentForm = React.memo(({ editingIncident, autoSerialNo, onSave, isSavi
       unit: formUnit,
       category: formCategory,
       description: formDescription,
-      reportedBy: currentUser?.displayName || 'Unknown',
+      reportedBy: editingIncident?.reportedBy || currentUser?.displayName || currentUser?.email || 'Staff',
       createdAt: editingIncident?.createdAt || new Date().toISOString()
     });
   };
@@ -596,7 +596,8 @@ const SafetyIncidentsPage: React.FC = () => {
       
       const finalData = {
         ...incidentData,
-        id: incidentId
+        id: incidentId,
+        reportedBy: incidentData.reportedBy || currentUser?.displayName || currentUser?.email || 'Staff'
       };
 
       // setDoc will create the document if it doesn't exist, or overwrite it if it does.
@@ -915,16 +916,16 @@ const SafetyIncidentsPage: React.FC = () => {
                       </span>
                     </td>
                     <td className="px-4 py-4">
-                      <span className={`px-2.5 py-1 rounded-lg text-[8px] font-black text-white shadow-sm ${UNIT_DETAILS[i.unit]?.color || 'bg-slate-700'}`}>
-                        {UNIT_DETAILS[i.unit]?.label || i.unit || 'Unit'}
+                      <span className={`px-2.5 py-1 rounded-lg text-[8px] font-black text-white shadow-sm ${i.unit && UNIT_DETAILS[i.unit]?.color ? UNIT_DETAILS[i.unit].color : 'bg-slate-700'}`}>
+                        {(i.unit && UNIT_DETAILS[i.unit]?.label) || i.unit || 'Unit'}
                       </span>
                     </td>
                     <td className="px-4 py-4">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-[8px] font-black text-slate-500 border border-slate-200">
-                          {i.reportedBy?.[0]}
+                      <div className="flex items-center gap-1.5" title={i.reportedBy ? `Reported by ${i.reportedBy}` : 'Reported by Staff'}>
+                        <div className="w-5 h-5 rounded-full bg-slate-100 border border-slate-200 text-slate-700 flex items-center justify-center text-[8.5px] font-black shrink-0">
+                          {(i.reportedBy || 'Staff')[0]?.toUpperCase()}
                         </div>
-                        <span className="text-slate-400 italic lowercase">{i.reportedBy}</span>
+                        <span className="text-slate-800 font-bold text-[9px] truncate max-w-[110px]">{i.reportedBy || 'Staff'}</span>
                       </div>
                     </td>
                     <td className="px-4 py-4 text-right">

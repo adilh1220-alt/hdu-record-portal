@@ -1,83 +1,67 @@
-/* print.css - Refined high-fidelity stylesheet for A4 printing of The Kidney Centre Clinical Reports & Portals */
+/* print.css - High-Fidelity Print & Export Stylesheet Optimized for White Backgrounds & High-Contrast Black Text */
 
+/* ==========================================================================
+   1. HIGH-CONTRAST PRINT MEDIA QUERY (@media print)
+   ========================================================================== */
 @media print {
-  /* 1. Page Setup & Global Canvas Reset */
+  /* Page Geometry and Standard Margins (A4 & Letter) */
   @page {
     size: A4 portrait;
     margin: 10mm 8mm 12mm 8mm;
   }
 
-  html, body {
+  /* Global Canvas & Document Reset - Pure White Background & Deep Black Text */
+  html,
+  body,
+  #root,
+  .app-container,
+  main,
+  div {
     background-color: #ffffff !important;
     background: #ffffff !important;
     color: #000000 !important;
-    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif !important;
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    text-shadow: none !important;
+    box-shadow: none !important;
+    filter: none !important;
+  }
+
+  html,
+  body {
     width: 100% !important;
     height: auto !important;
     min-height: auto !important;
     overflow: visible !important;
     margin: 0 !important;
-    padding-top: 26px !important;
-    padding-bottom: 22px !important;
-    padding-left: 0 !important;
-    padding-right: 0 !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
+    padding: 0 !important;
   }
 
-  /* 2. Official "The Kidney Centre" Fixed Running Header & Footer on EVERY Printed Page */
-  body::before {
-    content: "THE KIDNEY CENTRE POST GRADUATE TRAINING INSTITUTE • OFFICIAL CLINICAL REPORT";
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 22px;
-    line-height: 22px;
-    font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
-    font-size: 7.5pt !important;
-    font-weight: 800 !important;
-    color: #881337 !important;
-    background-color: #fff1f2 !important;
-    border-bottom: 2px solid #be123c !important;
-    text-align: center !important;
-    text-transform: uppercase !important;
-    letter-spacing: 0.06em !important;
-    z-index: 999999 !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
-
-  body::after {
-    content: "THE KIDNEY CENTRE MEDICAL RECORD SYSTEM • PRIVILEGED AND CONFIDENTIAL CLINICAL INFORMATION • DO NOT DUPLICATE WITHOUT AUTHORIZATION";
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 18px;
-    line-height: 18px;
-    font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
-    font-size: 6.5pt !important;
-    font-weight: 700 !important;
-    color: #64748b !important;
+  /* Neutralize Dark Mode completely during Print / Export */
+  .dark,
+  .dark *,
+  html.dark,
+  body.dark,
+  .dark body,
+  .dark #root,
+  .dark main {
     background-color: #ffffff !important;
-    border-top: 1px solid #cbd5e1 !important;
-    text-align: center !important;
-    text-transform: uppercase !important;
-    letter-spacing: 0.05em !important;
-    z-index: 999999 !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    border-color: #334155 !important;
   }
 
-  /* Remove shadow, text-shadow, filters across all elements for clean print rendering */
-  *, *::before, *::after {
+  /* Universal Shadow & Glow Elimination */
+  *,
+  *::before,
+  *::after {
     box-shadow: none !important;
     text-shadow: none !important;
     filter: none !important;
   }
 
-  /* 3. Container Layout & Scroll Constraints Reset */
+  /* 2. Container Layout & Overflow Reset */
   #root, 
   body > div,
   main,
@@ -96,27 +80,30 @@
     max-width: 100% !important;
   }
 
-  /* 4. Hide Non-Essential UI & Interactive Elements */
+  /* 3. Hide Non-Essential UI & Interactive Elements */
   aside,
   nav,
-  header:not(.print-header):not(.endoscopy-print-header),
-  footer:not(.print-footer),
-  button,
-  input,
-  select,
-  textarea,
+  header:not(.print-header):not(.endoscopy-print-header):not(.print-official-header),
+  footer:not(.print-footer):not(.print-signature-footer),
+  button:not(.allow-print),
+  input:not(.allow-print),
+  select:not(.allow-print),
+  textarea:not(.allow-print),
   .no-print,
+  [data-no-print="true"],
   .interactive,
   .print\:hidden,
   [data-print="false"],
   .toast,
+  .toast-container,
   .shortcuts-modal,
   #shortcuts-overlay,
   button[title*="Shortcuts"],
   .action-column,
   .no-print-col,
   /* Hide search boxes, filter bars, action controls */
-  div[class*="bg-slate-50"][class*="p-4"][class*="rounded-xl"],
+  div[class*="bg-slate-50"][class*="p-4"][class*="rounded-xl"]:has(input),
+  div[class*="bg-slate-900"][class*="rounded-xl"]:has(button),
   /* Hide modal backdrop overlays so modal content prints on clean white canvas */
   .modal-backdrop,
   div[class*="fixed"][class*="inset-0"][class*="bg-slate"],
@@ -131,70 +118,79 @@
     display: none !important;
   }
 
-  /* 5. Main Content Canvas Styling */
-  main {
-    padding: 0 !important;
-    margin: 0 !important;
-    background-color: #ffffff !important;
-    background: #ffffff !important;
-    width: 100% !important;
-  }
-
-  /* 6. Typography and Headings Formatting */
+  /* 4. High-Contrast Typography & Headers */
   h1 {
     font-size: 16pt !important;
     font-weight: 900 !important;
-    color: #be123c !important;
+    color: #000000 !important;
     letter-spacing: -0.02em !important;
-    margin-bottom: 0.3rem !important;
+    margin-bottom: 0.35rem !important;
     page-break-after: avoid !important;
+    break-after: avoid !important;
   }
 
   h2 {
     font-size: 12pt !important;
     font-weight: 800 !important;
-    color: #1e293b !important;
+    color: #000000 !important;
     margin-top: 0.8rem !important;
     margin-bottom: 0.4rem !important;
     page-break-after: avoid !important;
+    break-after: avoid !important;
   }
 
   h3 {
     font-size: 10pt !important;
-    font-weight: 700 !important;
-    color: #334155 !important;
+    font-weight: 800 !important;
+    color: #0f172a !important;
     margin-top: 0.6rem !important;
     margin-bottom: 0.3rem !important;
     page-break-after: avoid !important;
+    break-after: avoid !important;
   }
 
-  h4 {
+  h4, h5, h6 {
     font-size: 9pt !important;
     font-weight: 700 !important;
-    color: #334155 !important;
+    color: #1e293b !important;
     page-break-after: avoid !important;
+    break-after: avoid !important;
   }
 
-  p, li, span, td, th {
-    color: #1e293b !important;
+  p, li, span, td, th, label, div {
+    color: #000000 !important;
     line-height: 1.35 !important;
   }
 
-  /* 7. Standard Card & Container Print Reset */
+  /* Make faint secondary text crisp and readable in print */
+  .text-slate-400,
+  .text-slate-500,
+  .text-slate-600,
+  .text-gray-400,
+  .text-gray-500,
+  .text-muted {
+    color: #1e293b !important;
+    font-weight: 500 !important;
+  }
+
+  /* 5. Standard Card & Container High-Contrast Styling */
   .card, 
   div[class*="bg-white"][class*="rounded-xl"][class*="border"],
-  div[class*="bg-white"][class*="rounded-2xl"][class*="border"] {
+  div[class*="bg-white"][class*="rounded-2xl"][class*="border"],
+  div[class*="bg-slate-50"][class*="rounded-lg"][class*="border"],
+  div[class*="bg-slate-50"][class*="rounded-xl"][class*="border"] {
     background-color: #ffffff !important;
     background: #ffffff !important;
-    border: 1px solid #cbd5e1 !important;
-    border-radius: 6px !important;
+    border: 1px solid #1e293b !important;
+    border-radius: 4px !important;
     padding: 8px 10px !important;
     margin-bottom: 10px !important;
     box-shadow: none !important;
     page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
-  /* 8. Comprehensive Table Scaling & Auto-fitting for A4 Printing */
+  /* 6. Comprehensive High-Contrast Table Layout for Print & Export */
   table {
     width: 100% !important;
     max-width: 100% !important;
@@ -205,9 +201,9 @@
     page-break-inside: auto !important;
     margin-top: 6px !important;
     margin-bottom: 12px !important;
+    border: 1.5px solid #000000 !important;
   }
 
-  /* Override any hardcoded desktop min-width on tables or scrolling containers during print */
   table[class*="min-w-"],
   div[class*="min-w-"],
   div[class*="overflow-x-auto"],
@@ -220,6 +216,7 @@
 
   tr {
     page-break-inside: avoid !important;
+    break-inside: avoid !important;
     page-break-after: auto !important;
   }
 
@@ -236,16 +233,16 @@
   }
 
   th {
-    background-color: #f8fafc !important;
-    background: #f8fafc !important;
-    color: #881337 !important;
+    background-color: #f1f5f9 !important;
+    background: #f1f5f9 !important;
+    color: #000000 !important;
     font-weight: 800 !important;
     text-transform: uppercase !important;
     font-size: 7.5pt !important;
     letter-spacing: 0.03em !important;
     padding: 5px 6px !important;
-    border: 1px solid #cbd5e1 !important;
-    border-bottom: 2px solid #be123c !important;
+    border: 1px solid #000000 !important;
+    border-bottom: 2px solid #000000 !important;
     text-align: left !important;
     white-space: normal !important;
     word-break: break-word !important;
@@ -254,39 +251,56 @@
 
   td {
     font-size: 7.5pt !important;
-    color: #1e293b !important;
+    color: #000000 !important;
     padding: 4px 6px !important;
-    border: 1px solid #e2e8f0 !important;
+    border: 1px solid #475569 !important;
     text-align: left !important;
     white-space: normal !important;
     word-break: break-word !important;
     overflow-wrap: anywhere !important;
+    background-color: #ffffff !important;
   }
 
-  tbody tr:nth-child(even) {
-    background-color: #fcfcfd !important;
-    background: #fcfcfd !important;
+  tbody tr:nth-child(even) td {
+    background-color: #f8fafc !important;
+    background: #f8fafc !important;
   }
 
-  /* Badges and priority indicators in tables */
+  /* 7. High-Contrast Status Badges, Chips & Priority Indicators */
   span[class*="bg-red-"], 
+  span[class*="bg-rose-"],
   span[class*="bg-amber-"], 
+  span[class*="bg-yellow-"],
   span[class*="bg-green-"], 
   span[class*="bg-emerald-"], 
   span[class*="bg-slate-"],
+  span[class*="bg-gray-"],
   span[class*="bg-blue-"],
-  span[class*="bg-indigo-"] {
-    border: 1px solid #cbd5e1 !important;
-    padding: 1px 4px !important;
+  span[class*="bg-indigo-"],
+  span[class*="bg-purple-"] {
+    background-color: #ffffff !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    border: 1.5px solid #000000 !important;
+    padding: 1px 5px !important;
     border-radius: 3px !important;
     font-size: 7pt !important;
-    font-weight: 700 !important;
+    font-weight: 800 !important;
+    text-transform: uppercase !important;
   }
 
-  /* 9. Printable Modal Sheets & Reports Scaling (#clinical-print-section, #clinical-print-preview-sheet) */
+  /* Critical alerts get solid high-contrast dark border */
+  span[class*="bg-red-"],
+  span[class*="text-red-"] {
+    color: #000000 !important;
+    font-weight: 800 !important;
+  }
+
+  /* 8. Printable Modal Sheets & Reports Scaling */
   #clinical-print-section,
   #clinical-print-preview-sheet,
-  .print-report-container {
+  .print-report-container,
+  .print-mode {
     width: 100% !important;
     max-width: 100% !important;
     margin: 0 !important;
@@ -300,21 +314,21 @@
     max-height: none !important;
   }
 
-  /* Explicit In-DOM Report Header Styling for "The Kidney Centre" */
+  /* Institutional Header Styling */
   .print-official-header,
   div[class*="print:block"][class*="border-b-2"] {
     display: block !important;
-    border-bottom: 2px solid #be123c !important;
-    padding-bottom: 10px !important;
-    margin-bottom: 14px !important;
+    border-bottom: 2px solid #000000 !important;
+    padding-bottom: 8px !important;
+    margin-bottom: 12px !important;
   }
 
   .print-official-header h1 {
-    color: #be123c !important;
+    color: #000000 !important;
     font-weight: 900 !important;
   }
 
-  /* 10. Endoscopy Report High-Fidelity A4 Sheet Override */
+  /* 9. Endoscopy Report High-Fidelity A4 Sheet Override */
   .endoscopy-print-sheet {
     display: flex !important;
     flex-direction: column !important;
@@ -323,6 +337,7 @@
     margin: 0 auto !important;
     padding: 0 !important;
     background: #ffffff !important;
+    color: #000000 !important;
     border: none !important;
     box-shadow: none !important;
     min-height: auto !important;
@@ -335,13 +350,13 @@
     align-items: flex-start !important;
     gap: 12px !important;
     width: 100% !important;
-    border-bottom: 2px solid #be123c !important;
+    border-bottom: 2px solid #000000 !important;
     padding-bottom: 8px !important;
     margin-bottom: 8px !important;
   }
 
   .endoscopy-print-header img {
-    max-width: 220px !important;
+    max-width: 200px !important;
     height: auto !important;
     object-fit: contain !important;
   }
@@ -351,6 +366,7 @@
     min-width: 220px !important;
     font-size: 7.5pt !important;
     margin: 0 !important;
+    border: 1px solid #000000 !important;
   }
 
   .endoscopy-print-main-grid {
@@ -371,23 +387,9 @@
     grid-column: span 3 / span 3 !important;
     width: 100% !important;
     max-width: 100% !important;
-    border-left: 1px solid #cbd5e1 !important;
+    border-left: 1.5px solid #000000 !important;
     padding-left: 8px !important;
     gap: 6px !important;
-  }
-
-  .endoscopy-print-metrics-grid-2 {
-    display: grid !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: 6px !important;
-    width: 100% !important;
-  }
-
-  .endoscopy-print-metrics-grid-4 {
-    display: grid !important;
-    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-    gap: 6px !important;
-    width: 100% !important;
   }
 
   .endoscopy-print-image-card {
@@ -397,11 +399,12 @@
     max-width: 100px !important;
     margin: 0 auto !important;
     padding: 2px !important;
-    background-color: #f8fafc !important;
-    border: 1px solid #e2e8f0 !important;
+    background-color: #ffffff !important;
+    border: 1px solid #000000 !important;
     border-radius: 4px !important;
     box-shadow: none !important;
     page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
   .endoscopy-print-image-card img {
@@ -415,8 +418,10 @@
 
   /* Title banner styling for reports */
   .endoscopy-print-sheet div[class*="bg-slate-900"],
-  .endoscopy-print-sheet div[class*="bg-red-"] {
-    background-color: #881337 !important;
+  .endoscopy-print-sheet div[class*="bg-red-"],
+  div[class*="bg-slate-900"][class*="text-white"],
+  div[class*="bg-red-600"][class*="text-white"] {
+    background-color: #0f172a !important;
     color: #ffffff !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
@@ -426,7 +431,7 @@
     border-radius: 4px !important;
   }
 
-  /* 11. Recharts & Visual Analytics Printing Optimization */
+  /* 10. Recharts & Visual Analytics Printing Optimization */
   .recharts-responsive-container,
   .recharts-wrapper,
   div[class*="recharts"] {
@@ -434,24 +439,139 @@
     height: 180px !important;
     max-height: 180px !important;
     page-break-inside: avoid !important;
+    break-inside: avoid !important;
     margin-bottom: 12px !important;
     display: block !important;
+    background-color: #ffffff !important;
   }
 
   svg {
     max-width: 100% !important;
     height: auto !important;
     page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
-  /* 12. Page Break Utilities & Signature Blocks */
+  /* 11. Page Break Utilities & Signature Blocks */
   .page-break {
     page-break-before: always !important;
+    break-before: page !important;
   }
 
   .no-page-break,
   .signature-block,
   .doctor-sign-block {
     page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
+}
+
+/* ==========================================================================
+   2. ON-SCREEN HIGH-CONTRAST PRINT MODE (.high-contrast-print & .print-mode)
+   Allows live screen previewing and export of reports in high-contrast mode
+   ========================================================================== */
+.high-contrast-print,
+.print-mode,
+[data-print-mode="true"],
+[data-print-contrast="high"] {
+  background-color: #ffffff !important;
+  background: #ffffff !important;
+  color: #000000 !important;
+}
+
+.high-contrast-print *,
+.print-mode *,
+[data-print-mode="true"] *,
+[data-print-contrast="high"] * {
+  color: #000000;
+  text-shadow: none !important;
+}
+
+/* High contrast headings */
+.high-contrast-print h1,
+.high-contrast-print h2,
+.high-contrast-print h3,
+.high-contrast-print h4,
+.print-mode h1,
+.print-mode h2,
+.print-mode h3,
+.print-mode h4 {
+  color: #000000 !important;
+  font-weight: 800 !important;
+}
+
+/* High contrast secondary and muted text */
+.high-contrast-print .text-slate-400,
+.high-contrast-print .text-slate-500,
+.high-contrast-print .text-slate-600,
+.high-contrast-print .text-gray-400,
+.high-contrast-print .text-gray-500,
+.print-mode .text-slate-400,
+.print-mode .text-slate-500,
+.print-mode .text-slate-600 {
+  color: #1e293b !important;
+  font-weight: 600 !important;
+}
+
+/* High contrast cards and containers */
+.high-contrast-print .card,
+.high-contrast-print div[class*="bg-slate-50"],
+.high-contrast-print div[class*="bg-red-50"],
+.high-contrast-print div[class*="bg-white"],
+.print-mode .card,
+.print-mode div[class*="bg-slate-50"],
+.print-mode div[class*="bg-red-50"],
+.print-mode div[class*="bg-white"] {
+  background-color: #ffffff !important;
+  background: #ffffff !important;
+  border-color: #1e293b !important;
+  box-shadow: none !important;
+}
+
+/* High contrast tables */
+.high-contrast-print table,
+.print-mode table {
+  border-color: #000000 !important;
+  background: #ffffff !important;
+}
+
+.high-contrast-print th,
+.print-mode th {
+  background-color: #f1f5f9 !important;
+  color: #000000 !important;
+  border-color: #000000 !important;
+  font-weight: 800 !important;
+}
+
+.high-contrast-print td,
+.print-mode td {
+  color: #000000 !important;
+  border-color: #475569 !important;
+  background-color: #ffffff !important;
+}
+
+.high-contrast-print tbody tr:nth-child(even) td,
+.print-mode tbody tr:nth-child(even) td {
+  background-color: #f8fafc !important;
+}
+
+/* High contrast badges */
+.high-contrast-print span[class*="bg-"],
+.print-mode span[class*="bg-"] {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  border: 1.5px solid #000000 !important;
+  font-weight: 800 !important;
+}
+
+/* High contrast metric numbers */
+.high-contrast-print .text-red-600,
+.high-contrast-print .text-emerald-600,
+.high-contrast-print .text-blue-600,
+.high-contrast-print .text-amber-600,
+.print-mode .text-red-600,
+.print-mode .text-emerald-600,
+.print-mode .text-blue-600 {
+  color: #000000 !important;
+  font-weight: 800 !important;
 }

@@ -114,7 +114,7 @@ const AdmissionForm = React.memo(({ editingPatient, autoSerialNo, onSave, onArch
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const { canManageRecords } = useAuth();
+  const { canManageRecords, currentUser } = useAuth();
 
   const [isDraftSaving, setIsDraftSaving] = useState(false);
   const [lastSavedTime, setLastSavedTime] = useState<string | null>(null);
@@ -326,7 +326,9 @@ const AdmissionForm = React.memo(({ editingPatient, autoSerialNo, onSave, onArch
       consultant: formConsultant,
       lengthOfStay: los,
       dischargeDate: formOutDate || undefined,
-      status: status
+      status: status,
+      createdBy: editingPatient?.createdBy || currentUser?.displayName || currentUser?.email || 'Staff',
+      createdAt: editingPatient?.createdAt || new Date().toISOString()
     });
   };
 
@@ -1249,9 +1251,12 @@ const PatientTable: React.FC = () => {
         toast.recordSaved(`Updated record for ${patientData.name} (Reg No: ${patientData.regNo})`);
       } else {
         const newRef = doc(collection(db, 'patients'));
+        const currentDisplayName = currentUser?.displayName || currentUser?.email || 'Staff';
         await setDoc(newRef, {
           id: newRef.id,
-          ...patientData
+          ...patientData,
+          createdBy: patientData.createdBy || currentDisplayName,
+          createdAt: patientData.createdAt || new Date().toISOString()
         });
         
         await activityService.logActivity(
@@ -1588,7 +1593,8 @@ const PatientTable: React.FC = () => {
           (p.gender && p.gender.toLowerCase().includes(token)) ||
           (p.location && p.location.toLowerCase().includes(token)) ||
           (p.serialNo && p.serialNo.toLowerCase().includes(token)) ||
-          (p.status && p.status.toLowerCase().includes(token))
+          (p.status && p.status.toLowerCase().includes(token)) ||
+          (p.createdBy && p.createdBy.toLowerCase().includes(token))
         );
       });
       
@@ -2027,7 +2033,7 @@ const PatientTable: React.FC = () => {
 
         <div className="overflow-auto max-h-[600px] whitespace-nowrap scroll-smooth">
           {loading ? (
-            <TableSkeleton rows={8} cols={7} />
+            <TableSkeleton rows={8} cols={12} />
           ) : (
             <table className="w-full text-left min-w-[1200px] border-separate border-spacing-0">
               <thead className="bg-slate-100 text-slate-700 sticky top-0 z-10 shadow-xs border-b border-slate-200">
@@ -2095,6 +2101,13 @@ const PatientTable: React.FC = () => {
                   >
                     <div className="flex items-center justify-center">Stay <SortIndicator column="lengthOfStay" /></div>
                   </th>
+                  <th 
+                    className={`px-4 py-4 w-32 cursor-pointer transition-all duration-200 group border-b border-slate-200 ${sortConfig.key === 'createdBy' ? 'bg-slate-200 text-red-600' : 'hover:bg-slate-200/80'}`} 
+                    onClick={() => handleSort('createdBy')}
+                    title="Click to sort by Author / Recorded By"
+                  >
+                    <div className="flex items-center">Recorded By <SortIndicator column="createdBy" /></div>
+                  </th>
                   <th className="px-4 py-4 w-28 text-right bg-slate-100 text-slate-700 border-b border-slate-200">Action</th>
                 </tr>
                 <tr className="bg-slate-100/90 border-b border-slate-200">
@@ -2158,6 +2171,7 @@ const PatientTable: React.FC = () => {
                       {hideDischarged ? 'DC Hidden' : 'Hide DC'}
                     </button>
                   </th>
+                  <th className="px-2 py-1.5 bg-slate-100 border-b border-slate-200"></th>
                   <th className="px-2 py-1.5 bg-slate-100 border-b border-slate-200"></th>
                   <th className="px-2 py-1.5 bg-slate-100 border-b border-slate-200 text-right"></th>
                 </tr>
@@ -2259,6 +2273,16 @@ const PatientTable: React.FC = () => {
                           )}
                         </td>
                         <td className="px-4 py-3 text-center font-mono font-extrabold text-red-600 bg-red-50/30 rounded-md">{calculateDynamicLOS(p.admissionDate, p.dischargeDate)}d</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1.5" title={p.createdBy ? `Recorded by ${p.createdBy}` : 'Recorded by Staff'}>
+                            <div className="w-5 h-5 rounded-full bg-slate-100 border border-slate-200 text-slate-700 flex items-center justify-center text-[8.5px] font-black shrink-0">
+                              {(p.createdBy || 'Staff').charAt(0).toUpperCase()}
+                            </div>
+                            <span className="text-slate-800 font-bold text-[9px] truncate max-w-[110px]">
+                              {p.createdBy || 'Staff'}
+                            </span>
+                          </div>
+                        </td>
                         <td className="px-4 py-3 text-right">
                             <div className="flex items-center justify-end space-x-1 opacity-80 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
                                 {canManageRecords && (
@@ -2323,7 +2347,7 @@ const PatientTable: React.FC = () => {
                       </motion.tr>
                       {expandedTimelinePatientId === p.id && (
                         <tr key={`timeline-expanded-${p.id}`} className="bg-slate-100/90 border-b-2 border-indigo-200">
-                          <td colSpan={11} className="p-3 sm:p-4">
+                          <td colSpan={12} className="p-3 sm:p-4">
                             <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-sm space-y-3">
                               <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
                                 <div className="flex items-center space-x-2">
@@ -2375,7 +2399,7 @@ const PatientTable: React.FC = () => {
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.2 }}
                       >
-                        <td colSpan={11} className="px-4 py-10 text-center text-slate-400 italic font-medium">No records match your search or date criteria.</td>
+                        <td colSpan={12} className="px-4 py-10 text-center text-slate-400 italic font-medium">No records match your search or date criteria.</td>
                       </motion.tr>
                   )}
               </tbody>
