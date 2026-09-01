@@ -15,6 +15,7 @@ import { EmailConnectionDiagnosticModal } from './EmailConnectionDiagnosticModal
 import { SmtpConfigModal } from './SmtpConfigModal';
 import { UnifiedEmailHubModal } from './UnifiedEmailHubModal';
 import { BreadcrumbNav } from './BreadcrumbNav';
+import { InstallAppBanner } from './InstallAppBanner';
 import { db } from '../services/firebaseConfig';
 import { onSnapshotsInSync } from 'firebase/firestore';
 import { getEffectiveLogoBase64, getLogoSettings, saveLogoSettings, getLogoUrlWithCacheBust } from '../services/pdfService';
@@ -737,6 +738,9 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
             </span>
           </div>
         </header>
+
+        {/* PWA Install App Banner (Prompt for Mobile & Desktop) */}
+        <InstallAppBanner />
 
         {/* Main Content */}
         <main className="flex-1 overflow-y-auto relative p-6 md:p-8 print:p-0 print:overflow-visible">

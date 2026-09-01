@@ -52,18 +52,10 @@ class OfflineService {
     }
 
     try {
-      const registrations = await navigator.serviceWorker.getRegistrations();
-      for (const reg of registrations) {
-        await reg.unregister();
-      }
-      if ('caches' in window) {
-        const keys = await caches.keys();
-        for (const key of keys) {
-          await caches.delete(key);
-        }
-      }
+      this.swRegistration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+      console.log('[Service Worker] Registered successfully with scope:', this.swRegistration.scope);
     } catch (err) {
-      // non-fatal
+      console.warn('[Service Worker] Registration error / skipped:', err);
     }
   }
 

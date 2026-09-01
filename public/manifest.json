@@ -1,17 +1,104 @@
 {
-  "short_name": "The Kidney Centre",
-  "name": "The Kidney Centre Post Graduate Training Institute",
+  "id": "/",
+  "name": "Record Management Portal - The Kidney Centre",
+  "short_name": "TKC Records",
+  "description": "High-performance clinical recording, HDU census, endoscopy procedure logs, mortality records, and analytics portal.",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": [
+    "window-controls-overlay",
+    "standalone",
+    "minimal-ui",
+    "browser"
+  ],
+  "orientation": "any",
+  "theme_color": "#0f172a",
+  "background_color": "#0f172a",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": [
+    "medical",
+    "health",
+    "productivity",
+    "utilities"
+  ],
   "icons": [
     {
-      "src": "/favicon.ico",
+      "src": "/favicon.svg",
       "sizes": "64x64 32x32 24x24 16x16",
-      "type": "image/x-icon"
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
     }
   ],
-  "start_url": "/",
-  "background_color": "#0f172a",
-  "theme_color": "#0284c7",
-  "display": "standalone",
-  "orientation": "any",
-  "description": "Clinical management system with offline critical patient data viewing & auto-sync draft protection."
+  "shortcuts": [
+    {
+      "name": "Endoscopy Procedure Logs",
+      "short_name": "Endoscopy",
+      "description": "Open Endoscopy Procedure recording and instant PDF report generator",
+      "url": "/?tab=endoscopy",
+      "icons": [
+        {
+          "src": "/icon-192.svg",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Clinical HDU Census",
+      "short_name": "Census",
+      "description": "View and manage active patient admissions, transfers, and bed status",
+      "url": "/?tab=census",
+      "icons": [
+        {
+          "src": "/icon-192.svg",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Mortality Registry",
+      "short_name": "Mortality",
+      "description": "Access mortality records, clinical reviews, and mortality archives",
+      "url": "/?tab=mortality",
+      "icons": [
+        {
+          "src": "/icon-192.svg",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Security & Activity Audit",
+      "short_name": "Audit Logs",
+      "description": "Monitor system telemetry, biometric authentication events, and audit logs",
+      "url": "/?tab=logs",
+      "icons": [
+        {
+          "src": "/icon-192.svg",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ],
+  "prefer_related_applications": false,
+  "related_applications": []
 }

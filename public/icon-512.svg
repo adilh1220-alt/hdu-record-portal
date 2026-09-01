@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg-grad-512" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="40%" stop-color="#1e293b" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+    <linearGradient id="cross-grad-512" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ef4444" />
+      <stop offset="100%" stop-color="#dc2626" />
+    </linearGradient>
+    <linearGradient id="shield-grad-512" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.1" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.0" />
+    </linearGradient>
+    <filter id="glow-512" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="16" stdDeviation="16" flood-color="#000000" flood-opacity="0.5" />
+    </filter>
+  </defs>
+
+  <!-- Background Base Container -->
+  <rect x="24" y="24" width="464" height="464" rx="112" fill="url(#bg-grad-512)" filter="url(#glow-512)" />
+  <rect x="24" y="24" width="464" height="464" rx="112" fill="url(#shield-grad-512)" />
+  <rect x="24" y="24" width="464" height="464" rx="112" fill="none" stroke="#38bdf8" stroke-width="6" stroke-opacity="0.3" />
+
+  <!-- Outer Pulse Wave Ring -->
+  <circle cx="256" cy="240" r="170" fill="none" stroke="#38bdf8" stroke-width="2.5" stroke-opacity="0.15" stroke-dasharray="8 8" />
+
+  <!-- Medical Cross Badge Container -->
+  <g transform="translate(256, 235)">
+    <!-- White Backing Cross -->
+    <rect x="-48" y="-144" width="96" height="288" rx="24" fill="#ffffff" />
+    <rect x="-144" y="-48" width="288" height="96" rx="24" fill="#ffffff" />
+
+    <!-- Red Cross Gradient Fill -->
+    <rect x="-34" y="-130" width="68" height="260" rx="16" fill="url(#cross-grad-512)" />
+    <rect x="-130" y="-34" width="260" height="68" rx="16" fill="url(#cross-grad-512)" />
+
+    <!-- Center Stethoscope / Vital Pulse Line -->
+    <path d="M-105 0 L-50 0 L-22 -60 L12 65 L40 -20 L62 0 L105 0" fill="none" stroke="#ffffff" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+
+  <!-- Bottom Brand Text Monogram -->
+  <text x="256" y="435" text-anchor="middle" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="28" font-weight="900" letter-spacing="6">RECORD PORTAL</text>
+</svg>

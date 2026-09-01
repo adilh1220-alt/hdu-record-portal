@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { collection, onSnapshot, setDoc, doc, deleteDoc, query, orderBy, updateDoc, where } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
 import { Patient, PatientStatus, PatientCategory, CodeStatus, TriagePriority, ClinicalUnit } from '../types';
-import { exportPatientsPDF, exportPatientSummaryPDF, generateKidneyCentreLogoBase64 } from '../services/pdfService';
+import { exportPatientsPDF, getPatientsPDFBlobUrl, exportPatientSummaryPDF, generateKidneyCentreLogoBase64 } from '../services/pdfService';
 import { downloadCSV } from '../services/exportService';
 import { useAuth } from '../contexts/AuthContext';
 import { useUnit } from '../contexts/UnitContext';
@@ -296,7 +296,15 @@ const AdmissionForm = React.memo(({ editingPatient, autoSerialNo, onSave, onArch
     }
 
     let status = PatientStatus.ACTIVE;
-    if (formOutDate || (formTransferStatus && formTransferStatus !== 'Active (In-Unit)' && formTransferStatus !== 'In-Unit (Active)')) {
+    const isUndischargeStatus = formTransferStatus === 'Undischarge' || formTransferStatus === 'Undischarged';
+    const isActiveInUnit = !formTransferStatus || 
+      formTransferStatus === 'Active (In-Unit)' || 
+      formTransferStatus === 'In-Unit (Active)' ||
+      isUndischargeStatus;
+
+    if (isUndischargeStatus) {
+      status = PatientStatus.ACTIVE;
+    } else if (formOutDate || !isActiveInUnit) {
       if (formTransferStatus === 'Mortality' || formTransferStatus === 'Expired / Deceased') {
         status = PatientStatus.DECEASED;
       } else {
@@ -474,10 +482,10 @@ const AdmissionForm = React.memo(({ editingPatient, autoSerialNo, onSave, onArch
             onChange={(e) => {
               const val = e.target.value;
               setFormTransferStatus(val);
-              if (val !== 'Active (In-Unit)' && val !== 'In-Unit (Active)' && !formOutDate) {
-                setFormOutDate(new Date().toISOString().split('T')[0]);
-              } else if (val === 'Active (In-Unit)' || val === 'In-Unit (Active)') {
+              if (val === 'Undischarge' || val === 'Undischarged' || val === 'Active (In-Unit)' || val === 'In-Unit (Active)') {
                 setFormOutDate('');
+              } else if (!formOutDate) {
+                setFormOutDate(new Date().toISOString().split('T')[0]);
               }
             }} 
             className={getInputClass('transferStatus')}
@@ -2243,7 +2251,7 @@ const PatientTable: React.FC = () => {
                         <td className="px-4 py-3 truncate font-medium text-slate-800">{p.consultant}</td>
                         <td className="px-4 py-3 text-center text-slate-600 font-mono text-[9px] font-bold">{formatDate(p.admissionDate)}</td>
                         <td className="px-4 py-3 text-center">
-                          {!p.dischargeDate && (!p.transferStatus || p.transferStatus === 'Active (In-Unit)' || p.transferStatus === 'In-Unit (Active)') && (!p.shiftTo || p.shiftTo === 'In-Unit (Active)') ? (
+                          {!p.dischargeDate && (!p.transferStatus || p.transferStatus === 'Active (In-Unit)' || p.transferStatus === 'In-Unit (Active)' || p.transferStatus === 'Undischarge' || p.transferStatus === 'Undischarged') && (!p.shiftTo || p.shiftTo === 'In-Unit (Active)' || p.shiftTo === 'Undischarge' || p.shiftTo === 'Undischarged') ? (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8px] font-black uppercase bg-emerald-100/80 text-emerald-800 border border-emerald-300/80">
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
                               Active (In-Unit)
@@ -2252,7 +2260,7 @@ const PatientTable: React.FC = () => {
                             <div className="flex flex-col items-center gap-0.5">
                               {(() => {
                                 const raw = p.transferStatus || p.shiftTo;
-                                if (!raw || raw === 'Active (In-Unit)' || raw === 'In-Unit (Active)') {
+                                if (!raw || raw === 'Active (In-Unit)' || raw === 'In-Unit (Active)' || raw === 'Undischarge' || raw === 'Undischarged') {
                                   return null;
                                 }
                                 const label = (raw === 'Discharged (DC)' || raw === 'Discharge Home') ? 'DC' : raw;

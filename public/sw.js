@@ -11,7 +11,11 @@ const STATIC_ASSETS = [
   '/index.html',
   '/index.css',
   '/print.css',
-  '/manifest.json'
+  '/manifest.json',
+  '/favicon.svg',
+  '/icon-192.svg',
+  '/icon-512.svg',
+  '/icon-maskable.svg'
 ];
 
 // 1. Installation Phase

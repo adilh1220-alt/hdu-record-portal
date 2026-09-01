@@ -12,18 +12,30 @@ export type CodeStatus = 'Full Code' | 'DNR' | 'DNI';
 export type TriagePriority = 'Critical' | 'Urgent' | 'Stable';
 export type TransferDischargeStatus = 
   | 'Active (In-Unit)'
+  | 'In-Unit (Active)'
+  | 'Undischarge'
+  | 'Undischarged'
   | 'DC'
   | 'Discharged (DC)'
   | 'Ward Transfer'
+  | 'Shift to Ward'
   | 'ICU Transfer'
+  | 'Shift to ICU'
   | 'Discharge Home'
   | 'Mortality'
   | 'OT Transfer'
+  | 'Shift to OT'
   | 'Pvt Ward Transfer'
+  | 'Shift to Pvt Ward'
   | 'Transplant Bay Transfer'
+  | 'Shift to Transplant Bay'
   | 'Emergency (ER) Transfer'
+  | 'Shift to Emergency (ER)'
   | 'Other Hospital Transfer'
-  | 'LAMA';
+  | 'Shift to Other Hospital'
+  | 'LAMA'
+  | 'LAMA (Left Against Medical Advice)'
+  | 'Expired / Deceased';
 
 export interface TransferLog {
   timestamp: string;

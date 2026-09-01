@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg-grad-maskable" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="40%" stop-color="#1e293b" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+    <linearGradient id="cross-grad-maskable" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ef4444" />
+      <stop offset="100%" stop-color="#dc2626" />
+    </linearGradient>
+  </defs>
+
+  <!-- Full-bleed background for maskable adaptive circular/squircle cropping -->
+  <rect x="0" y="0" width="512" height="512" fill="url(#bg-grad-maskable)" />
+
+  <!-- Inner Safe Zone Content (Within center 80% circle) -->
+  <g transform="translate(256, 256) scale(0.85)">
+    <!-- White Backing Cross -->
+    <rect x="-42" y="-126" width="84" height="252" rx="20" fill="#ffffff" />
+    <rect x="-126" y="-42" width="252" height="84" rx="20" fill="#ffffff" />
+
+    <!-- Red Cross Gradient Fill -->
+    <rect x="-30" y="-114" width="60" height="228" rx="14" fill="url(#cross-grad-maskable)" />
+    <rect x="-114" y="-30" width="228" height="60" rx="14" fill="url(#cross-grad-maskable)" />
+
+    <!-- Center Pulse ECG Line -->
+    <path d="M-90 0 L-42 0 L-18 -52 L10 56 L34 -16 L52 0 L90 0" fill="none" stroke="#ffffff" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+</svg>

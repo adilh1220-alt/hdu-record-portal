@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <defs>
+    <linearGradient id="bg-grad-192" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="50%" stop-color="#1e293b" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+    <linearGradient id="cross-grad-192" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ef4444" />
+      <stop offset="100%" stop-color="#dc2626" />
+    </linearGradient>
+    <filter id="glow-192" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#000000" flood-opacity="0.4" />
+    </filter>
+  </defs>
+
+  <!-- Base App Icon Container -->
+  <rect x="8" y="8" width="176" height="176" rx="42" fill="url(#bg-grad-192)" filter="url(#glow-192)" />
+  <rect x="8" y="8" width="176" height="176" rx="42" fill="none" stroke="#38bdf8" stroke-width="3" stroke-opacity="0.3" />
+
+  <!-- Medical Cross Badge Container -->
+  <g transform="translate(96, 96)">
+    <!-- White Backing Cross -->
+    <rect x="-18" y="-54" width="36" height="108" rx="10" fill="#ffffff" />
+    <rect x="-54" y="-18" width="108" height="36" rx="10" fill="#ffffff" />
+
+    <!-- Red Cross Fill -->
+    <rect x="-12" y="-48" width="24" height="96" rx="6" fill="url(#cross-grad-192)" />
+    <rect x="-48" y="-12" width="96" height="24" rx="6" fill="url(#cross-grad-192)" />
+
+    <!-- Center Stethoscope / Vital Pulse Line -->
+    <path d="M-38 0 L-18 0 L-8 -22 L4 24 L14 -8 L22 0 L38 0" fill="none" stroke="#ffffff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+
+  <!-- Bottom Brand Text Monogram -->
+  <text x="96" y="162" text-anchor="middle" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="900" letter-spacing="2">TKC CLINICAL</text>
+</svg>

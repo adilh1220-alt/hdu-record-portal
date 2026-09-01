@@ -427,7 +427,7 @@ const drawCalendarIcon = (doc: jsPDF, x: number, y: number, color = [217, 119, 6
   doc.line(x + 1.6, y - 2.3, x + 1.6, y - 1.9);
 };
 
-export const exportToPDF = async (title: string, headers: string[], rows: any[][], metadata: ReportMetadata) => {
+export const buildPDFDoc = async (title: string, headers: string[], rows: any[][], metadata: ReportMetadata): Promise<jsPDF> => {
   const doc = new jsPDF('landscape'); 
   const pageWidth = doc.internal.pageSize.width;
 
@@ -594,9 +594,22 @@ export const exportToPDF = async (title: string, headers: string[], rows: any[][
     });
   });
 
+  return doc;
+};
+
+export const exportToPDF = async (title: string, headers: string[], rows: any[][], metadata: ReportMetadata) => {
+  const doc = await buildPDFDoc(title, headers, rows, metadata);
   const filename = `${title.replace(/\s+/g, '_').toLowerCase()}_${new Date().getTime()}.pdf`;
   doc.save(filename);
   triggerPDFToast(`PDF report "${title}" generated and downloaded successfully.`, 'Export Complete');
+};
+
+export const getPDFBlobUrl = async (title: string, headers: string[], rows: any[][], metadata: ReportMetadata): Promise<{ blobUrl: string; doc: jsPDF; filename: string }> => {
+  const doc = await buildPDFDoc(title, headers, rows, metadata);
+  const filename = `${title.replace(/\s+/g, '_').toLowerCase()}_${new Date().getTime()}.pdf`;
+  const blob = doc.output('blob');
+  const blobUrl = URL.createObjectURL(blob);
+  return { blobUrl, doc, filename };
 };
 
 export const exportAccessSlipPDF = (userData: { name: string; email: string; password?: string; role: string }) => {
@@ -657,6 +670,36 @@ export const exportAccessSlipPDF = (userData: { name: string; email: string; pas
   triggerPDFToast(`Staff credential slip for ${userData.name} exported successfully.`, 'Credentials Exported');
 };
 
+export const getPatientsPDFBlobUrl = async (patients: Patient[], metadata: ReportMetadata): Promise<{ blobUrl: string; doc: jsPDF; filename: string }> => {
+  const headers = ['Reg No', 'Patient Name', 'Gender', 'Category', 'Location', 'Code', 'Consultant', 'In-Date', 'Out-Date', 'LOS'];
+  const rows = patients.map(p => [
+    p.regNo, 
+    p.name, 
+    p.gender,
+    p.category, 
+    p.location || 'N/A',
+    p.codeStatus, 
+    p.consultant, 
+    p.admissionDate,
+    p.dischargeDate || 'N/A',
+    p.lengthOfStay
+  ]);
+
+  const summarySections: SummarySection[] = [
+    {
+      title: 'PATIENT SUMMARY',
+      items: [
+        { label: 'Total Patients', value: patients.length }
+      ]
+    }
+  ];
+
+  return await getPDFBlobUrl("Clinical Patient Record", headers, rows, {
+    ...metadata,
+    customSummarySections: metadata.customSummarySections || summarySections
+  });
+};
+
 export const exportPatientsPDF = async (patients: Patient[], metadata: ReportMetadata) => {
   const headers = ['Reg No', 'Patient Name', 'Gender', 'Category', 'Location', 'Code', 'Consultant', 'In-Date', 'Out-Date', 'LOS'];
   const rows = patients.map(p => [
@@ -687,6 +730,30 @@ export const exportPatientsPDF = async (patients: Patient[], metadata: ReportMet
   });
 };
 
+export const getInventoryPDFBlobUrl = async (inventory: InventoryItem[], metadata: ReportMetadata): Promise<{ blobUrl: string; doc: jsPDF; filename: string }> => {
+  const headers = ['Item Name', 'Category', 'Stock', 'Min', 'Unit', 'Recorded By', 'Last Updated'];
+  const rows = inventory.map(i => [i.name, i.category, i.quantity, i.minThreshold, i.measurementUnit, i.createdBy || 'Staff', i.lastUpdated]);
+
+  const lowStock = inventory.filter(i => i.quantity <= i.minThreshold).length;
+  const categories = new Set(inventory.map(i => i.category)).size;
+
+  const summarySections: SummarySection[] = [
+    {
+      title: 'INVENTORY STOCK SUMMARY',
+      items: [
+        { label: 'Total Inventory Items', value: inventory.length },
+        { label: 'Low / Critical Stock Items', value: lowStock },
+        { label: 'Product Categories', value: categories }
+      ]
+    }
+  ];
+
+  return await getPDFBlobUrl("Inventory Audit Report", headers, rows, {
+    ...metadata,
+    customSummarySections: metadata.customSummarySections || summarySections
+  });
+};
+
 export const exportInventoryPDF = async (inventory: InventoryItem[], metadata: ReportMetadata) => {
   const headers = ['Item Name', 'Category', 'Stock', 'Min', 'Unit', 'Recorded By', 'Last Updated'];
   const rows = inventory.map(i => [i.name, i.category, i.quantity, i.minThreshold, i.measurementUnit, i.createdBy || 'Staff', i.lastUpdated]);
@@ -708,6 +775,102 @@ export const exportInventoryPDF = async (inventory: InventoryItem[], metadata: R
   await exportToPDF("Inventory Audit Report", headers, rows, {
     ...metadata,
     customSummarySections: metadata.customSummarySections || summarySections
+  });
+};
+
+export const getEndoscopyPDFBlobUrl = async (records: EndoscopyRecord[], metadata: ReportMetadata): Promise<{ blobUrl: string; doc: jsPDF; filename: string }> => {
+  const headers = ['S.No', 'Reg No', 'Patient Name', 'Doctor / Physician', 'Procedure', 'Date', 'Logged By'];
+  const rows = records.map((r, idx) => [
+    r.serialNo || (idx + 1).toString().padStart(3, '0'),
+    r.regNo,
+    r.name,
+    r.doctor || 'N/A',
+    formatProcedureDisplay(r.procedure) || 'N/A',
+    r.date || 'N/A',
+    r.createdBy || 'Staff'
+  ]);
+
+  const totalCases = records.length;
+  const uniquePatients = new Set(records.map(r => r.regNo)).size;
+
+  // Case counts per procedure
+  const procedureCounts: Record<string, number> = {};
+  records.forEach(r => {
+    const proc = formatProcedureDisplay(r.procedure) || 'Unspecified';
+    procedureCounts[proc] = (procedureCounts[proc] || 0) + 1;
+  });
+
+  // Case counts per doctor
+  const doctorCounts: Record<string, number> = {};
+  records.forEach(r => {
+    const docName = r.doctor?.trim() || 'Unspecified';
+    doctorCounts[docName] = (doctorCounts[docName] || 0) + 1;
+  });
+
+  // Date span & Month extraction
+  const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const dates = records.map(r => r.date).filter(Boolean).sort();
+  const dateRangeStr = dates.length > 0 
+    ? (dates[0] === dates[dates.length - 1] ? dates[0] : `${dates[0]} to ${dates[dates.length - 1]}`)
+    : 'N/A';
+
+  let detectedPeriod = metadata.period;
+  if (!detectedPeriod) {
+    const monthsSet = new Set<string>();
+    records.forEach(r => {
+      if (r.date) {
+        const d = new Date(r.date);
+        if (!isNaN(d.getTime())) {
+          monthsSet.add(`${monthNames[d.getMonth()]} ${d.getFullYear()}`);
+        }
+      }
+    });
+
+    const uniqueMonths = Array.from(monthsSet);
+    if (uniqueMonths.length === 1) {
+      detectedPeriod = uniqueMonths[0];
+    } else if (uniqueMonths.length > 1) {
+      detectedPeriod = `${uniqueMonths[0]} - ${uniqueMonths[uniqueMonths.length - 1]}`;
+    } else {
+      const current = new Date();
+      detectedPeriod = `${monthNames[current.getMonth()]} ${current.getFullYear()}`;
+    }
+  }
+
+  const summarySections: SummarySection[] = [
+    {
+      title: 'OVERALL CASE METRICS',
+      items: [
+        { label: 'Target Month / Period', value: detectedPeriod },
+        { label: 'Total Procedures / Cases', value: `${totalCases} case${totalCases !== 1 ? 's' : ''}` },
+        { label: 'Unique Patients Served', value: `${uniquePatients} patient${uniquePatients !== 1 ? 's' : ''}` },
+        { label: 'Date Range Covered', value: dateRangeStr }
+      ]
+    },
+    {
+      title: 'INDIVIDUAL CASE COUNT BY PROCEDURE',
+      items: Object.entries(procedureCounts)
+        .sort((a, b) => b[1] - a[1])
+        .map(([proc, count]) => ({
+          label: proc,
+          value: `${count} case${count > 1 ? 's' : ''} (${totalCases > 0 ? ((count / totalCases) * 100).toFixed(0) : 0}%)`
+        }))
+    },
+    {
+      title: 'CASE COUNT BY PHYSICIAN',
+      items: Object.entries(doctorCounts)
+        .sort((a, b) => b[1] - a[1])
+        .map(([docName, count]) => ({
+          label: docName,
+          value: `${count} case${count > 1 ? 's' : ''} (${totalCases > 0 ? ((count / totalCases) * 100).toFixed(0) : 0}%)`
+        }))
+    }
+  ];
+
+  return await getPDFBlobUrl("Endoscopy Procedure Log Report", headers, rows, {
+    ...metadata,
+    period: detectedPeriod,
+    customSummarySections: summarySections
   });
 };
 
@@ -804,6 +967,47 @@ export const exportEndoscopyPDF = async (records: EndoscopyRecord[], metadata: R
     ...metadata,
     period: detectedPeriod,
     customSummarySections: summarySections
+  });
+};
+
+export const getIncidentsPDFBlobUrl = async (incidents: IncidentRecord[], metadata: ReportMetadata): Promise<{ blobUrl: string; doc: jsPDF; filename: string }> => {
+  const headers = ['Date', 'Patient Name', 'Reg No', 'Category', 'Unit', 'Reported By', 'Description'];
+  const rows = incidents.map(i => [
+    i.incidentDate,
+    i.patientName,
+    i.regNo,
+    i.category,
+    i.unit,
+    i.reportedBy,
+    i.description ? i.description.replace(/<[^>]*>/g, '') : 'N/A'
+  ]);
+
+  const categoryCounts: Record<string, number> = {};
+  incidents.forEach(i => {
+    const cat = i.category || 'General';
+    categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+  });
+
+  const summarySections: SummarySection[] = [
+    {
+      title: 'INCIDENT AUDIT SUMMARY',
+      items: [
+        { label: 'Total Incidents Logged', value: incidents.length },
+        { label: 'Categories Tracked', value: Object.keys(categoryCounts).length }
+      ]
+    },
+    {
+      title: 'INCIDENTS BY CATEGORY',
+      items: Object.entries(categoryCounts).slice(0, 4).map(([cat, count]) => ({
+        label: cat,
+        value: `${count} case${count > 1 ? 's' : ''}`
+      }))
+    }
+  ];
+
+  return await getPDFBlobUrl("Clinical Incident Report", headers, rows, {
+    ...metadata,
+    customSummarySections: metadata.customSummarySections || summarySections
   });
 };
 

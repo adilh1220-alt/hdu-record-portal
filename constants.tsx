@@ -42,6 +42,7 @@ export const TRIAGE_PRIORITIES = ['Critical', 'Urgent', 'Stable'];
 
 export const SHIFT_TO_OPTIONS: string[] = [
   'In-Unit (Active)',
+  'Undischarge',
   'DC',
   'Shift to Ward',
   'Shift to ICU',
@@ -59,6 +60,8 @@ export const TRANSFER_DISCHARGE_STATUSES: string[] = SHIFT_TO_OPTIONS;
 export const TRANSFER_DISCHARGE_COLORS: Record<string, string> = {
   'Active (In-Unit)': 'bg-emerald-50 text-emerald-700 border-emerald-200',
   'In-Unit (Active)': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  'Undischarge': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  'Undischarged': 'bg-emerald-50 text-emerald-700 border-emerald-200',
   'DC': 'bg-blue-50 text-blue-700 border-blue-200',
   'Discharged (DC)': 'bg-blue-50 text-blue-700 border-blue-200',
   'Discharge Home': 'bg-blue-50 text-blue-700 border-blue-200',

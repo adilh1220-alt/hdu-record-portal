@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useUnit } from '../contexts/UnitContext';
 import { UNIT_DETAILS, CLINICAL_UNITS } from '../constants';
 import { TableSkeleton } from '../components/LoadingSpinner';
+import { ActivityCalendarHeatmap } from '../components/ActivityCalendarHeatmap';
 import { db, safeFirestoreWrite, safeFirestoreRead } from '../services/firebaseConfig';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import {
@@ -269,19 +270,15 @@ const ActivityLogsPage: React.FC = () => {
       // Date Range Filter
       let matchesDate = true;
       if (startDate || endDate) {
-        const logDate = new Date(activity.timestamp);
-        logDate.setHours(0, 0, 0, 0);
+        const actDate = new Date(activity.timestamp);
+        if (!isNaN(actDate.getTime())) {
+          const y = actDate.getFullYear();
+          const m = String(actDate.getMonth() + 1).padStart(2, '0');
+          const d = String(actDate.getDate()).padStart(2, '0');
+          const actDateStr = `${y}-${m}-${d}`;
 
-        if (startDate) {
-          const start = new Date(startDate);
-          start.setHours(0, 0, 0, 0);
-          if (logDate < start) matchesDate = false;
-        }
-
-        if (endDate) {
-          const end = new Date(endDate);
-          end.setHours(0, 0, 0, 0);
-          if (logDate > end) matchesDate = false;
+          if (startDate && actDateStr < startDate) matchesDate = false;
+          if (endDate && actDateStr > endDate) matchesDate = false;
         }
       }
 
@@ -615,6 +612,21 @@ const ActivityLogsPage: React.FC = () => {
           </span>
         </div>
       </div>
+
+      {/* Clinical Recording Activity Calendar Heatmap */}
+      <ActivityCalendarHeatmap
+        activities={activities}
+        selectedDate={startDate && startDate === endDate ? startDate : undefined}
+        onSelectDate={(dStr) => {
+          if (dStr) {
+            setStartDate(dStr);
+            setEndDate(dStr);
+          } else {
+            setStartDate('');
+            setEndDate('');
+          }
+        }}
+      />
 
       {/* Tabs Navigation & Search Bar */}
       <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
