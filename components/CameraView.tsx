@@ -31,7 +31,8 @@ import {
   Download,
   HardDrive,
   FolderDown,
-  FileDown
+  FileDown,
+  FolderOpen
 } from 'lucide-react';
 
 export const triggerLocalFileDownload = (dataUrlOrBlob: string, filename: string) => {
@@ -134,6 +135,31 @@ export const CameraView: React.FC<CameraViewProps> = ({
   const annotationCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const isDrawingRef = useRef<boolean>(false);
   const currentItemRef = useRef<AnnotationItem | null>(null);
+  const folderInputRef = useRef<HTMLInputElement | null>(null);
+  const [isConnecting, setIsConnecting] = useState<boolean>(false);
+
+  const handleFolderImagesSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const filesArray = Array.from(files);
+
+    filesArray.forEach((file) => {
+      if (!file.type.startsWith('image/')) return;
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const base64 = event.target?.result as string;
+        if (base64) {
+          const rawName = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
+          onCapture(base64, rawName);
+          setCapturedFeedback(`Imported: ${file.name}`);
+          setTimeout(() => setCapturedFeedback(null), 3000);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+
+    e.target.value = '';
+  };
 
   const toggleAutoDownload = (checked: boolean) => {
     setAutoDownloadToPC(checked);
@@ -201,14 +227,30 @@ export const CameraView: React.FC<CameraViewProps> = ({
   const startCamera = async (deviceId?: string) => {
     setCameraError(null);
     stopCamera();
+    setIsConnecting(true);
 
     try {
-      const constraints: MediaStreamConstraints = {
-        video: deviceId ? { deviceId: { exact: deviceId } } : { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
-        audio: false
-      };
+      let newStream: MediaStream | null = null;
 
-      const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+      // Attempt 1: Standard / preferred device constraints
+      try {
+        const primaryConstraints: MediaStreamConstraints = {
+          video: deviceId 
+            ? { deviceId: { exact: deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } } 
+            : { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false
+        };
+        newStream = await navigator.mediaDevices.getUserMedia(primaryConstraints);
+      } catch (firstErr: any) {
+        console.warn("Primary getUserMedia attempt failed, falling back to SD constraints:", firstErr);
+        // Attempt 2: Relaxed fallback constraints (crucial for USB composite/EasyCap dongles)
+        const fallbackConstraints: MediaStreamConstraints = {
+          video: deviceId ? { deviceId: { ideal: deviceId } } : true,
+          audio: false
+        };
+        newStream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+      }
+
       setStream(newStream);
       setIsStreaming(true);
 
@@ -221,15 +263,23 @@ export const CameraView: React.FC<CameraViewProps> = ({
     } catch (err: any) {
       console.error("Camera access error:", err);
       setIsStreaming(false);
+
+      const isDeviceInUse = err.name === 'NotReadableError' || 
+                            err.name === 'TrackStartError' || 
+                            String(err?.message || '').toLowerCase().includes('in use') ||
+                            String(err?.message || '').toLowerCase().includes('could not start');
+
       if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
         setCameraError("Camera permission denied. Please allow browser camera access.");
       } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-        setCameraError("No video capture device or camera detected.");
-      } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-        setCameraError("Capture device is in use by another application (e.g. Image Tag or OBS).");
+        setCameraError("No video capture device or camera detected. Please check USB cable connection.");
+      } else if (isDeviceInUse) {
+        setCameraError("Capture device is in use by another application (e.g. honestech TVR 2.5 or OBS).");
       } else {
         setCameraError(`Camera error: ${err.message || String(err)}`);
       }
+    } finally {
+      setIsConnecting(false);
     }
   };
 
@@ -903,31 +953,146 @@ export const CameraView: React.FC<CameraViewProps> = ({
           </div>
         )}
 
+        {/* Hidden File Input for Direct Folder / honestech TVR Snapshot Import */}
+        <input 
+          type="file" 
+          ref={folderInputRef} 
+          onChange={handleFolderImagesSelect} 
+          multiple 
+          accept="image/*" 
+          className="hidden" 
+        />
+
         {/* Offline / Connect Prompt */}
         {!isStreaming && (
-          <div className="flex flex-col items-center justify-center text-center p-6 space-y-3 z-10">
-            <button
-              type="button"
-              id="camera-center-launch-btn"
-              onClick={() => startCamera(selectedDeviceId)}
-              className="w-16 h-16 rounded-2xl bg-indigo-600/20 hover:bg-indigo-600/35 border border-indigo-500/50 hover:border-indigo-400 text-indigo-400 hover:text-indigo-300 flex items-center justify-center transition-all cursor-pointer shadow-lg shadow-indigo-950/50 group active:scale-95"
-              title="Click to Open Live Camera Feed"
-              aria-label="Click to Open Live Camera Feed"
-            >
-              <Camera className="w-8 h-8 group-hover:scale-110 text-indigo-400 transition-transform duration-200" />
-            </button>
-            <div>
-              <p className="text-xs font-black uppercase tracking-wider text-slate-200">Endoscope Video Stream Offline</p>
-              <p className="text-[11px] text-slate-400 max-w-sm mt-1">
-                Connect your Olympus / Pentax HDMI capture card or webcam and click the camera icon to start live feed.
-              </p>
-            </div>
+          <div className="flex flex-col items-center justify-center text-center p-5 space-y-3 z-10 max-w-lg w-full">
+            {cameraError && (cameraError.includes('in use') || cameraError.includes('honestech')) ? (
+              <div className="w-full bg-slate-900/95 border border-rose-500/60 rounded-2xl p-4 text-left shadow-2xl space-y-3">
+                <div className="flex items-start gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center flex-shrink-0 text-rose-400">
+                    <AlertCircle className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black text-rose-300 uppercase tracking-wider">
+                      Capture Device In Use (honestech TVR 2.5 Active)
+                    </h4>
+                    <p className="text-[10px] text-slate-300 mt-1 leading-relaxed">
+                      Windows allows only one program to use the USB video capture card at a time. Because <strong className="text-white font-bold">honestech TVR 2.5</strong> is currently open on your desktop, browser live feed access is locked.
+                    </p>
+                  </div>
+                </div>
 
-            {cameraError && (
-              <div className="bg-rose-950/60 border border-rose-500/40 text-rose-300 px-3 py-2 rounded-xl text-[10px] font-bold max-w-sm flex items-center gap-2 text-left">
-                <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-400" />
-                <span>{cameraError}</span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2 border-t border-slate-800">
+                  {/* Solution 1: Close honestech and stream here */}
+                  <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800 flex flex-col justify-between space-y-2">
+                    <div>
+                      <span className="text-[9px] font-black text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                        Option 1: Stream in Portal
+                      </span>
+                      <p className="text-[8.5px] text-slate-400 mt-1 leading-normal">
+                        Close the <strong className="text-slate-200">honestech TVR 2.5</strong> window (click ✖ on its window), then click:
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => startCamera(selectedDeviceId)}
+                      disabled={isConnecting}
+                      className="w-full py-1.5 px-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase tracking-wider rounded-lg text-[9px] flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md active:scale-95 disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-3 h-3 ${isConnecting ? 'animate-spin' : ''}`} />
+                      <span>{isConnecting ? 'Connecting...' : 'Retry Live Video'}</span>
+                    </button>
+                  </div>
+
+                  {/* Solution 2: Import from desktop folder */}
+                  <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800 flex flex-col justify-between space-y-2">
+                    <div>
+                      <span className="text-[9px] font-black text-indigo-400 uppercase tracking-wider flex items-center gap-1">
+                        <FolderOpen className="w-3 h-3 text-indigo-400" />
+                        Option 2: Import Photos
+                      </span>
+                      <p className="text-[8.5px] text-slate-400 mt-1 leading-normal">
+                        Keep honestech TVR open! Snapshots save in <strong className="text-slate-200">Desktop / Endoscopy picture</strong>.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => folderInputRef.current?.click()}
+                      disabled={maxImagesReached}
+                      className="w-full py-1.5 px-2 bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-wider rounded-lg text-[9px] flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md active:scale-95 disabled:opacity-50"
+                    >
+                      <FolderOpen className="w-3 h-3" />
+                      <span>Import From Folder</span>
+                    </button>
+                  </div>
+                </div>
+
+                {devices.length > 1 && (
+                  <div className="flex items-center justify-between text-[9px] bg-slate-950 px-2.5 py-1.5 rounded-lg border border-slate-800">
+                    <span className="text-slate-400">Other Video Input:</span>
+                    <select
+                      value={selectedDeviceId}
+                      onChange={handleDeviceChange}
+                      className="bg-slate-900 text-slate-200 border border-slate-700 rounded px-2 py-0.5 text-[9px] outline-none cursor-pointer"
+                    >
+                      {devices.map((d, i) => (
+                        <option key={d.deviceId || i} value={d.deviceId}>
+                          {d.label || `Device ${i + 1}`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  id="camera-center-launch-btn"
+                  onClick={() => startCamera(selectedDeviceId)}
+                  disabled={isConnecting}
+                  className="w-16 h-16 rounded-2xl bg-indigo-600/20 hover:bg-indigo-600/35 border border-indigo-500/50 hover:border-indigo-400 text-indigo-400 hover:text-indigo-300 flex items-center justify-center transition-all cursor-pointer shadow-lg shadow-indigo-950/50 group active:scale-95 disabled:opacity-50"
+                  title="Click to Open Live Camera Feed"
+                  aria-label="Click to Open Live Camera Feed"
+                >
+                  <Camera className={`w-8 h-8 group-hover:scale-110 text-indigo-400 transition-transform duration-200 ${isConnecting ? 'animate-pulse' : ''}`} />
+                </button>
+                <div>
+                  <p className="text-xs font-black uppercase tracking-wider text-slate-200">Endoscope Video Stream Offline</p>
+                  <p className="text-[11px] text-slate-400 max-w-sm mt-1">
+                    Connect your USB capture card or Olympus / Pentax video cable and click camera to start live feed.
+                  </p>
+                </div>
+
+                {cameraError && (
+                  <div className="bg-rose-950/70 border border-rose-500/40 text-rose-300 px-3.5 py-2 rounded-xl text-[10px] font-bold max-w-sm flex items-center justify-between gap-2 text-left">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-400" />
+                      <span>{cameraError}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => startCamera(selectedDeviceId)}
+                      className="px-2 py-0.5 bg-rose-800 hover:bg-rose-700 text-white rounded text-[8px] uppercase tracking-wider font-bold transition-all cursor-pointer"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                )}
+
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={() => folderInputRef.current?.click()}
+                    disabled={maxImagesReached}
+                    className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700 rounded-xl text-[9px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-sm disabled:opacity-50"
+                  >
+                    <FolderOpen className="w-3 h-3 text-indigo-400" />
+                    <span>Import Snapshots from Desktop Folder</span>
+                  </button>
+                </div>
+              </>
             )}
           </div>
         )}

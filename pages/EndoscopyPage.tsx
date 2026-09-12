@@ -693,8 +693,26 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
     let indicationsText = '';
     let instrumentsText = '';
     let name = '';
+    let techniqueText = '';
 
-    if (type === 'normal_egd') {
+    if (type === 'endoscopy_band_ligation') {
+      name = 'Endoscopy + Band Ligation (EVL)';
+      procedureName = "Endoscopy+Band ligation";
+      indicationsText = "Esophageal variceal bleeding prophylaxis, acute or recurrent upper GI bleeding, portal hypertension surveillance.";
+      esophagusText = "Grade III/IV esophageal varices noted in lower and mid-third of esophagus with positive red color signs (cherry red spots / whip-like markings). Endoscopic Variceal Ligation (EVL) performed with multi-band ligator (6 bands deployed). Complete strangulation and thrombosis of targeted variceal columns achieved without immediate complication.";
+      stomachText = "Congestive portal hypertensive gastropathy (mosaic / snakeskin pattern) noted in body and fundus. No active gastric varices (GOV/IGV) noted.";
+      antrumText = "Normal gastric antrum. Pylorus is patent and easily traversed.";
+      duodenumBulbText = "Normal duodenal bulb mucosa. No active ulcers or erosions.";
+      duodenum2ndPartText = "Normal second part of duodenum (D2) mucosa.";
+      colonText = "";
+      generalFindings = "Upper GI Endoscopy revealed severe esophageal varices with portal hypertensive gastropathy. Successful therapeutic Endoscopic Band Ligation (EVL) performed with multi-band device; complete hemostasis confirmed.";
+      diagnosisText = "Esophageal Varices (Grade III/IV) s/p Successful Endoscopic Band Ligation (EVL); Portal Hypertensive Gastropathy";
+      recommendationsText = "Keep NPO for 4-6 hours, then sips of cold liquids for 24 hours. Soft, bland diet thereafter; avoid coarse, hot, or abrasive foods. IV Octreotide / Terlipressin infusion as per protocol. IV Pantoprazole/Omeprazole 40mg BID. Monitor vitals and serial hemoglobin. Non-selective beta-blocker (Propranolol/Carvedilol) as tolerated. Schedule repeat EVL session in 2-4 weeks for complete eradication.";
+      icd = "I85.01, K76.6";
+      cpt = "43244";
+      instrumentsText = "Olympus GIF-1TH190 / Multi-Band Ligator (6-Shooter)";
+      techniqueText = "Topical pharyngeal anesthesia with 10% lidocaine spray. Scope introduced with pre-mounted multiband barrel under direct visualization. Target variceal columns suctioned into ligator chamber until complete red-out; elastic bands released sequentially starting from GE junction and proceeding proximally. Hemostasis verified.";
+    } else if (type === 'normal_egd') {
       name = 'Normal EGD (Upper Endoscopy)';
       procedureName = "Esophagogastroduodenoscopy (EGD)";
       indicationsText = "Epigastric pain, dyspepsia, screening.";
@@ -996,6 +1014,9 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
       setFormIcdCodes(icd);
       setFormCptCodes(cpt);
       setFormInstruments(instrumentsText);
+      if (techniqueText) {
+        setFormProcedureTechnique(techniqueText);
+      }
       setActiveTemplateId(type);
 
       setTemplateSuccessMsg(`"${name}" template applied successfully!`);
@@ -2166,6 +2187,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                   <option value="" disabled className="bg-white text-slate-800">-- SELECT PROCEDURE TEMPLATE --</option>
                   <optgroup label="Upper GI Endoscopy (EGD)" className="font-bold text-slate-900 bg-slate-100">
                     <option value="normal_egd" className="bg-white text-slate-800 font-medium">Normal EGD (Upper Endoscopy)</option>
+                    <option value="endoscopy_band_ligation" className="bg-white text-slate-800 font-medium">Endoscopy + Band Ligation (EVL)</option>
                     <option value="varices_egd" className="bg-white text-slate-800 font-medium">EGD - Bleeding Esophageal Varices</option>
                     <option value="ulcer_egd" className="bg-white text-slate-800 font-medium">EGD - Gastric Ulcer</option>
                     <option value="duodenal_ulcer_egd" className="bg-white text-slate-800 font-medium">EGD - Duodenal Ulcer</option>
