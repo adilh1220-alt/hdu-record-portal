@@ -3120,6 +3120,10 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
               patientName={formName}
               currentImageCount={formImages.length}
               maxImagesReached={formImages.length >= 4}
+              attachedImages={formImages}
+              onRemoveAttachedImage={(id) => {
+                handleDeleteImage(id);
+              }}
               onCapture={(base64, suggestedTitle) => {
                 handleSaveCroppedImage(base64, suggestedTitle);
               }}

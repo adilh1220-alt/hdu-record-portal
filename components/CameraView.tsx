@@ -32,8 +32,18 @@ import {
   HardDrive,
   FolderDown,
   FileDown,
-  FolderOpen
+  FolderOpen,
+  Plus,
+  Image as ImageIcon
 } from 'lucide-react';
+
+export interface SessionCapture {
+  id: string;
+  base64: string;
+  title: string;
+  timestamp: Date;
+  isAddedToReport?: boolean;
+}
 
 export const triggerLocalFileDownload = (dataUrlOrBlob: string, filename: string) => {
   const link = document.createElement('a');
@@ -51,6 +61,8 @@ interface CameraViewProps {
   procedureType?: string;
   patientRegNo?: string;
   patientName?: string;
+  attachedImages?: { id: string; url: string; title: string }[];
+  onRemoveAttachedImage?: (id: string) => void;
 }
 
 type ToolType = 'select' | 'pen' | 'arrow' | 'circle' | 'stamp' | 'text' | 'caliper';
@@ -93,7 +105,9 @@ export const CameraView: React.FC<CameraViewProps> = ({
   currentImageCount = 0,
   procedureType = 'Upper GI Endoscopy',
   patientRegNo = '',
-  patientName = ''
+  patientName = '',
+  attachedImages = [],
+  onRemoveAttachedImage
 }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -116,11 +130,11 @@ export const CameraView: React.FC<CameraViewProps> = ({
     }
   });
 
-  // Local history of session snapshots to allow drawing on them
-  const [sessionCaptures, setSessionCaptures] = useState<{ id: string; base64: string; title: string; timestamp: Date }[]>([]);
+  // Local TVR-style Session Snapshots Tray (filmstrip)
+  const [sessionCaptures, setSessionCaptures] = useState<SessionCapture[]>([]);
 
   // Annotator Modal State
-  const [editingImage, setEditingImage] = useState<{ base64: string; title: string } | null>(null);
+  const [editingImage, setEditingImage] = useState<{ base64: string; title: string; captureId?: string } | null>(null);
   const [activeTool, setActiveTool] = useState<ToolType>('arrow');
   const [activeColor, setActiveColor] = useState<string>('#FACC15');
   const [lineWidth, setLineWidth] = useState<number>(4);
@@ -150,8 +164,15 @@ export const CameraView: React.FC<CameraViewProps> = ({
         const base64 = event.target?.result as string;
         if (base64) {
           const rawName = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
-          onCapture(base64, rawName);
-          setCapturedFeedback(`Imported: ${file.name}`);
+          const newCapture: SessionCapture = {
+            id: `cap_folder_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            base64,
+            title: rawName,
+            timestamp: new Date(),
+            isAddedToReport: false
+          };
+          setSessionCaptures(prev => [newCapture, ...prev].slice(0, 50));
+          setCapturedFeedback(`Imported: ${file.name} to Tray below`);
           setTimeout(() => setCapturedFeedback(null), 3000);
         }
       };
@@ -370,13 +391,38 @@ export const CameraView: React.FC<CameraViewProps> = ({
     setTimeout(() => setCapturedFeedback(null), 3000);
   };
 
-  // Capture Frame handler
-  const captureFrame = (openMarkup: boolean = false) => {
-    if (!isStreaming) return;
-    if (maxImagesReached && !openMarkup) {
-      alert("Maximum 4 clinical images already attached to this report. Remove an image to attach more.");
+  // Add to Report handler
+  const handleAddToReport = (cap: SessionCapture) => {
+    if (currentImageCount >= 4) {
+      alert("Maximum 4 clinical images already attached to this report. Remove an image from the report below to attach more.");
       return;
     }
+
+    onCapture(cap.base64, cap.title);
+
+    setSessionCaptures(prev => prev.map(item => item.id === cap.id ? { ...item, isAddedToReport: true } : item));
+    setCapturedFeedback(`Attached to Report: ${cap.title}`);
+    setTimeout(() => setCapturedFeedback(null), 2500);
+  };
+
+  // Remove individual snapshot from the video captures tray (TVR style removal)
+  const handleRemoveFromTray = (captureId: string) => {
+    setSessionCaptures(prev => prev.filter(c => c.id !== captureId));
+    setCapturedFeedback("Snapshot removed from video tray");
+    setTimeout(() => setCapturedFeedback(null), 2000);
+  };
+
+  // Clear all snapshots from the tray
+  const handleClearAllTray = () => {
+    if (sessionCaptures.length === 0) return;
+    if (window.confirm(`Clear all ${sessionCaptures.length} snapshots from this session tray?`)) {
+      setSessionCaptures([]);
+    }
+  };
+
+  // Capture Frame handler (TVR pattern: saves to tray first, user chooses which to add to report)
+  const captureFrame = (openMarkup: boolean = false) => {
+    if (!isStreaming) return;
 
     const base64 = getRawFrameBase64();
     if (!base64) return;
@@ -385,35 +431,39 @@ export const CameraView: React.FC<CameraViewProps> = ({
     setFlashEffect(true);
     setTimeout(() => setFlashEffect(false), 200);
 
-    const titleToUse = quickLabel.trim() || `Endoscope Capture ${currentImageCount + 1}`;
+    const titleToUse = quickLabel.trim() || `Endoscope Capture ${sessionCaptures.length + 1}`;
     
     // Auto-save to PC Downloads if enabled
     if (autoDownloadToPC) {
       triggerLocalFileDownload(base64, getSnapshotFilename(titleToUse));
     }
 
-    // Add to local session captures list
-    const newCapture = {
-      id: `cap_${Date.now()}`,
+    const captureId = `cap_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const newCapture: SessionCapture = {
+      id: captureId,
       base64,
       title: titleToUse,
-      timestamp: new Date()
+      timestamp: new Date(),
+      isAddedToReport: false
     };
-    setSessionCaptures(prev => [newCapture, ...prev].slice(0, 10));
+
+    setSessionCaptures(prev => [newCapture, ...prev].slice(0, 50));
 
     if (openMarkup || autoAnnotate) {
-      // Open annotation mode directly
-      openAnnotator(base64, titleToUse);
+      openAnnotator(base64, titleToUse, captureId);
     } else {
-      setCapturedFeedback(autoDownloadToPC ? `Captured & Saved to PC: ${titleToUse}` : `Captured: ${titleToUse}`);
+      setCapturedFeedback(
+        autoDownloadToPC 
+          ? `Saved to PC & Tray: ${titleToUse}` 
+          : `Snapshot #${sessionCaptures.length + 1} added to Tray! Click '+ Add to Report' to attach.`
+      );
       setTimeout(() => setCapturedFeedback(null), 2500);
-      onCapture(base64, titleToUse);
     }
   };
 
   // Open Annotation Studio for an Image
-  const openAnnotator = (base64: string, title: string) => {
-    setEditingImage({ base64, title });
+  const openAnnotator = (base64: string, title: string, captureId?: string) => {
+    setEditingImage({ base64, title, captureId });
     setAnnotations([]);
     setHistory([]);
     setRedoHistory([]);
@@ -809,25 +859,48 @@ export const CameraView: React.FC<CameraViewProps> = ({
     return () => window.removeEventListener('keydown', handleAnnotatorKeyDown);
   }, [editingImage, annotations, history, redoHistory]);
 
-  const handleSaveAnnotatedImage = () => {
+  const handleSaveAnnotatedImage = (addToReport: boolean = true) => {
     const canvas = annotationCanvasRef.current;
     if (!canvas || !editingImage) return;
 
     const finalBase64 = canvas.toDataURL('image/jpeg', 0.94);
+    const titleToUse = editingImage.title || 'Marked Endoscopy Image';
 
     if (autoDownloadToPC) {
-      triggerLocalFileDownload(finalBase64, getSnapshotFilename(editingImage.title || 'Marked_Snapshot'));
+      triggerLocalFileDownload(finalBase64, getSnapshotFilename(titleToUse));
     }
 
-    if (maxImagesReached) {
-      alert("Maximum 4 clinical images already attached. Please remove an image from the report first.");
-      return;
+    const targetId = editingImage.captureId || `cap_annotated_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const newCapture: SessionCapture = {
+      id: targetId,
+      base64: finalBase64,
+      title: titleToUse,
+      timestamp: new Date(),
+      isAddedToReport: false
+    };
+
+    // Update in session captures tray
+    setSessionCaptures(prev => {
+      const exists = prev.some(c => c.id === targetId);
+      if (exists) {
+        return prev.map(c => c.id === targetId ? newCapture : c);
+      }
+      return [newCapture, ...prev].slice(0, 50);
+    });
+
+    if (addToReport) {
+      if (currentImageCount >= 4) {
+        alert("Maximum 4 clinical images already in the report. The annotated image has been saved to your Session Tray below.");
+      } else {
+        onCapture(finalBase64, titleToUse);
+        setSessionCaptures(prev => prev.map(c => c.id === targetId ? { ...c, isAddedToReport: true } : c));
+        setCapturedFeedback(`Attached Annotated: ${titleToUse}`);
+        setTimeout(() => setCapturedFeedback(null), 2500);
+      }
+    } else {
+      setCapturedFeedback(`Saved Annotated to Tray: ${titleToUse}`);
+      setTimeout(() => setCapturedFeedback(null), 2500);
     }
-
-    onCapture(finalBase64, editingImage.title || 'Marked Endoscopy Image');
-
-    setCapturedFeedback(autoDownloadToPC ? `Saved to PC & Attached: ${editingImage.title}` : `Attached Annotated: ${editingImage.title}`);
-    setTimeout(() => setCapturedFeedback(null), 2500);
 
     setEditingImage(null);
     setAnnotations([]);
@@ -1189,14 +1262,9 @@ export const CameraView: React.FC<CameraViewProps> = ({
                 type="button"
                 id="capture-live-snapshot-btn"
                 onClick={() => captureFrame(false)}
-                disabled={maxImagesReached}
-                className={`p-2.5 sm:px-4 sm:py-2.5 rounded-xl transition-all shadow-lg flex items-center justify-center cursor-pointer active:scale-95 group relative ${
-                  maxImagesReached
-                    ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed opacity-50'
-                    : 'bg-gradient-to-r from-red-600 via-rose-600 to-red-600 hover:from-red-500 hover:to-rose-500 text-white border border-red-400/50 shadow-red-600/40 ring-2 ring-red-500/20 hover:ring-red-400/40'
-                }`}
-                title={maxImagesReached ? 'Maximum 4 images already captured' : 'Instant Grab Snapshot (Spacebar / F2)'}
-                aria-label="Instant Grab Snapshot"
+                className="p-2.5 sm:px-4 sm:py-2.5 rounded-xl transition-all shadow-lg flex items-center justify-center cursor-pointer active:scale-95 group relative bg-gradient-to-r from-red-600 via-rose-600 to-red-600 hover:from-red-500 hover:to-rose-500 text-white border border-red-400/50 shadow-red-600/40 ring-2 ring-red-500/20 hover:ring-red-400/40"
+                title="Snap image to holding tray below (Spacebar / F2)"
+                aria-label="Snap image to holding tray"
               >
                 <Camera className="w-5 h-5 group-hover:scale-110 transition-transform" />
               </button>
@@ -1205,68 +1273,163 @@ export const CameraView: React.FC<CameraViewProps> = ({
         </div>
       )}
 
-      {/* Session Recent Snapshots Carousel with Markup Launcher */}
-      {sessionCaptures.length > 0 && (
-        <div className="bg-slate-950/90 px-3 py-2 border-t border-slate-800/80">
-          <div className="flex items-center justify-between mb-1.5">
-            <div className="flex items-center space-x-2">
-              <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">
-                Session Snapshots ({sessionCaptures.length})
+      {/* ================================================================ */}
+      {/* HONESTECH TVR STYLE VIDEO SNAPSHOTS TRAY (HOLDING AREA)          */}
+      {/* ================================================================ */}
+      <div className="bg-slate-950/95 px-3.5 py-3 border-t border-slate-800/90">
+        <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+          <div className="flex items-center space-x-2.5 flex-wrap gap-1">
+            <div className="flex items-center space-x-1.5">
+              <ImageIcon className="w-4 h-4 text-indigo-400" />
+              <span className="text-[11px] font-black uppercase tracking-wider text-slate-200">
+                Snapshots Holding Tray
               </span>
-              <span className="text-[8px] text-slate-500 font-bold hidden sm:inline">Click icons to draw or download to PC</span>
             </div>
+            <span className="px-2 py-0.5 rounded-full bg-indigo-950/80 border border-indigo-500/40 text-[10px] font-bold text-indigo-300">
+              {sessionCaptures.length} Captured
+            </span>
+            <span className="text-[10px] text-slate-400 font-medium">
+              Report slots: <strong className={currentImageCount >= 4 ? "text-amber-400" : "text-emerald-400"}>{currentImageCount}/4</strong> used
+            </span>
+          </div>
 
-            <button
-              type="button"
-              onClick={downloadAllSessionCaptures}
-              className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/30 rounded text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer"
-              title="Download all session snapshots to PC"
-            >
-              <FolderDown className="w-3 h-3 text-emerald-400" />
-              Download All ({sessionCaptures.length})
-            </button>
-          </div>
-          <div className="flex items-center space-x-2 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-slate-700">
-            {sessionCaptures.map((cap) => (
-              <div 
-                key={cap.id} 
-                className="relative group rounded-lg overflow-hidden border border-slate-700 bg-slate-900 flex-shrink-0 w-20 h-14"
+          {sessionCaptures.length > 0 && (
+            <div className="flex items-center space-x-2">
+              <button
+                type="button"
+                onClick={downloadAllSessionCaptures}
+                className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-emerald-300 border border-emerald-500/30 rounded-lg text-[10px] font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                title="Download all tray snapshots to PC"
               >
-                <img src={cap.base64} alt={cap.title} className="w-full h-full object-cover" />
-                
-                {/* Hover overlay with Annotate / Download / Re-attach options */}
-                <div className="absolute inset-0 bg-slate-950/85 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center space-x-1">
-                  <button
-                    type="button"
-                    onClick={() => downloadSnapshot(cap.base64, cap.title)}
-                    className="p-1 bg-slate-800 hover:bg-slate-700 text-emerald-300 rounded text-[8px] font-bold shadow transition-all border border-emerald-500/40 cursor-pointer"
-                    title="Download snapshot to PC"
-                  >
-                    <Download className="w-3 h-3" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => openAnnotator(cap.base64, cap.title)}
-                    className="p-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-[8px] font-bold shadow transition-all cursor-pointer"
-                    title="Draw markers on this image"
-                  >
-                    <Edit3 className="w-3 h-3" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onCapture(cap.base64, cap.title)}
-                    disabled={maxImagesReached}
-                    className="p-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[8px] font-bold shadow transition-all disabled:opacity-50 cursor-pointer"
-                    title="Attach directly to report"
-                  >
-                    <Check className="w-3 h-3" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
+                <FolderDown className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Save All ({sessionCaptures.length})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleClearAllTray}
+                className="px-2 py-1 bg-slate-900 hover:bg-rose-950/80 text-slate-400 hover:text-rose-300 border border-slate-800 hover:border-rose-500/30 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer"
+                title="Clear all snapshots from tray"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Clear</span>
+              </button>
+            </div>
+          )}
         </div>
-      )}
+
+        {/* Empty state guidance */}
+        {sessionCaptures.length === 0 ? (
+          <div className="py-4 px-3 rounded-xl border border-dashed border-slate-800 bg-slate-900/40 text-center flex flex-col items-center justify-center space-y-1">
+            <p className="text-xs text-slate-400 font-medium">
+              Live snapshots will appear here in the bottom holding tray (like honestech TVR).
+            </p>
+            <p className="text-[11px] text-slate-500">
+              Press the <strong className="text-red-400">Red Camera Button</strong>, <kbd className="px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-[10px] text-slate-300">Spacebar</kbd>, or <kbd className="px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-[10px] text-slate-300">F2</kbd> to take frames. Then click <strong className="text-emerald-400">+ Add to Report</strong> on any image you want to keep.
+            </p>
+          </div>
+        ) : (
+          <div className="flex items-center space-x-3 overflow-x-auto pb-2 pt-1 scrollbar-thin scrollbar-thumb-slate-700">
+            {sessionCaptures.map((cap, idx) => {
+              const isAlreadyInReport = cap.isAddedToReport || attachedImages.some(img => img.url === cap.base64);
+
+              return (
+                <div 
+                  key={cap.id} 
+                  className={`shrink-0 w-44 sm:w-48 bg-slate-900/90 border rounded-xl overflow-hidden shadow-lg p-2 flex flex-col space-y-2 transition-all ${
+                    isAlreadyInReport ? 'border-emerald-500/50 ring-1 ring-emerald-500/30' : 'border-slate-800 hover:border-slate-700'
+                  }`}
+                >
+                  {/* Thumbnail */}
+                  <div className="h-28 w-full rounded-lg overflow-hidden relative bg-black border border-slate-800 group">
+                    <img 
+                      src={cap.base64} 
+                      alt={cap.title} 
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" 
+                    />
+                    
+                    <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 bg-slate-950/80 backdrop-blur-sm text-slate-300 text-[9px] font-bold rounded">
+                      #{sessionCaptures.length - idx}
+                    </span>
+
+                    {isAlreadyInReport && (
+                      <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 bg-emerald-600/95 backdrop-blur-sm text-white text-[9px] font-black uppercase tracking-wider rounded flex items-center gap-1 shadow-md">
+                        <CheckCircle2 className="w-2.5 h-2.5" />
+                        In Report
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Title & Time */}
+                  <div className="flex items-center justify-between text-[11px] font-medium text-slate-300 px-0.5">
+                    <span className="truncate flex-1 font-semibold text-slate-200" title={cap.title}>
+                      {cap.title}
+                    </span>
+                    <span className="text-[9px] text-slate-500 ml-1 shrink-0 font-mono">
+                      {new Date(cap.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+
+                  {/* Actions Row */}
+                  <div className="flex items-center space-x-1.5 pt-0.5">
+                    {/* Add to Report button */}
+                    {isAlreadyInReport ? (
+                      <div 
+                        className="flex-1 py-1.5 px-2 bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 cursor-default"
+                        title="This image is currently attached to the patient's endoscopy report"
+                      >
+                        <Check className="w-3 h-3 text-emerald-400" />
+                        <span>In Report</span>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleAddToReport(cap)}
+                        disabled={currentImageCount >= 4}
+                        className="flex-1 py-1.5 px-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 disabled:opacity-50 text-white rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all shadow-sm cursor-pointer"
+                        title={currentImageCount >= 4 ? "Report already has maximum 4 images" : "Add this snapshot to clinical report"}
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>+ Report</span>
+                      </button>
+                    )}
+
+                    {/* Annotate / Markup button */}
+                    <button
+                      type="button"
+                      onClick={() => openAnnotator(cap.base64, cap.title, cap.id)}
+                      className="p-1.5 bg-indigo-950/80 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 rounded-lg transition-all cursor-pointer"
+                      title="Draw clinical lesion arrows, biopsy stamp, Paris ring"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                    </button>
+
+                    {/* Download to PC button */}
+                    <button
+                      type="button"
+                      onClick={() => downloadSnapshot(cap.base64, cap.title)}
+                      className="p-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 border border-slate-700 rounded-lg transition-all cursor-pointer"
+                      title="Download snapshot to PC"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                    </button>
+
+                    {/* Remove from TVR Tray button */}
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveFromTray(cap.id)}
+                      className="p-1.5 bg-rose-950/60 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 rounded-lg transition-all cursor-pointer"
+                      title="Remove snapshot from tray"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {/* ---------------------------------------------------------------- */}
       {/* CLINICAL ANNOTATION & MARKER STUDIO MODAL / OVERLAY             */}
@@ -1568,8 +1731,19 @@ export const CameraView: React.FC<CameraViewProps> = ({
 
                 <button
                   type="button"
+                  id="save-annotated-to-tray-btn"
+                  onClick={() => handleSaveAnnotatedImage(false)}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-indigo-300 hover:text-indigo-200 border border-indigo-500/30 rounded-xl text-xs font-black uppercase tracking-wider flex items-center space-x-1.5 transition-all shadow-md cursor-pointer"
+                  title="Save annotated image to bottom tray without attaching to report yet"
+                >
+                  <ImageIcon className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Save to Tray</span>
+                </button>
+
+                <button
+                  type="button"
                   id="save-annotated-image-btn"
-                  onClick={handleSaveAnnotatedImage}
+                  onClick={() => handleSaveAnnotatedImage(true)}
                   className="px-5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center space-x-1.5 transition-all shadow-lg shadow-emerald-950/40 cursor-pointer"
                 >
                   <CheckCircle2 className="w-4 h-4 text-emerald-200" />
