@@ -920,17 +920,14 @@ export const CameraView: React.FC<CameraViewProps> = ({
       id="endoscopy-camera-view"
       className="bg-slate-900 border border-slate-700/60 rounded-2xl overflow-hidden shadow-xl text-white flex flex-col transition-all relative"
     >
-      {/* Header Bar */}
-      <div className="bg-slate-950/80 px-4 py-2.5 border-b border-slate-800 flex items-center justify-between flex-wrap gap-2">
+      {/* Header Bar - Clean Icon-focused Minimal Layout */}
+      <div className="bg-slate-950/80 px-3 py-2 border-b border-slate-800 flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center space-x-2">
           <div className={`w-2.5 h-2.5 rounded-full ${isStreaming ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500'}`} />
-          <span className="text-xs font-black uppercase tracking-wider text-slate-200 flex items-center gap-1.5">
-            <Video className="w-3.5 h-3.5 text-indigo-400" />
-            Live Endoscopy Feed
-          </span>
+          <Video className="w-4 h-4 text-indigo-400" />
           {isStreaming && (
-            <span className="bg-emerald-950/80 text-emerald-400 border border-emerald-500/30 text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider">
-              60 FPS HD LIVE
+            <span className="bg-emerald-950/80 text-emerald-400 border border-emerald-500/30 text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider">
+              HD
             </span>
           )}
         </div>
@@ -1176,9 +1173,8 @@ export const CameraView: React.FC<CameraViewProps> = ({
         <div className="bg-slate-950 p-3 border-t border-slate-800 flex flex-col space-y-2.5">
           {/* Quick Anatomical Label selector */}
           <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-slate-700">
-            <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1 flex-shrink-0">
+            <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1 flex-shrink-0" title="Organ Label Tags">
               <Layers className="w-3 h-3 text-indigo-400" />
-              Quick Tag:
             </span>
             {getQuickTags().map((tag) => (
               <button
@@ -1198,9 +1194,10 @@ export const CameraView: React.FC<CameraViewProps> = ({
               <button
                 type="button"
                 onClick={() => setQuickLabel('')}
-                className="text-[8px] text-rose-400 hover:text-rose-300 font-bold px-1.5 py-0.5 rounded cursor-pointer"
+                className="text-[8px] text-rose-400 hover:text-rose-300 font-bold px-1 py-0.5 rounded cursor-pointer"
+                title="Clear selected tag"
               >
-                Clear Tag
+                <X className="w-2.5 h-2.5" />
               </button>
             )}
           </div>
@@ -1208,17 +1205,20 @@ export const CameraView: React.FC<CameraViewProps> = ({
           {/* Capture Trigger Buttons */}
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center space-x-3 text-[10px] font-bold text-slate-400">
-              <label className="flex items-center space-x-1.5 cursor-pointer select-none text-[10px] text-slate-300 hover:text-white" title="Automatically launch drawing/marker studio after capturing">
+              <label className="flex items-center space-x-1.5 cursor-pointer select-none text-[10px] text-slate-300 hover:text-white" title="Automatically launch drawing studio after capturing">
                 <input 
                   type="checkbox" 
                   checked={autoAnnotate} 
                   onChange={(e) => setAutoAnnotate(e.target.checked)}
                   className="rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-0 focus:ring-offset-0 w-3.5 h-3.5 cursor-pointer"
                 />
-                <span>Auto-Open Markup</span>
+                <span className="flex items-center gap-1">
+                  <Edit3 className="w-3 h-3 text-indigo-400" />
+                  <span>Markup</span>
+                </span>
               </label>
 
-              <label className="flex items-center space-x-1.5 cursor-pointer select-none text-[10px] text-emerald-300 hover:text-emerald-200" title="Automatically download snapshot to your PC's Downloads folder without relying on cloud storage">
+              <label className="flex items-center space-x-1.5 cursor-pointer select-none text-[10px] text-emerald-300 hover:text-emerald-200" title="Automatically download snapshots directly to PC Downloads">
                 <input 
                   type="checkbox" 
                   checked={autoDownloadToPC} 
@@ -1227,7 +1227,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
                 />
                 <span className="flex items-center gap-1">
                   <HardDrive className="w-3 h-3 text-emerald-400" />
-                  Auto-Save to PC
+                  <span>PC Save</span>
                 </span>
               </label>
             </div>
@@ -1276,43 +1276,42 @@ export const CameraView: React.FC<CameraViewProps> = ({
       {/* ================================================================ */}
       {/* HONESTECH TVR STYLE VIDEO SNAPSHOTS TRAY (HOLDING AREA)          */}
       {/* ================================================================ */}
-      <div className="bg-slate-950/95 px-3.5 py-3 border-t border-slate-800/90">
+      <div className="bg-slate-950/95 px-3 py-2.5 border-t border-slate-800/90">
         <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-          <div className="flex items-center space-x-2.5 flex-wrap gap-1">
-            <div className="flex items-center space-x-1.5">
+          <div className="flex items-center space-x-2 flex-wrap gap-1">
+            <div className="flex items-center space-x-1.5" title="Snapshots Tray">
               <ImageIcon className="w-4 h-4 text-indigo-400" />
-              <span className="text-[11px] font-black uppercase tracking-wider text-slate-200">
-                Snapshots Holding Tray
-              </span>
             </div>
-            <span className="px-2 py-0.5 rounded-full bg-indigo-950/80 border border-indigo-500/40 text-[10px] font-bold text-indigo-300">
-              {sessionCaptures.length} Captured
+            <span className="px-1.5 py-0.5 rounded-full bg-indigo-950/80 border border-indigo-500/40 text-[10px] font-bold text-indigo-300">
+              {sessionCaptures.length}
             </span>
             <span className="text-[10px] text-slate-400 font-medium">
-              Report slots: <strong className={currentImageCount >= 4 ? "text-amber-400" : "text-emerald-400"}>{currentImageCount}/4</strong> used
+              <strong className={currentImageCount >= 4 ? "text-amber-400" : "text-emerald-400"}>{currentImageCount}/4</strong>
             </span>
           </div>
 
           {sessionCaptures.length > 0 && (
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-1.5">
               <button
                 type="button"
                 onClick={downloadAllSessionCaptures}
-                className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-emerald-300 border border-emerald-500/30 rounded-lg text-[10px] font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
-                title="Download all tray snapshots to PC"
+                className="p-1.5 sm:px-2 sm:py-1 bg-slate-900 hover:bg-slate-800 text-emerald-300 border border-emerald-500/30 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-sm"
+                title={`Download all ${sessionCaptures.length} tray snapshots to PC`}
+                aria-label="Save All to PC"
               >
                 <FolderDown className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Save All ({sessionCaptures.length})</span>
+                <span className="hidden sm:inline">Save All ({sessionCaptures.length})</span>
               </button>
 
               <button
                 type="button"
                 onClick={handleClearAllTray}
-                className="px-2 py-1 bg-slate-900 hover:bg-rose-950/80 text-slate-400 hover:text-rose-300 border border-slate-800 hover:border-rose-500/30 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer"
+                className="p-1.5 sm:px-2 sm:py-1 bg-slate-900 hover:bg-rose-950/80 text-slate-400 hover:text-rose-300 border border-slate-800 hover:border-rose-500/30 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer"
                 title="Clear all snapshots from tray"
+                aria-label="Clear Tray"
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                <span>Clear</span>
+                <span className="hidden sm:inline">Clear</span>
               </button>
             </div>
           )}
@@ -1320,77 +1319,73 @@ export const CameraView: React.FC<CameraViewProps> = ({
 
         {/* Empty state guidance */}
         {sessionCaptures.length === 0 ? (
-          <div className="py-4 px-3 rounded-xl border border-dashed border-slate-800 bg-slate-900/40 text-center flex flex-col items-center justify-center space-y-1">
-            <p className="text-xs text-slate-400 font-medium">
-              Live snapshots will appear here in the bottom holding tray (like honestech TVR).
-            </p>
-            <p className="text-[11px] text-slate-500">
-              Press the <strong className="text-red-400">Red Camera Button</strong>, <kbd className="px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-[10px] text-slate-300">Spacebar</kbd>, or <kbd className="px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-[10px] text-slate-300">F2</kbd> to take frames. Then click <strong className="text-emerald-400">+ Add to Report</strong> on any image you want to keep.
+          <div className="py-3 px-3 rounded-xl border border-dashed border-slate-800 bg-slate-900/40 text-center flex flex-col items-center justify-center space-y-1">
+            <p className="text-[11px] text-slate-400 flex items-center gap-1.5">
+              <Camera className="w-3.5 h-3.5 text-red-400" />
+              <span>Snap photos with Red Camera, Spacebar, or F2</span>
             </p>
           </div>
         ) : (
-          <div className="flex items-center space-x-3 overflow-x-auto pb-2 pt-1 scrollbar-thin scrollbar-thumb-slate-700">
+          <div className="flex items-center space-x-2.5 overflow-x-auto pb-1.5 pt-0.5 scrollbar-thin scrollbar-thumb-slate-700">
             {sessionCaptures.map((cap, idx) => {
               const isAlreadyInReport = cap.isAddedToReport || attachedImages.some(img => img.url === cap.base64);
 
               return (
                 <div 
                   key={cap.id} 
-                  className={`shrink-0 w-44 sm:w-48 bg-slate-900/90 border rounded-xl overflow-hidden shadow-lg p-2 flex flex-col space-y-2 transition-all ${
-                    isAlreadyInReport ? 'border-emerald-500/50 ring-1 ring-emerald-500/30' : 'border-slate-800 hover:border-slate-700'
+                  className={`shrink-0 w-36 sm:w-40 bg-slate-900/90 border rounded-xl overflow-hidden shadow-lg p-1.5 flex flex-col space-y-1.5 transition-all ${
+                    isAlreadyInReport ? 'border-emerald-500/60 ring-1 ring-emerald-500/40' : 'border-slate-800 hover:border-slate-700'
                   }`}
                 >
                   {/* Thumbnail */}
-                  <div className="h-28 w-full rounded-lg overflow-hidden relative bg-black border border-slate-800 group">
+                  <div className="h-24 w-full rounded-lg overflow-hidden relative bg-black border border-slate-800 group">
                     <img 
                       src={cap.base64} 
                       alt={cap.title} 
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" 
                     />
                     
-                    <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 bg-slate-950/80 backdrop-blur-sm text-slate-300 text-[9px] font-bold rounded">
+                    <span className="absolute top-1 left-1 px-1.5 py-0.5 bg-slate-950/80 backdrop-blur-sm text-slate-300 text-[9px] font-bold rounded">
                       #{sessionCaptures.length - idx}
                     </span>
 
                     {isAlreadyInReport && (
-                      <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 bg-emerald-600/95 backdrop-blur-sm text-white text-[9px] font-black uppercase tracking-wider rounded flex items-center gap-1 shadow-md">
-                        <CheckCircle2 className="w-2.5 h-2.5" />
-                        In Report
+                      <span className="absolute top-1 right-1 p-1 bg-emerald-600/95 backdrop-blur-sm text-white rounded-full flex items-center justify-center shadow-md" title="Attached to Report">
+                        <Check className="w-3 h-3 stroke-[3]" />
                       </span>
                     )}
                   </div>
 
                   {/* Title & Time */}
-                  <div className="flex items-center justify-between text-[11px] font-medium text-slate-300 px-0.5">
+                  <div className="flex items-center justify-between text-[10px] text-slate-300 px-0.5">
                     <span className="truncate flex-1 font-semibold text-slate-200" title={cap.title}>
                       {cap.title}
                     </span>
-                    <span className="text-[9px] text-slate-500 ml-1 shrink-0 font-mono">
+                    <span className="text-[8px] text-slate-500 ml-1 shrink-0 font-mono">
                       {new Date(cap.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
 
-                  {/* Actions Row */}
-                  <div className="flex items-center space-x-1.5 pt-0.5">
-                    {/* Add to Report button */}
+                  {/* Actions Row - All Clean Beautiful Icons */}
+                  <div className="flex items-center space-x-1 pt-0.5">
+                    {/* Add to Report button (Icon-first) */}
                     {isAlreadyInReport ? (
                       <div 
-                        className="flex-1 py-1.5 px-2 bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 cursor-default"
-                        title="This image is currently attached to the patient's endoscopy report"
+                        className="flex-1 py-1.5 bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 rounded-lg text-[10px] font-bold flex items-center justify-center cursor-default"
+                        title="Attached in report"
                       >
-                        <Check className="w-3 h-3 text-emerald-400" />
-                        <span>In Report</span>
+                        <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[2.5]" />
                       </div>
                     ) : (
                       <button
                         type="button"
                         onClick={() => handleAddToReport(cap)}
                         disabled={currentImageCount >= 4}
-                        className="flex-1 py-1.5 px-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 disabled:opacity-50 text-white rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all shadow-sm cursor-pointer"
-                        title={currentImageCount >= 4 ? "Report already has maximum 4 images" : "Add this snapshot to clinical report"}
+                        className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-500 active:scale-95 disabled:opacity-50 text-white rounded-lg flex items-center justify-center transition-all shadow-sm cursor-pointer"
+                        title={currentImageCount >= 4 ? "Report already has 4 images" : "Attach to Report"}
+                        aria-label="Add to Report"
                       >
-                        <Plus className="w-3 h-3" />
-                        <span>+ Report</span>
+                        <Plus className="w-4 h-4 stroke-[2.5]" />
                       </button>
                     )}
 
@@ -1399,7 +1394,8 @@ export const CameraView: React.FC<CameraViewProps> = ({
                       type="button"
                       onClick={() => openAnnotator(cap.base64, cap.title, cap.id)}
                       className="p-1.5 bg-indigo-950/80 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 rounded-lg transition-all cursor-pointer"
-                      title="Draw clinical lesion arrows, biopsy stamp, Paris ring"
+                      title="Draw clinical arrows, lesion markers, biopsy stamp"
+                      aria-label="Draw on image"
                     >
                       <Edit3 className="w-3.5 h-3.5" />
                     </button>
@@ -1410,6 +1406,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
                       onClick={() => downloadSnapshot(cap.base64, cap.title)}
                       className="p-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 border border-slate-700 rounded-lg transition-all cursor-pointer"
                       title="Download snapshot to PC"
+                      aria-label="Download snapshot"
                     >
                       <Download className="w-3.5 h-3.5" />
                     </button>
@@ -1420,6 +1417,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
                       onClick={() => handleRemoveFromTray(cap.id)}
                       className="p-1.5 bg-rose-950/60 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 rounded-lg transition-all cursor-pointer"
                       title="Remove snapshot from tray"
+                      aria-label="Remove snapshot"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
