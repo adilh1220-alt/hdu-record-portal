@@ -19,6 +19,7 @@ import { userService } from '../services/userService';
 import { authService } from '../services/authService';
 import { webAuthnService, WebAuthnSupport } from '../services/webAuthnService';
 import BiometricWalkthroughModal from './BiometricWalkthroughModal';
+import BiometricTroubleshootModal from './BiometricTroubleshootModal';
 import Modal from './Modal';
 
 const AuthForm: React.FC = () => {
@@ -36,6 +37,8 @@ const AuthForm: React.FC = () => {
   const [biometricFeedback, setBiometricFeedback] = useState<string | null>(null);
   const [lastBiometricUser, setLastBiometricUser] = useState<{ email: string; displayName: string; userUid: string; deviceName: string } | null>(null);
   const [hasEnrolledCreds, setHasEnrolledCreds] = useState(false);
+  const [showBiometricGuide, setShowBiometricGuide] = useState(false);
+  const [showTroubleshootModal, setShowTroubleshootModal] = useState(false);
 
   const passwordRef = useRef<HTMLInputElement>(null);
 
@@ -45,7 +48,6 @@ const AuthForm: React.FC = () => {
   const [resetLoading, setResetLoading] = useState(false);
   const [resetMessage, setResetMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [showInactivityAlert, setShowInactivityAlert] = useState(false);
-  const [showBiometricGuide, setShowBiometricGuide] = useState(false);
 
   const { login, loginWithBiometrics } = useAuth();
 
@@ -186,11 +188,20 @@ const AuthForm: React.FC = () => {
     <div className="min-h-screen flex items-center justify-center p-6 auth-gradient relative overflow-hidden">
       {/* Top Error Alert Bar */}
       {error && (
-        <div className="fixed top-0 left-0 right-0 z-[60] bg-red-600 text-white px-6 py-4 flex items-center justify-center gap-3 animate-in slide-in-from-top duration-300 shadow-xl">
+        <div className="fixed top-0 left-0 right-0 z-[60] bg-red-600 text-white px-6 py-4 flex flex-wrap items-center justify-center gap-3 animate-in slide-in-from-top duration-300 shadow-xl">
           <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
           <span className="text-xs font-black uppercase tracking-widest">{error}</span>
+          {(error.toLowerCase().includes('biometric') || error.toLowerCase().includes('credential') || error.toLowerCase().includes('cancelled') || error.toLowerCase().includes('webauthn')) && (
+            <button
+              type="button"
+              onClick={() => setShowTroubleshootModal(true)}
+              className="ml-2 px-3 py-1 bg-white text-red-700 hover:bg-red-50 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors shadow-xs cursor-pointer"
+            >
+              Troubleshoot / Run Diagnostics
+            </button>
+          )}
           <button onClick={() => setError('')} className="ml-4 p-1 hover:bg-red-700 rounded-full transition-colors">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
@@ -295,18 +306,30 @@ const AuthForm: React.FC = () => {
                 </div>
               )}
 
-              <div className="flex items-center justify-between px-1 text-[9px]">
-                <button
-                  type="button"
-                  onClick={() => setShowBiometricGuide(true)}
-                  className="text-slate-400 hover:text-slate-600 flex items-center gap-1 font-bold transition-colors cursor-pointer"
-                >
-                  <HelpCircle className="w-2.5 h-2.5 text-red-500" />
-                  <span>Moto G54 & Fingerprint Setup Guide</span>
-                </button>
-                <span className="text-[8px] text-slate-400 font-bold uppercase tracking-wider">
-                  FIDO2 Biometrics
-                </span>
+              <div className="flex flex-col gap-1.5 px-1 text-[9px]">
+                <div className="flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => setShowTroubleshootModal(true)}
+                    className="text-red-600 hover:text-red-700 flex items-center gap-1 font-black transition-colors cursor-pointer"
+                  >
+                    <HelpCircle className="w-3 h-3 text-red-500" />
+                    <span>Troubleshoot Biometric Login & Windows Hello</span>
+                  </button>
+                  <span className="text-[8px] text-slate-400 font-bold uppercase tracking-wider">
+                    FIDO2 Standard
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-[8px] text-slate-400">
+                  <button
+                    type="button"
+                    onClick={() => setShowBiometricGuide(true)}
+                    className="hover:text-slate-600 font-semibold transition-colors cursor-pointer"
+                  >
+                    Mobile / Moto G54 Walkthrough
+                  </button>
+                  <span>Dell Latitude 7300 / PC Compatible</span>
+                </div>
               </div>
 
               <div className="relative flex py-1 items-center">
@@ -475,6 +498,13 @@ const AuthForm: React.FC = () => {
         onStartEnrollment={() => {
           setShowBiometricGuide(false);
         }}
+      />
+
+      {/* Biometric Troubleshoot & Sensor Diagnostics Modal */}
+      <BiometricTroubleshootModal
+        isOpen={showTroubleshootModal}
+        onClose={() => setShowTroubleshootModal(false)}
+        defaultTab="diagnostics"
       />
     </div>
   );

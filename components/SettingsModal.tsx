@@ -4,6 +4,7 @@ import { authService } from '../services/authService';
 import { useAuth } from '../contexts/AuthContext';
 import EmailConnectionDiagnostic from './EmailConnectionDiagnostic';
 import BiometricWalkthroughModal from './BiometricWalkthroughModal';
+import BiometricTroubleshootModal from './BiometricTroubleshootModal';
 import { Shield, Activity, Fingerprint, Plus, Trash2, CheckCircle2, AlertCircle, Smartphone, Laptop, Key, HelpCircle, ExternalLink, Zap } from 'lucide-react';
 import { webAuthnService, BiometricCredential, WebAuthnSupport } from '../services/webAuthnService';
 
@@ -91,6 +92,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   const [bioActionMessage, setBioActionMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [customDeviceLabel, setCustomDeviceLabel] = useState('');
   const [showWalkthrough, setShowWalkthrough] = useState(false);
+  const [showTroubleshootModal, setShowTroubleshootModal] = useState(false);
 
   const { 
     currentUser, 
@@ -444,14 +446,24 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                       <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                       <span>Hardware Sensor: {biometricSupport?.deviceLabel || 'Biometric Authenticator Ready'}</span>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowWalkthrough(true)}
-                      className="px-2.5 py-1 rounded-lg bg-red-600/30 hover:bg-red-600/50 text-red-200 hover:text-white text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition-colors border border-red-500/40 cursor-pointer"
-                    >
-                      <Smartphone className="w-3 h-3 text-red-400" />
-                      <span>Moto G54 / Mobile Guide</span>
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setShowTroubleshootModal(true)}
+                        className="px-2.5 py-1 rounded-lg bg-red-600 hover:bg-red-700 text-white text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition-colors cursor-pointer shadow-xs"
+                      >
+                        <Laptop className="w-3 h-3" />
+                        <span>Troubleshoot & Diagnostics</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowWalkthrough(true)}
+                        className="px-2.5 py-1 rounded-lg bg-red-600/30 hover:bg-red-600/50 text-red-200 hover:text-white text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition-colors border border-red-500/40 cursor-pointer"
+                      >
+                        <Smartphone className="w-3 h-3 text-red-400" />
+                        <span>Moto G54 Guide</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -619,6 +631,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         onStartEnrollment={() => {
           setShowWalkthrough(false);
         }}
+      />
+
+      <BiometricTroubleshootModal
+        isOpen={showTroubleshootModal}
+        onClose={() => setShowTroubleshootModal(false)}
+        defaultTab="diagnostics"
       />
     </Modal>
   );

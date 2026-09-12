@@ -10,6 +10,45 @@ import { db, safeFirestoreWrite } from './firebaseConfig';
 import { collection, doc, getDocs, setDoc, deleteDoc, query, where, updateDoc, getDoc } from 'firebase/firestore';
 import { activityService } from './activityService';
 
+export interface DiagnosticCheckItem {
+  id: string;
+  name: string;
+  category: 'api' | 'environment' | 'hardware' | 'credential';
+  status: 'pass' | 'warn' | 'fail';
+  summary: string;
+  details: string;
+  errorCode?: string;
+  recommendedAction?: string;
+}
+
+export interface BiometricDiagnosticReport {
+  timestamp: string;
+  userAgent: string;
+  osName: string;
+  isWindows: boolean;
+  isDellCandidate: boolean;
+  browser: string;
+  isSecureContext: boolean;
+  isInIframe: boolean;
+  hasWebAuthnAPI: boolean;
+  isPlatformAuthenticatorAvailable: boolean;
+  isConditionalMediationAvailable: boolean;
+  enrolledCredentialsCount: number;
+  checks: DiagnosticCheckItem[];
+  overallHealth: 'HEALTHY' | 'ACTION_NEEDED' | 'BLOCKED';
+}
+
+export interface HardwareProbeResult {
+  success: boolean;
+  status: 'SUCCESS' | 'WARNING' | 'ERROR';
+  errorCode: string;
+  errorName?: string;
+  userMessage: string;
+  technicalDetails: string;
+  remedySteps: string[];
+  osContext: 'windows' | 'android' | 'macos' | 'generic';
+}
+
 export interface BiometricCredential {
   id: string; // Base64URL encoded credential ID
   rawId: string;
@@ -666,6 +705,454 @@ export const webAuthnService = {
     } catch (e) {
       console.warn('Failed to retrieve biometric auth logs:', e);
       return [];
+    }
+  },
+
+  /**
+   * Run comprehensive Web Authentication API & Hardware environment diagnostics
+   */
+  runDiagnostics: async (): Promise<BiometricDiagnosticReport> => {
+    const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+    const isWindows = /Windows/i.test(ua);
+    const isMac = /Macintosh|Mac OS X/i.test(ua);
+    const isAndroid = /Android/i.test(ua);
+    const isDellCandidate = isWindows; // Common hospital laptops (Dell Latitude 7300/7400/5400)
+    
+    let osName = 'Unknown OS';
+    if (isWindows) osName = 'Windows 10 / 11';
+    else if (isMac) osName = 'macOS (Apple)';
+    else if (isAndroid) osName = 'Android OS';
+    else if (/Linux/i.test(ua)) osName = 'Linux';
+
+    let browser = 'Unknown Browser';
+    if (/Edg\//i.test(ua)) browser = 'Microsoft Edge';
+    else if (/Chrome\//i.test(ua)) browser = 'Google Chrome';
+    else if (/Firefox\//i.test(ua)) browser = 'Mozilla Firefox';
+    else if (/Safari\//i.test(ua)) browser = 'Apple Safari';
+
+    const isSecureContext = typeof window !== 'undefined' ? !!window.isSecureContext : false;
+    const isInIframe = isRunningInIframe();
+    const hasWebAuthnAPI = typeof window !== 'undefined' && !!window.PublicKeyCredential && typeof navigator !== 'undefined' && !!navigator.credentials;
+
+    let isPlatformAuthenticatorAvailable = false;
+    if (hasWebAuthnAPI && typeof PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable === 'function') {
+      try {
+        isPlatformAuthenticatorAvailable = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+      } catch (e) {
+        console.warn('Diagnostics: platform authenticator check failed:', e);
+      }
+    }
+
+    let isConditionalMediationAvailable = false;
+    if (hasWebAuthnAPI && typeof (PublicKeyCredential as any).isConditionalMediationAvailable === 'function') {
+      try {
+        isConditionalMediationAvailable = await (PublicKeyCredential as any).isConditionalMediationAvailable();
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    const enrolled = await webAuthnService.getCredentials();
+    const enrolledCount = enrolled.length;
+
+    const checks: DiagnosticCheckItem[] = [];
+
+    // 1. Browser WebAuthn API
+    if (hasWebAuthnAPI) {
+      checks.push({
+        id: 'webauthn-api',
+        name: 'Web Authentication API Support',
+        category: 'api',
+        status: 'pass',
+        summary: 'Supported & active in browser',
+        details: `${browser} provides native PublicKeyCredential and navigator.credentials interfaces.`
+      });
+    } else {
+      checks.push({
+        id: 'webauthn-api',
+        name: 'Web Authentication API Support',
+        category: 'api',
+        status: 'fail',
+        summary: 'API Unavailable or disabled',
+        errorCode: 'ERR_NO_WEBAUTHN_API',
+        details: 'The browser engine does not expose the W3C WebAuthn API.',
+        recommendedAction: 'Update Google Chrome or Microsoft Edge to the latest version and ensure security flags are not disabling WebAuthn.'
+      });
+    }
+
+    // 2. Security Context (HTTPS)
+    if (isSecureContext) {
+      checks.push({
+        id: 'secure-context',
+        name: 'Transport Security (HTTPS)',
+        category: 'environment',
+        status: 'pass',
+        summary: 'Origin is a cryptographic Secure Context',
+        details: 'Connection is encrypted over TLS/HTTPS, satisfying WebAuthn cryptographic origin mandates.'
+      });
+    } else {
+      checks.push({
+        id: 'secure-context',
+        name: 'Transport Security (HTTPS)',
+        category: 'environment',
+        status: 'fail',
+        summary: 'Insecure origin (HTTP)',
+        errorCode: 'ERR_INSECURE_CONTEXT',
+        details: 'Biometric passkeys and WebAuthn calls are blocked on unencrypted HTTP connections.',
+        recommendedAction: 'Access the portal via HTTPS protocol (https://).'
+      });
+    }
+
+    // 3. Execution Frame / Sandbox
+    if (!isInIframe) {
+      checks.push({
+        id: 'frame-context',
+        name: 'Browser Window Context',
+        category: 'environment',
+        status: 'pass',
+        summary: 'Top-level Standalone Tab',
+        details: 'Application is running directly in top-level window. Full hardware sensor dialogs permitted.'
+      });
+    } else {
+      checks.push({
+        id: 'frame-context',
+        name: 'Browser Window Context',
+        category: 'environment',
+        status: 'warn',
+        summary: 'Embedded Preview Iframe Detected',
+        errorCode: 'ERR_IFRAME_RESTRICTED',
+        details: 'Browsers strictly block direct Windows Hello hardware prompts inside cross-origin or preview iframes to prevent clickjacking.',
+        recommendedAction: 'Open The Kidney Centre portal in a dedicated browser tab using the "Open in New Tab" button.'
+      });
+    }
+
+    // 4. Platform Authenticator (Windows Hello / Touch ID / Sensor Hardware)
+    if (isPlatformAuthenticatorAvailable) {
+      checks.push({
+        id: 'platform-authenticator',
+        name: isWindows ? 'Windows Hello Biometric Provider' : 'Platform Biometric Authenticator',
+        category: 'hardware',
+        status: 'pass',
+        summary: isWindows ? 'Windows Hello reported ready' : 'Platform authenticator available',
+        details: isWindows 
+          ? 'Windows 10/11 confirms Windows Hello biometric / PIN provider is active and ready to handle WebAuthn requests.'
+          : 'Operating system reported a built-in user-verifying authenticator.'
+      });
+    } else {
+      checks.push({
+        id: 'platform-authenticator',
+        name: isWindows ? 'Windows Hello Biometric Provider' : 'Platform Biometric Authenticator',
+        category: 'hardware',
+        status: 'warn',
+        summary: isWindows ? 'Windows Hello not responding or not configured' : 'Platform authenticator not detected',
+        errorCode: 'ERR_PLATFORM_AUTH_UNAVAILABLE',
+        details: isWindows 
+          ? 'Windows reports that Windows Hello Fingerprint / PIN is either not configured in Windows Settings, or the biometric hardware driver (e.g. Dell ControlVault) is not responding.'
+          : 'The OS does not report a ready biometric sensor to the browser.',
+        recommendedAction: isWindows
+          ? '1. Open Windows Settings (Win + I) > Accounts > Sign-in options.\n2. Ensure a Windows Hello PIN is created first.\n3. Click Windows Hello Fingerprint and enroll your finger.\n4. Check Device Manager > Biometric devices for Dell ControlVault / Goodix driver.'
+          : 'Ensure biometric login is enabled in your operating system settings.'
+      });
+    }
+
+    // 5. Enrolled Portal Credentials
+    if (enrolledCount > 0) {
+      checks.push({
+        id: 'enrolled-credentials',
+        name: 'Portal Biometric Passkeys',
+        category: 'credential',
+        status: 'pass',
+        summary: `${enrolledCount} registered passkey${enrolledCount > 1 ? 's' : ''} on record`,
+        details: `This device/account has ${enrolledCount} active credential(s) enrolled in the clinical database.`
+      });
+    } else {
+      checks.push({
+        id: 'enrolled-credentials',
+        name: 'Portal Biometric Passkeys',
+        category: 'credential',
+        status: 'warn',
+        summary: 'No passkeys registered for this portal yet',
+        errorCode: 'ERR_ENROLLMENT_REQUIRED',
+        details: 'The hardware sensor may work in Windows, but it has not yet been paired with your medical account in this portal.',
+        recommendedAction: 'Sign in with your email and password first, then go to Portal Settings > Biometrics > "Enroll Sensor" to link your fingerprint.'
+      });
+    }
+
+    let overallHealth: 'HEALTHY' | 'ACTION_NEEDED' | 'BLOCKED' = 'HEALTHY';
+    if (checks.some(c => c.status === 'fail')) {
+      overallHealth = 'BLOCKED';
+    } else if (checks.some(c => c.status === 'warn')) {
+      overallHealth = 'ACTION_NEEDED';
+    }
+
+    return {
+      timestamp: new Date().toISOString(),
+      userAgent: ua,
+      osName,
+      isWindows,
+      isDellCandidate,
+      browser,
+      isSecureContext,
+      isInIframe,
+      hasWebAuthnAPI,
+      isPlatformAuthenticatorAvailable,
+      isConditionalMediationAvailable,
+      enrolledCredentialsCount: enrolledCount,
+      checks,
+      overallHealth
+    };
+  },
+
+  /**
+   * Run an interactive hardware sensor probe via WebAuthn to test if the browser
+   * can detect the physical fingerprint scanner / Windows Hello prompt
+   */
+  runHardwareSensorProbe: async (): Promise<HardwareProbeResult> => {
+    const diag = await webAuthnService.runDiagnostics();
+
+    // Context determination
+    const osContext: 'windows' | 'android' | 'macos' | 'generic' = 
+      diag.isWindows ? 'windows' : /Android/i.test(diag.userAgent) ? 'android' : /Macintosh/i.test(diag.userAgent) ? 'macos' : 'generic';
+
+    // 1. Check API presence
+    if (!diag.hasWebAuthnAPI) {
+      return {
+        success: false,
+        status: 'ERROR',
+        errorCode: 'ERR_NO_WEBAUTHN_API',
+        errorName: 'NotSupportedError',
+        userMessage: 'Browser does not support the Web Authentication API.',
+        technicalDetails: 'window.PublicKeyCredential is not available in this browser runtime.',
+        remedySteps: [
+          'Switch to a modern browser like Google Chrome or Microsoft Edge.',
+          'Verify that WebAuthn or Passkeys have not been disabled in browser experimental flags.'
+        ],
+        osContext
+      };
+    }
+
+    // 2. Check Secure Context
+    if (!diag.isSecureContext) {
+      return {
+        success: false,
+        status: 'ERROR',
+        errorCode: 'ERR_INSECURE_CONTEXT',
+        errorName: 'SecurityError',
+        userMessage: 'WebAuthn requires an HTTPS encrypted connection.',
+        technicalDetails: 'window.isSecureContext is false. Biometric hardware access is restricted to HTTPS.',
+        remedySteps: [
+          'Ensure the URL starts with https:// rather than http://.',
+          'If testing locally, use localhost or an SSL tunnel.'
+        ],
+        osContext
+      };
+    }
+
+    // 3. Check Iframe Restriction
+    if (diag.isInIframe) {
+      return {
+        success: false,
+        status: 'WARNING',
+        errorCode: 'ERR_IFRAME_RESTRICTED',
+        errorName: 'NotAllowedError',
+        userMessage: 'Hardware biometric prompts are blocked inside preview iframes.',
+        technicalDetails: 'Running inside an embedded frame. Browsers require top-level window context for Windows Hello / biometric prompts.',
+        remedySteps: [
+          'Click the "Open in New Tab" button in the top bar.',
+          'In the new standalone tab, the Windows Hello fingerprint dialog will trigger natively without restriction.'
+        ],
+        osContext
+      };
+    }
+
+    // 4. Check Windows Hello Platform Authenticator on Windows
+    if (diag.isWindows && !diag.isPlatformAuthenticatorAvailable) {
+      return {
+        success: false,
+        status: 'WARNING',
+        errorCode: 'ERR_WIN_HELLO_NOT_CONFIGURED',
+        errorName: 'NotAllowedError',
+        userMessage: 'Windows Hello is not configured or fingerprint scanner driver is offline.',
+        technicalDetails: 'PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable returned false on Windows.',
+        remedySteps: [
+          'Press Windows Key + I to open Windows Settings.',
+          'Navigate to Accounts > Sign-in options.',
+          'Create a "Windows Hello PIN" first (Microsoft requires a PIN before allowing fingerprints).',
+          'Click "Windows Hello Fingerprint" and follow the scanner calibration prompts.',
+          'On Dell Latitude laptops: Open Device Manager (devmgmt.msc) > Biometric Devices and verify "Dell ControlVault" or "Goodix Fingerprint" is active.'
+        ],
+        osContext
+      };
+    }
+
+    // 5. Perform interactive challenge probe
+    try {
+      const challenge = new Uint8Array(32);
+      window.crypto.getRandomValues(challenge);
+
+      // Fetch existing credentials or prepare probe buffer
+      const existingCreds = await webAuthnService.getCredentials();
+      const hardwareCreds = existingCreds.filter(c => !c.isSimulated && c.rawId);
+
+      let allowList: PublicKeyCredentialDescriptor[] = [];
+      if (hardwareCreds.length > 0) {
+        allowList = hardwareCreds.map(c => ({
+          id: base64URLToBuffer(c.rawId || c.id),
+          type: 'public-key',
+          transports: (c.transports as AuthenticatorTransport[]) || ['internal']
+        }));
+      } else {
+        // Use a dummy 16-byte credential ID to trigger the OS Windows Hello / Biometric prompt probe
+        const dummyId = new Uint8Array(16);
+        window.crypto.getRandomValues(dummyId);
+        allowList = [{
+          id: dummyId,
+          type: 'public-key'
+        }];
+      }
+
+      const probeOptions: CredentialRequestOptions = {
+        publicKey: {
+          challenge,
+          timeout: 20000,
+          rpId: window.location.hostname,
+          allowCredentials: allowList,
+          userVerification: 'preferred'
+        }
+      };
+
+      const assertion = await navigator.credentials.get(probeOptions) as PublicKeyCredential | null;
+
+      if (assertion) {
+        return {
+          success: true,
+          status: 'SUCCESS',
+          errorCode: 'STATUS_HARDWARE_VERIFIED',
+          userMessage: 'Fingerprint sensor successfully detected and verified!',
+          technicalDetails: `Assertion completed with credential ID: ${assertion.id.slice(0, 12)}... Authenticator attachment confirmed.`,
+          remedySteps: [
+            'Your biometric sensor is communicating seamlessly with the portal.',
+            'You can now use 1-Tap Fast Biometric Sign-In on the login screen anytime.'
+          ],
+          osContext
+        };
+      } else {
+        return {
+          success: false,
+          status: 'WARNING',
+          errorCode: 'ERR_NOT_ALLOWED_CANCELLED',
+          errorName: 'NotAllowedError',
+          userMessage: 'Sensor prompt was dismissed or timed out.',
+          technicalDetails: 'navigator.credentials.get returned null or prompt was closed.',
+          remedySteps: [
+            'Click "Run Sensor Test" again.',
+            'When the Windows Hello prompt appears, touch your finger to the scanner within 20 seconds.'
+          ],
+          osContext
+        };
+      }
+    } catch (err: any) {
+      const errName = err?.name || '';
+      const errMsg = (err?.message || '').toLowerCase();
+
+      // Handle common DOMExceptions & hardware conditions
+      if (errName === 'NotAllowedError') {
+        if (errMsg.includes('timed out') || errMsg.includes('canceled') || errMsg.includes('cancelled')) {
+          return {
+            success: false,
+            status: 'WARNING',
+            errorCode: 'ERR_NOT_ALLOWED_CANCELLED',
+            errorName: errName,
+            userMessage: 'Biometric scan prompt was cancelled or timed out.',
+            technicalDetails: err.message,
+            remedySteps: [
+              'Click "Run Sensor Test" again.',
+              'Ensure your finger touches the scanner firmly and rests until Windows recognizes it.',
+              'If using Windows Hello, you can also enter your Windows PIN as a fallback.'
+            ],
+            osContext
+          };
+        }
+
+        // If no credentials found on device
+        if (diag.enrolledCredentialsCount === 0) {
+          return {
+            success: true, // Hardware works, just needs enrollment!
+            status: 'WARNING',
+            errorCode: 'ERR_ENROLLMENT_REQUIRED',
+            errorName: errName,
+            userMessage: 'Fingerprint sensor responded, but this laptop is not enrolled in the portal yet.',
+            technicalDetails: 'Hardware communication with OS credential provider was initiated, but no passkey is registered for this specific hospital account.',
+            remedySteps: [
+              'Log in once with your standard email & password.',
+              'Click "Settings" in the sidebar, open the "Biometrics" tab.',
+              'Click "Enroll Sensor" to register your Dell Latitude fingerprint sensor for 1-tap login.'
+            ],
+            osContext
+          };
+        }
+
+        return {
+          success: false,
+          status: 'WARNING',
+          errorCode: 'ERR_NOT_ALLOWED_CANCELLED',
+          errorName: errName,
+          userMessage: 'Access not allowed or prompt dismissed.',
+          technicalDetails: err.message,
+          remedySteps: [
+            'Make sure you touch the laptop fingerprint scanner when the system dialog appears.',
+            'Check Windows Hello status in Windows Settings > Accounts > Sign-in options.'
+          ],
+          osContext
+        };
+      }
+
+      if (errName === 'SecurityError') {
+        return {
+          success: false,
+          status: 'ERROR',
+          errorCode: 'ERR_SECURITY_RESTRICTION',
+          errorName: errName,
+          userMessage: 'Security restriction blocked WebAuthn.',
+          technicalDetails: err.message,
+          remedySteps: [
+            'Ensure the domain name matches the relying party ID.',
+            'Check that browser security settings allow passkey operations for this site.'
+          ],
+          osContext
+        };
+      }
+
+      if (errName === 'NotSupportedError') {
+        return {
+          success: false,
+          status: 'ERROR',
+          errorCode: 'ERR_HARDWARE_NOT_SUPPORTED',
+          errorName: errName,
+          userMessage: 'Hardware or cryptographic configuration is not supported.',
+          technicalDetails: err.message,
+          remedySteps: [
+            'Update your laptop biometric drivers (e.g. Dell ControlVault3 Firmware & Driver from support.dell.com).',
+            'Ensure Windows 10/11 has all pending Windows Updates installed.'
+          ],
+          osContext
+        };
+      }
+
+      return {
+        success: false,
+        status: 'ERROR',
+        errorCode: 'ERR_HARDWARE_COMMUNICATION_FAULT',
+        errorName: errName,
+        userMessage: 'Biometric hardware communication error.',
+        technicalDetails: err.message || 'Unknown WebAuthn exception during hardware probe.',
+        remedySteps: [
+          'Restart the Windows Biometric Service: Press Win + R, type services.msc, right-click "Windows Biometric Service" and select Restart.',
+          'Clean your fingerprint scanner surface with a dry cloth.',
+          'Re-calibrate your fingerprint in Windows Settings > Accounts > Sign-in options.'
+        ],
+        osContext
+      };
     }
   }
 };

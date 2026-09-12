@@ -3,6 +3,7 @@ import { AuthUser } from '../types';
 import { BiometricCredential, WebAuthnSupport, webAuthnService } from '../services/webAuthnService';
 import { useAuth } from '../contexts/AuthContext';
 import BiometricWalkthroughModal from './BiometricWalkthroughModal';
+import BiometricTroubleshootModal from './BiometricTroubleshootModal';
 import { 
   Fingerprint, 
   ShieldCheck, 
@@ -59,6 +60,7 @@ export const BiometricConfigPanel: React.FC<BiometricConfigPanelProps> = ({
   const [feedback, setFeedback] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [showHowItWorks, setShowHowItWorks] = useState<boolean>(false);
   const [showWalkthroughModal, setShowWalkthroughModal] = useState<boolean>(false);
+  const [showTroubleshootModal, setShowTroubleshootModal] = useState<boolean>(false);
 
   // Initialize selected UID with passed prop or current logged-in user
   useEffect(() => {
@@ -302,6 +304,15 @@ export const BiometricConfigPanel: React.FC<BiometricConfigPanelProps> = ({
         </div>
 
         <div className="flex items-center gap-2 self-start sm:self-auto">
+          <button
+            type="button"
+            onClick={() => setShowTroubleshootModal(true)}
+            className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+            title="Troubleshoot Windows Hello & Sensor Diagnostics"
+          >
+            <Laptop className="w-3.5 h-3.5" />
+            <span>Troubleshoot & Diagnostics</span>
+          </button>
           <button
             type="button"
             onClick={() => setShowWalkthroughModal(true)}
@@ -719,6 +730,17 @@ export const BiometricConfigPanel: React.FC<BiometricConfigPanelProps> = ({
         support={support}
         onStartEnrollment={() => {
           setShowWalkthroughModal(false);
+          const formElement = document.querySelector('form');
+          if (formElement) formElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }}
+      />
+
+      {/* Troubleshoot Biometric Login & Sensor Diagnostics Modal */}
+      <BiometricTroubleshootModal
+        isOpen={showTroubleshootModal}
+        onClose={() => setShowTroubleshootModal(false)}
+        defaultTab="diagnostics"
+        onOpenEnrollment={() => {
           const formElement = document.querySelector('form');
           if (formElement) formElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }}
