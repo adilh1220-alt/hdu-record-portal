@@ -1471,73 +1471,79 @@ export const CameraView: React.FC<CameraViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setActiveTool('arrow')}
-                  className={`px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all ${
+                  className={`p-2 sm:px-2.5 sm:py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all ${
                     activeTool === 'arrow' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
                   }`}
                   title="Arrow Pointer to Lesion"
+                  aria-label="Arrow tool"
                 >
-                  <ArrowUpRight className="w-3.5 h-3.5" />
-                  <span>Arrow</span>
+                  <ArrowUpRight className="w-4 h-4" />
+                  <span className="hidden sm:inline">Arrow</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setActiveTool('circle')}
-                  className={`px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all ${
+                  className={`p-2 sm:px-2.5 sm:py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all ${
                     activeTool === 'circle' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
                   }`}
-                  title="Circle / Lesion Highlight Ring"
+                  title="Circle / Highlight Ring"
+                  aria-label="Circle tool"
                 >
-                  <Circle className="w-3.5 h-3.5" />
-                  <span>Circle</span>
+                  <Circle className="w-4 h-4" />
+                  <span className="hidden sm:inline">Circle</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setActiveTool('pen')}
-                  className={`px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all ${
+                  className={`p-2 sm:px-2.5 sm:py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all ${
                     activeTool === 'pen' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
                   }`}
                   title="Freehand Pen"
+                  aria-label="Freehand tool"
                 >
-                  <Pencil className="w-3.5 h-3.5" />
-                  <span>Freehand</span>
+                  <Pencil className="w-4 h-4" />
+                  <span className="hidden sm:inline">Pen</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setActiveTool('stamp')}
-                  className={`px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all ${
+                  className={`p-2 sm:px-2.5 sm:py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all ${
                     activeTool === 'stamp' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
                   }`}
                   title="Clinical Stamp Marker"
+                  aria-label="Stamp tool"
                 >
-                  <Tag className="w-3.5 h-3.5" />
-                  <span>Stamp</span>
+                  <Tag className="w-4 h-4" />
+                  <span className="hidden sm:inline">Stamp</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setActiveTool('caliper')}
-                  className={`px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all ${
+                  className={`p-2 sm:px-2.5 sm:py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all ${
                     activeTool === 'caliper' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
                   }`}
                   title="Measurement Caliper"
+                  aria-label="Caliper tool"
                 >
-                  <Ruler className="w-3.5 h-3.5" />
-                  <span>Caliper</span>
+                  <Ruler className="w-4 h-4" />
+                  <span className="hidden sm:inline">Caliper</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setActiveTool('text')}
-                  className={`px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all ${
+                  className={`p-2 sm:px-2.5 sm:py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all ${
                     activeTool === 'text' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
                   }`}
                   title="Text Note Callout"
+                  aria-label="Text tool"
                 >
-                  <Type className="w-3.5 h-3.5" />
-                  <span>Text</span>
+                  <Type className="w-4 h-4" />
+                  <span className="hidden sm:inline">Text</span>
                 </button>
               </div>
 
@@ -1707,45 +1713,51 @@ export const CameraView: React.FC<CameraViewProps> = ({
                 />
               </div>
 
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-1.5 sm:space-x-2">
                 <button
                   type="button"
                   onClick={() => setEditingImage(null)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer"
+                  className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                  title="Cancel and close"
                 >
-                  Cancel
+                  <X className="w-4 h-4 sm:hidden" />
+                  <span className="hidden sm:inline">Cancel</span>
                 </button>
 
                 <button
                   type="button"
                   id="download-annotated-image-btn"
                   onClick={handleDownloadAnnotatedOnly}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-emerald-300 hover:text-emerald-200 border border-emerald-500/30 rounded-xl text-xs font-black uppercase tracking-wider flex items-center space-x-1.5 transition-all shadow-md cursor-pointer"
-                  title="Download annotated drawing directly to PC storage"
+                  className="p-2 sm:px-3 sm:py-2 bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/30 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-md cursor-pointer"
+                  title="Download annotated drawing to PC"
+                  aria-label="Download to PC"
                 >
-                  <Download className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Download to PC</span>
+                  <Download className="w-4 h-4 text-emerald-400" />
+                  <span className="hidden sm:inline">PC</span>
                 </button>
 
                 <button
                   type="button"
                   id="save-annotated-to-tray-btn"
                   onClick={() => handleSaveAnnotatedImage(false)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-indigo-300 hover:text-indigo-200 border border-indigo-500/30 rounded-xl text-xs font-black uppercase tracking-wider flex items-center space-x-1.5 transition-all shadow-md cursor-pointer"
-                  title="Save annotated image to bottom tray without attaching to report yet"
+                  className="p-2 sm:px-3.5 sm:py-2 bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-indigo-500/30 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-md cursor-pointer"
+                  title="Save annotated image to bottom tray without attaching to report"
+                  aria-label="Save to Tray"
                 >
-                  <ImageIcon className="w-3.5 h-3.5 text-indigo-400" />
-                  <span>Save to Tray</span>
+                  <ImageIcon className="w-4 h-4 text-indigo-400" />
+                  <span className="hidden sm:inline">Tray</span>
                 </button>
 
                 <button
                   type="button"
                   id="save-annotated-image-btn"
                   onClick={() => handleSaveAnnotatedImage(true)}
-                  className="px-5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center space-x-1.5 transition-all shadow-lg shadow-emerald-950/40 cursor-pointer"
+                  className="px-3.5 py-2 sm:px-4 sm:py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-lg shadow-emerald-950/40 cursor-pointer active:scale-95"
+                  title="Attach to patient endoscopy report"
+                  aria-label="Attach to Report"
                 >
                   <CheckCircle2 className="w-4 h-4 text-emerald-200" />
-                  <span>Attach to Report</span>
+                  <span>Report</span>
                 </button>
               </div>
             </div>

@@ -23,7 +23,7 @@ import { VoiceDictationButton } from '../components/VoiceDictationButton';
 import { EndoscopyReportPreviewSheet } from '../components/EndoscopyReportPreviewSheet';
 import WhatsAppDispatchModal, { COUNTRY_CODES, sanitizeLocalNumber } from '../components/WhatsAppDispatchModal';
 import ClinicalSummaryShareModal from '../components/ClinicalSummaryShareModal';
-import { Share2, Download, HardDrive, FolderDown, User } from 'lucide-react';
+import { Share2, Download, HardDrive, FolderDown, User, Camera, Crop, Trash2, Upload, Images } from 'lucide-react';
 import { ActiveFiltersBar } from '../components/ActiveFiltersBar';
 import { EndoscopyAnalyticsDashboard } from '../components/EndoscopyAnalyticsDashboard';
 import { TableSkeleton, ButtonSpinner, DynamicRoundedLoader } from '../components/LoadingSpinner';
@@ -3129,14 +3129,11 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
               }}
             />
 
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col space-y-4 flex-1 shadow-sm">
-              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+            <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 flex flex-col space-y-3 flex-1 shadow-sm">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
                 <div className="flex items-center space-x-2">
-                  <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  <h4 className="text-[10px] font-bold text-slate-800 uppercase tracking-wider">Endoscope Camera Images</h4>
+                  <Camera className="w-4 h-4 text-red-600" />
+                  <span className="text-[10px] font-bold text-slate-700 uppercase tracking-wider hidden sm:inline">Images</span>
                 </div>
                 
                 <div className="flex items-center space-x-2">
@@ -3144,21 +3141,22 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                     <button
                       type="button"
                       onClick={handleDownloadAllReportImages}
-                      className="px-2 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-full text-[8px] font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer shadow-sm"
+                      className="p-1 sm:px-2 sm:py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-[9px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-sm"
                       title="Download all attached report images to PC"
+                      aria-label="Download all report images"
                     >
-                      <Download className="w-2.5 h-2.5" />
-                      Save All to PC
+                      <Download className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Save All</span>
                     </button>
                   )}
-                  <span className="bg-indigo-50 text-indigo-600 border border-indigo-100 px-2.5 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider">
-                    {formImages.length} / 4 Captured
+                  <span className="bg-indigo-50 text-indigo-700 border border-indigo-100 px-2 py-0.5 rounded-full text-[9px] font-black tracking-wider">
+                    {formImages.length}/4
                   </span>
                 </div>
               </div>
 
               {/* Upload Dropzone */}
-              <div className="relative border border-dashed border-slate-300 rounded-xl p-6 text-center hover:bg-slate-50 hover:border-slate-400 transition-all cursor-pointer">
+              <div className="relative border border-dashed border-slate-300 rounded-xl p-3.5 sm:p-4 text-center hover:bg-slate-50 hover:border-slate-400 transition-all cursor-pointer">
                 <input
                   type="file"
                   multiple
@@ -3167,34 +3165,29 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                   disabled={uploadingImage}
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                 />
-                <div className="space-y-2">
-                  <svg className="w-8 h-8 text-slate-400 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                  <p className="text-[10px] font-bold text-slate-700 uppercase tracking-wider">
-                    {uploadingImage ? 'COMPRESSING CLINICAL PHOTOS...' : 'ADD CAMERA CAPTURE'}
-                  </p>
-                  <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">
-                    Drag & Drop or click to import files
-                  </p>
+                <div className="flex items-center justify-center space-x-2 text-slate-500">
+                  <Upload className="w-4 h-4 text-slate-400" />
+                  <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">
+                    {uploadingImage ? 'Compressing...' : 'Upload Images'}
+                  </span>
                 </div>
               </div>
 
               {/* Photos List */}
-              <div className="space-y-3 overflow-y-auto max-h-[30vh] pr-1 flex-1">
+              <div className="space-y-2.5 overflow-y-auto max-h-[30vh] pr-1 flex-1">
                 {formImages.map((img) => (
-                  <div key={img.id} className="flex items-center space-x-3 bg-slate-50 p-2.5 border border-slate-200 rounded-xl shadow-sm">
+                  <div key={img.id} className="flex items-center space-x-2.5 bg-slate-50 p-2 border border-slate-200 rounded-xl shadow-sm">
                     <img
                       src={img.url}
                       alt={img.title}
-                      className="w-14 h-11 object-cover rounded-lg border border-slate-200 flex-shrink-0"
+                      className="w-12 h-10 object-cover rounded-lg border border-slate-200 flex-shrink-0"
                     />
-                    <div className="flex-1 min-w-0 flex flex-col space-y-1.5">
+                    <div className="flex-1 min-w-0 flex flex-col space-y-1">
                       <input
                         type="text"
                         value={img.title}
                         onChange={(e) => handleUpdateImageTitle(img.id, e.target.value)}
-                        placeholder="e.g. Duodenal active bleeding"
+                        placeholder="Label..."
                         className={`w-full px-2 py-1 bg-white border rounded text-[9px] font-bold text-slate-800 outline-none focus:ring-1 transition-all ${
                           showValidationErrors && isImageTitleInvalid(img.title)
                             ? 'border-rose-500 ring-1 ring-rose-500 focus:ring-rose-500 bg-rose-50'
@@ -3203,10 +3196,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                       />
                       {showValidationErrors && isImageTitleInvalid(img.title) && (
                         <span className="text-[8px] text-rose-500 font-bold flex items-center space-x-1 animate-pulse">
-                          <svg className="w-2.5 h-2.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                          </svg>
-                          <span>Bhai image ka sahi name daalein (suggestion se select karein ya khud likhein)</span>
+                          <span>Please provide title</span>
                         </span>
                       )}
                       {/* Horizontally scrollable suggestions */}
@@ -3232,40 +3222,37 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                         type="button"
                         onClick={() => handleDownloadReportImage(img)}
                         className="p-1.5 text-slate-400 hover:text-emerald-600 rounded-lg hover:bg-emerald-50 transition-colors cursor-pointer"
-                        title="Download image to PC"
+                        title="Download to PC"
+                        aria-label="Download image"
                       >
-                        <Download className="w-4 h-4" />
+                        <Download className="w-3.5 h-3.5" />
                       </button>
                       <button
                         type="button"
                         onClick={() => setImageToCrop({ id: img.id, base64: imageBase64Cache[img.id] || img.url, title: img.title })}
                         className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors cursor-pointer"
                         title="Adjust Crop"
+                        aria-label="Crop image"
                       >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M8 2v14a2 2 0 002 2h14M2 8h14a2 2 0 012 2v14" />
-                        </svg>
+                        <Crop className="w-3.5 h-3.5" />
                       </button>
                       <button
                         type="button"
                         onClick={() => handleDeleteImage(img.id)}
                         className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
                         title="Remove image"
+                        aria-label="Delete image"
                       >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
                 ))}
                 {formImages.length === 0 && (
-                  <div className="flex flex-col items-center justify-center py-8 text-slate-400">
-                    <svg className="w-6 h-6 text-slate-400 mb-2" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
-                    </svg>
-                    <p className="text-[9px] font-bold uppercase tracking-widest italic text-center">
-                      No Clinical Photos Captured
+                  <div className="flex flex-col items-center justify-center py-6 text-slate-400">
+                    <Images className="w-6 h-6 text-slate-300 mb-1" />
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">
+                      No Images Selected
                     </p>
                   </div>
                 )}
