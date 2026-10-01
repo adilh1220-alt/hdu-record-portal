@@ -394,7 +394,8 @@ export const CameraView: React.FC<CameraViewProps> = ({
   // Add to Report handler
   const handleAddToReport = (cap: SessionCapture) => {
     if (currentImageCount >= 4) {
-      alert("Maximum 4 clinical images already attached to this report. Remove an image from the report below to attach more.");
+      setCapturedFeedback("Report already has max 4 images. Remove one from report to attach more.");
+      setTimeout(() => setCapturedFeedback(null), 3000);
       return;
     }
 
@@ -412,12 +413,26 @@ export const CameraView: React.FC<CameraViewProps> = ({
     setTimeout(() => setCapturedFeedback(null), 2000);
   };
 
-  // Clear all snapshots from the tray
+  // Clear all snapshots from the tray with safe inline confirmation (no window.confirm blocked by iframes)
+  const [confirmClearTray, setConfirmClearTray] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!confirmClearTray) return;
+    const timer = setTimeout(() => setConfirmClearTray(false), 4000);
+    return () => clearTimeout(timer);
+  }, [confirmClearTray]);
+
   const handleClearAllTray = () => {
     if (sessionCaptures.length === 0) return;
-    if (window.confirm(`Clear all ${sessionCaptures.length} snapshots from this session tray?`)) {
-      setSessionCaptures([]);
+    if (!confirmClearTray) {
+      setConfirmClearTray(true);
+      return;
     }
+    const count = sessionCaptures.length;
+    setSessionCaptures([]);
+    setConfirmClearTray(false);
+    setCapturedFeedback(`Cleared all ${count} snapshots from tray`);
+    setTimeout(() => setCapturedFeedback(null), 2500);
   };
 
   // Capture Frame handler (TVR pattern: saves to tray first, user chooses which to add to report)
@@ -890,7 +905,8 @@ export const CameraView: React.FC<CameraViewProps> = ({
 
     if (addToReport) {
       if (currentImageCount >= 4) {
-        alert("Maximum 4 clinical images already in the report. The annotated image has been saved to your Session Tray below.");
+        setCapturedFeedback("Report already has max 4 images. Saved to Tray below.");
+        setTimeout(() => setCapturedFeedback(null), 3000);
       } else {
         onCapture(finalBase64, titleToUse);
         setSessionCaptures(prev => prev.map(c => c.id === targetId ? { ...c, isAddedToReport: true } : c));
@@ -1303,16 +1319,38 @@ export const CameraView: React.FC<CameraViewProps> = ({
                 <span className="hidden sm:inline">Save All ({sessionCaptures.length})</span>
               </button>
 
-              <button
-                type="button"
-                onClick={handleClearAllTray}
-                className="p-1.5 sm:px-2 sm:py-1 bg-slate-900 hover:bg-rose-950/80 text-slate-400 hover:text-rose-300 border border-slate-800 hover:border-rose-500/30 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer"
-                title="Clear all snapshots from tray"
-                aria-label="Clear Tray"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Clear</span>
-              </button>
+              {confirmClearTray ? (
+                <div className="flex items-center space-x-1 animate-in fade-in duration-150">
+                  <button
+                    type="button"
+                    onClick={handleClearAllTray}
+                    className="p-1 sm:px-2 sm:py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-md active:scale-95"
+                    title="Confirm clear all snapshots"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Clear All?</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmClearTray(false)}
+                    className="p-1 sm:p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg text-[10px] transition-all cursor-pointer"
+                    title="Cancel"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleClearAllTray}
+                  className="p-1.5 sm:px-2 sm:py-1 bg-slate-900 hover:bg-rose-950/80 text-slate-400 hover:text-rose-300 border border-slate-800 hover:border-rose-500/30 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer active:scale-95"
+                  title="Clear all snapshots from tray"
+                  aria-label="Clear Tray"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Clear</span>
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -1333,59 +1371,54 @@ export const CameraView: React.FC<CameraViewProps> = ({
               return (
                 <div 
                   key={cap.id} 
-                  className={`shrink-0 w-36 sm:w-40 bg-slate-900/90 border rounded-xl overflow-hidden shadow-lg p-1.5 flex flex-col space-y-1.5 transition-all ${
+                  className={`shrink-0 w-28 sm:w-32 bg-slate-900/90 border rounded-xl overflow-hidden shadow-lg p-1.5 flex flex-col space-y-1.5 transition-all ${
                     isAlreadyInReport ? 'border-emerald-500/60 ring-1 ring-emerald-500/40' : 'border-slate-800 hover:border-slate-700'
                   }`}
                 >
                   {/* Thumbnail */}
-                  <div className="h-24 w-full rounded-lg overflow-hidden relative bg-black border border-slate-800 group">
+                  <div className="h-16 w-full rounded-lg overflow-hidden relative bg-black border border-slate-800 group">
                     <img 
                       src={cap.base64} 
                       alt={cap.title} 
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" 
                     />
                     
-                    <span className="absolute top-1 left-1 px-1.5 py-0.5 bg-slate-950/80 backdrop-blur-sm text-slate-300 text-[9px] font-bold rounded">
+                    <span className="absolute top-1 left-1 px-1 py-0.5 bg-slate-950/80 backdrop-blur-sm text-slate-300 text-[8px] font-bold rounded">
                       #{sessionCaptures.length - idx}
                     </span>
 
                     {isAlreadyInReport && (
-                      <span className="absolute top-1 right-1 p-1 bg-emerald-600/95 backdrop-blur-sm text-white rounded-full flex items-center justify-center shadow-md" title="Attached to Report">
-                        <Check className="w-3 h-3 stroke-[3]" />
+                      <span className="absolute top-1 right-1 p-0.5 bg-emerald-600/95 backdrop-blur-sm text-white rounded-full flex items-center justify-center shadow-md" title="Attached to Report">
+                        <Check className="w-2.5 h-2.5 stroke-[3]" />
                       </span>
                     )}
                   </div>
 
-                  {/* Title & Time */}
-                  <div className="flex items-center justify-between text-[10px] text-slate-300 px-0.5">
-                    <span className="truncate flex-1 font-semibold text-slate-200" title={cap.title}>
-                      {cap.title}
-                    </span>
-                    <span className="text-[8px] text-slate-500 ml-1 shrink-0 font-mono">
-                      {new Date(cap.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
+                  {/* Timestamp */}
+                  <div className="flex items-center justify-end text-[8px] text-slate-400 font-mono px-0.5">
+                    <span>{new Date(cap.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                   </div>
 
-                  {/* Actions Row - All Clean Beautiful Icons */}
-                  <div className="flex items-center space-x-1 pt-0.5">
-                    {/* Add to Report button (Icon-first) */}
+                  {/* Actions Row - Compact Uniform Square Icon Buttons */}
+                  <div className="flex items-center justify-between space-x-1 pt-0.5">
+                    {/* Add to Report button */}
                     {isAlreadyInReport ? (
                       <div 
-                        className="flex-1 py-1.5 bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 rounded-lg text-[10px] font-bold flex items-center justify-center cursor-default"
+                        className="w-6 h-6 bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 rounded-lg flex items-center justify-center cursor-default"
                         title="Attached in report"
                       >
-                        <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[2.5]" />
+                        <Check className="w-3 h-3 text-emerald-400 stroke-[2.5]" />
                       </div>
                     ) : (
                       <button
                         type="button"
                         onClick={() => handleAddToReport(cap)}
                         disabled={currentImageCount >= 4}
-                        className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-500 active:scale-95 disabled:opacity-50 text-white rounded-lg flex items-center justify-center transition-all shadow-sm cursor-pointer"
+                        className="w-6 h-6 bg-emerald-600 hover:bg-emerald-500 active:scale-95 disabled:opacity-50 text-white rounded-lg flex items-center justify-center transition-all shadow-sm cursor-pointer"
                         title={currentImageCount >= 4 ? "Report already has 4 images" : "Attach to Report"}
                         aria-label="Add to Report"
                       >
-                        <Plus className="w-4 h-4 stroke-[2.5]" />
+                        <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
                       </button>
                     )}
 
@@ -1393,33 +1426,33 @@ export const CameraView: React.FC<CameraViewProps> = ({
                     <button
                       type="button"
                       onClick={() => openAnnotator(cap.base64, cap.title, cap.id)}
-                      className="p-1.5 bg-indigo-950/80 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 rounded-lg transition-all cursor-pointer"
+                      className="w-6 h-6 bg-indigo-950/80 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 rounded-lg flex items-center justify-center transition-all cursor-pointer"
                       title="Draw clinical arrows, lesion markers, biopsy stamp"
                       aria-label="Draw on image"
                     >
-                      <Edit3 className="w-3.5 h-3.5" />
+                      <Edit3 className="w-3 h-3" />
                     </button>
 
                     {/* Download to PC button */}
                     <button
                       type="button"
                       onClick={() => downloadSnapshot(cap.base64, cap.title)}
-                      className="p-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 border border-slate-700 rounded-lg transition-all cursor-pointer"
+                      className="w-6 h-6 bg-slate-800 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 border border-slate-700 rounded-lg flex items-center justify-center transition-all cursor-pointer"
                       title="Download snapshot to PC"
                       aria-label="Download snapshot"
                     >
-                      <Download className="w-3.5 h-3.5" />
+                      <Download className="w-3 h-3" />
                     </button>
 
                     {/* Remove from TVR Tray button */}
                     <button
                       type="button"
                       onClick={() => handleRemoveFromTray(cap.id)}
-                      className="p-1.5 bg-rose-950/60 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 rounded-lg transition-all cursor-pointer"
+                      className="w-6 h-6 bg-rose-950/60 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 rounded-lg flex items-center justify-center transition-all cursor-pointer"
                       title="Remove snapshot from tray"
                       aria-label="Remove snapshot"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="w-3 h-3" />
                     </button>
                   </div>
                 </div>

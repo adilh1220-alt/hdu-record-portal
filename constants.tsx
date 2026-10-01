@@ -24,11 +24,11 @@ export const CONSULTANTS = [
   'Dr. Salman Khalid', 'Dr. Ruqaya', 'Dr. Kiran Nasir', 'Dr. Bilal', 
   'Dr. Shoaib', 'Dr. Murtaza', 'Dr. Raheela', 'Dr. Aysha', 
   'Dr. Shakeel', 'Dr. Zohaib', 'Dr. Shariq', 'Dr. Khem chand', 'Dr. Saima Kashif',
-  'Dr. Zafar Zaidi'
+  'Dr. Zafar Zaidi', 'Dr. Neha Asif'
 ];
 
 export const ENDOSCOPY_DOCTORS = [
-  'Dr. Shahid Majid', 'Dr. Mohammad Fahad', 'Dr. Aneel Kumar'
+  'Dr. Shahid Majid', 'Dr. Mohammad Fahad', 'Dr. Aneel Kumar', 'Dr. Neha Asif'
 ];
 
 export const ENDOSCOPY_PROCEDURES = [
