@@ -843,8 +843,7 @@ export const getEndoscopyPDFBlobUrl = async (records: EndoscopyRecord[], metadat
       items: [
         { label: 'Target Month / Period', value: detectedPeriod },
         { label: 'Total Procedures / Cases', value: `${totalCases} case${totalCases !== 1 ? 's' : ''}` },
-        { label: 'Unique Patients Served', value: `${uniquePatients} patient${uniquePatients !== 1 ? 's' : ''}` },
-        { label: 'Date Range Covered', value: dateRangeStr }
+        { label: 'Unique Patients Served', value: `${uniquePatients} patient${uniquePatients !== 1 ? 's' : ''}` }
       ]
     },
     {
@@ -939,8 +938,7 @@ export const exportEndoscopyPDF = async (records: EndoscopyRecord[], metadata: R
       items: [
         { label: 'Target Month / Period', value: detectedPeriod },
         { label: 'Total Procedures / Cases', value: `${totalCases} case${totalCases !== 1 ? 's' : ''}` },
-        { label: 'Unique Patients Served', value: `${uniquePatients} patient${uniquePatients !== 1 ? 's' : ''}` },
-        { label: 'Date Range Covered', value: dateRangeStr }
+        { label: 'Unique Patients Served', value: `${uniquePatients} patient${uniquePatients !== 1 ? 's' : ''}` }
       ]
     },
     {
