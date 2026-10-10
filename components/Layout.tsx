@@ -13,6 +13,7 @@ import { DailyEmailReportModal } from './DailyEmailReportModal';
 import { MonthlyDepartmentReportSchedulerModal } from './MonthlyDepartmentReportSchedulerModal';
 import { EmailConnectionDiagnosticModal } from './EmailConnectionDiagnosticModal';
 import { SmtpConfigModal } from './SmtpConfigModal';
+import { OfflineStatusBanner } from './OfflineStatusBanner';
 import { UnifiedEmailHubModal } from './UnifiedEmailHubModal';
 import { BreadcrumbNav } from './BreadcrumbNav';
 import { InstallAppBanner } from './InstallAppBanner';
@@ -741,6 +742,9 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
 
         {/* PWA Install App Banner (Prompt for Mobile & Desktop) */}
         <InstallAppBanner />
+        
+        {/* Offline Status Overlay */}
+        <OfflineStatusBanner />
 
         {/* Main Content */}
         <main className="flex-1 overflow-y-auto relative p-6 md:p-8 print:p-0 print:overflow-visible">
