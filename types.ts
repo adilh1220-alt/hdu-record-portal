@@ -80,6 +80,11 @@ export interface Patient {
   emailAddress?: string;
   createdBy?: string;
   createdAt?: string;
+  updatedAt?: string;
+  lastActivityAt?: string;
+  autoArchived?: boolean;
+  autoArchivedAt?: string;
+  notes?: string;
 }
 
 export interface InventoryItem {

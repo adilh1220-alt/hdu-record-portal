@@ -6,6 +6,7 @@ import { db } from '../services/firebaseConfig';
 import { Patient, EndoscopyRecord, InventoryItem } from '../types';
 import { COLORS, MONTHS, UNIT_DETAILS, formatProcedureDisplay } from '../constants';
 import { useUnit } from '../contexts/UnitContext';
+import { offlineService } from '../services/offlineService';
 
 const Dashboard: React.FC = () => {
   const { activeUnit } = useUnit();
@@ -47,18 +48,49 @@ const Dashboard: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    setLoading(true);
     const isRecordInSelectedYear = (dateStr?: string) => {
       if (!dateStr) return false;
       const d = new Date(dateStr);
       return !isNaN(d.getFullYear()) && d.getFullYear() === selectedYear;
     };
 
+    // Preload from offline cached patients if available for instant mobile response
+    const cachedPatients = offlineService.getCachedPatientRecords<Patient>(activeUnit);
+    if (cachedPatients && cachedPatients.length > 0) {
+      const yearDocs = cachedPatients.filter((data: any) => isRecordInSelectedYear(data.admissionDate));
+      setActiveCount(yearDocs.length);
+      const activeNow = cachedPatients.filter((data: any) => data.status === 'ACTIVE' || !data.dischargeDate);
+      setCurrentActiveCount(activeNow.length);
+      const discharged = cachedPatients.filter((data: any) => isRecordInSelectedYear(data.admissionDate) && (data.lengthOfStay !== undefined));
+      if (discharged.length > 0) {
+        const totalLOS = discharged.reduce((acc, curr) => acc + (curr.lengthOfStay || 0), 0);
+        setAverageLOS(parseFloat((totalLOS / discharged.length).toFixed(1)));
+      }
+      const counts = Array(12).fill(0);
+      yearDocs.forEach((data: any) => {
+        if (data.admissionDate) {
+          const date = new Date(data.admissionDate);
+          if (!isNaN(date.getMonth())) {
+            counts[date.getMonth()]++;
+          }
+        }
+      });
+      setMonthlyAdmissions(MONTHS.map((m, i) => ({ month: m, count: counts[i] })));
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+
+    const timer = setTimeout(() => {
+      setLoading(false);
+    }, 3000);
+
     const qActive = query(
       collection(db, 'patients'),
       where('unit', '==', activeUnit)
     );
     const unsubActive = onSnapshot(qActive, (snap: any) => {
+        clearTimeout(timer);
         const unitDocs = snap.docs.map((d: any) => d.data() as Patient);
         
         const yearDocs = unitDocs.filter((data: any) => isRecordInSelectedYear(data.admissionDate));
@@ -87,7 +119,8 @@ const Dashboard: React.FC = () => {
         setMonthlyAdmissions(MONTHS.map((m, i) => ({ month: m, count: counts[i] })));
         setLoading(false);
     }, (err) => {
-        console.warn("Dashboard active patients sync error:", err);
+        clearTimeout(timer);
+        console.warn("Dashboard active patients sync fallback:", err);
         setLoading(false);
     });
 

@@ -1,9 +1,9 @@
 // The Kidney Centre - Progressive Web App Service Worker
 // Enables offline viewing of critical patient records & draft persistence under unstable network conditions.
 
-const CACHE_NAME = 'kidney-centre-v1';
-const DATA_CACHE_NAME = 'kidney-centre-data-v1';
-const DRAFT_CACHE_NAME = 'kidney-centre-drafts-v1';
+const CACHE_NAME = 'kidney-centre-v2';
+const DATA_CACHE_NAME = 'kidney-centre-data-v2';
+const DRAFT_CACHE_NAME = 'kidney-centre-drafts-v2';
 
 // Essential App Shell resources to precache
 const STATIC_ASSETS = [
@@ -20,7 +20,7 @@ const STATIC_ASSETS = [
 
 // 1. Installation Phase
 self.addEventListener('install', (event) => {
-  console.log('[Service Worker] Installing MediLog Clinical Service Worker...');
+  console.log('[Service Worker] Installing MediLog Clinical Service Worker v2...');
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       console.log('[Service Worker] Pre-caching static app shell assets...');
@@ -33,7 +33,7 @@ self.addEventListener('install', (event) => {
 
 // 2. Activation Phase - Clean up outdated caches
 self.addEventListener('activate', (event) => {
-  console.log('[Service Worker] Activating MediLog Service Worker...');
+  console.log('[Service Worker] Activating MediLog Service Worker v2...');
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
@@ -52,8 +52,30 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Skip chrome-extension and non-GET requests
-  if (event.request.method !== 'GET' || url.protocol.startsWith('chrome-extension')) {
+  // Skip non-GET requests
+  if (event.request.method !== 'GET') {
+    return;
+  }
+
+  // CRITICAL: NEVER intercept cross-origin requests.
+  // All external services (Firebase Firestore, Firebase Auth, Google APIs, CDNs)
+  // MUST stream directly over native network and never go through Service Worker cache.
+  if (url.origin !== self.location.origin) {
+    return;
+  }
+
+  // Also safeguard against any Google / Firebase URLs
+  if (
+    url.hostname.includes('firebase') || 
+    url.hostname.includes('googleapis') ||
+    url.hostname.includes('gstatic') ||
+    url.pathname.includes('/google.firestore')
+  ) {
+    return;
+  }
+
+  // Skip chrome-extension
+  if (url.protocol.startsWith('chrome-extension')) {
     return;
   }
 

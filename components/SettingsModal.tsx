@@ -5,13 +5,14 @@ import { useAuth } from '../contexts/AuthContext';
 import EmailConnectionDiagnostic from './EmailConnectionDiagnostic';
 import BiometricWalkthroughModal from './BiometricWalkthroughModal';
 import BiometricTroubleshootModal from './BiometricTroubleshootModal';
-import { Shield, Activity, Fingerprint, Plus, Trash2, CheckCircle2, AlertCircle, Smartphone, Laptop, Key, HelpCircle, ExternalLink, Zap } from 'lucide-react';
+import { AutoArchiveSettingsPanel } from './AutoArchiveSettingsPanel';
+import { Shield, Activity, Fingerprint, Archive, Plus, Trash2, CheckCircle2, AlertCircle, Smartphone, Laptop, Key, HelpCircle, ExternalLink, Zap } from 'lucide-react';
 import { webAuthnService, BiometricCredential, WebAuthnSupport } from '../services/webAuthnService';
 
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  initialTab?: 'security' | 'diagnostics' | 'biometrics';
+  initialTab?: 'security' | 'diagnostics' | 'biometrics' | 'autoArchive';
   onOpenSmtpConfig?: () => void;
 }
 
@@ -75,7 +76,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   initialTab = 'security',
   onOpenSmtpConfig
 }) => {
-  const [activeTab, setActiveTab] = useState<'security' | 'biometrics' | 'diagnostics'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'security' | 'biometrics' | 'diagnostics' | 'autoArchive'>(initialTab);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -303,6 +304,19 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
           >
             <Activity className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
             Email Diagnostic
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('autoArchive')}
+            className={`flex-1 py-2 px-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+              activeTab === 'autoArchive'
+                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm border border-slate-200 dark:border-slate-800'
+                : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+            }`}
+          >
+            <Archive className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+            Auto-Archive
           </button>
         </div>
 
@@ -620,6 +634,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                 if (onOpenSmtpConfig) onOpenSmtpConfig();
               }}
             />
+          </div>
+        )}
+
+        {activeTab === 'autoArchive' && (
+          <div className="max-h-[70vh] overflow-y-auto pr-1">
+            <AutoArchiveSettingsPanel />
           </div>
         )}
       </div>

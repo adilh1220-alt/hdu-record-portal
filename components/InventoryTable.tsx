@@ -8,6 +8,7 @@ import { exportInventoryPDF, ReportMetadata } from '../services/pdfService';
 import { downloadCSV } from '../services/exportService';
 import { useAuth } from '../contexts/AuthContext';
 import { useUnit } from '../contexts/UnitContext';
+import { offlineService } from '../services/offlineService';
 import { useSearch } from '../contexts/SearchContext';
 import { useToast } from '../contexts/ToastContext';
 import { useLoading } from '../contexts/LoadingContext';
@@ -35,8 +36,13 @@ const InventoryTable: React.FC = () => {
   const { toast } = useToast();
   const { startLoading, stopLoading } = useLoading();
 
-  const [items, setItems] = useState<InventoryItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [items, setItems] = useState<InventoryItem[]>(() => {
+    return offlineService.getCachedInventoryItems<InventoryItem>(activeUnit) || [];
+  });
+  const [loading, setLoading] = useState(() => {
+    const cached = offlineService.getCachedInventoryItems<InventoryItem>(activeUnit);
+    return !cached || cached.length === 0;
+  });
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   
@@ -99,16 +105,34 @@ const InventoryTable: React.FC = () => {
   const filterCategories = useMemo(() => ['ALL', ...sortedCategories], [sortedCategories]);
 
   useEffect(() => {
-    setLoading(true);
+    const cached = offlineService.getCachedInventoryItems<InventoryItem>(activeUnit);
+    if (cached && cached.length > 0) {
+      setItems(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+
+    const timer = setTimeout(() => {
+      const fallback = offlineService.getCachedInventoryItems<InventoryItem>(activeUnit);
+      if (fallback && fallback.length > 0) {
+        setItems(prev => prev.length === 0 ? fallback : prev);
+      }
+      setLoading(false);
+    }, 3000);
+
     const q = query(
       collection(db, 'inventory'),
       where('unit', '==', activeUnit)
     );
     
     const unsubscribe = onSnapshot(q, (snapshot: any) => {
+      clearTimeout(timer);
       const inventoryData = snapshot.docs
         .map((doc: any) => ({ id: doc.id, ...doc.data() })) as InventoryItem[];
       
+      offlineService.cacheInventoryItems(activeUnit, inventoryData);
+
       // Highlight Logic for Stock Changes
       const currentIds = new Set(inventoryData.map(i => i.id));
       if (prevIdsRef.current.size > 0) {
@@ -122,11 +146,19 @@ const InventoryTable: React.FC = () => {
       setItems(inventoryData);
       setLoading(false);
     }, (error) => {
-      console.error("Firestore Error:", error);
+      clearTimeout(timer);
+      console.warn("[InventoryTable] Firebase Sync fallback engaged:", error);
+      const fallback = offlineService.getCachedInventoryItems<InventoryItem>(activeUnit);
+      if (fallback && fallback.length > 0) {
+        setItems(fallback);
+      }
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      clearTimeout(timer);
+      unsubscribe();
+    };
   }, [activeUnit]);
 
   const getExpiryStatus = (expiryDateStr: string) => {

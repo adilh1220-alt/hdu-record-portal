@@ -7,6 +7,7 @@ import { exportPatientsPDF } from '../services/pdfService';
 import { downloadCSV } from '../services/exportService';
 import { useAuth } from '../contexts/AuthContext';
 import { useUnit } from '../contexts/UnitContext';
+import { offlineService } from '../services/offlineService';
 import { useSearch } from '../contexts/SearchContext';
 import { useToast } from '../contexts/ToastContext';
 import { useLoading } from '../contexts/LoadingContext';
@@ -17,6 +18,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import ExportModal from '../components/ExportModal';
 import { ActiveFiltersBar } from '../components/ActiveFiltersBar';
 import { TableSkeleton, ButtonSpinner, DynamicRoundedLoader } from '../components/LoadingSpinner';
+import { BiometricVerificationModal } from '../components/BiometricVerificationModal';
 
 const InputWrapper = ({ label, field, children }: { label: string, field: string, children?: React.ReactNode }) => (
   <div className="space-y-1">
@@ -365,8 +367,13 @@ const MortalityPage: React.FC = () => {
 
   const { startLoading, stopLoading } = useLoading();
 
-  const [patients, setPatients] = useState<Patient[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [patients, setPatients] = useState<Patient[]>(() => {
+    return offlineService.getCachedMortalityRecords<Patient>(activeUnit) || [];
+  });
+  const [loading, setLoading] = useState(() => {
+    const cached = offlineService.getCachedMortalityRecords<Patient>(activeUnit);
+    return !cached || cached.length === 0;
+  });
   const [searchTerm, setSearchTerm] = useState('');
   
   // Input states (raw user input)
@@ -386,6 +393,13 @@ const MortalityPage: React.FC = () => {
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [newlyAddedId, setNewlyAddedId] = useState<string | null>(null);
+  
+  // Biometric authentication gate state for sensitive mortality record actions
+  const [isBiometricModalOpen, setIsBiometricModalOpen] = useState(false);
+  const [pendingSavePatient, setPendingSavePatient] = useState<Patient | null>(null);
+  const [pendingDeletePatient, setPendingDeletePatient] = useState<Patient | null>(null);
+  const [biometricActionTitle, setBiometricActionTitle] = useState('');
+  const [biometricActionDetails, setBiometricActionDetails] = useState('');
   
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({ 
     key: 'dischargeDate', 
@@ -423,16 +437,34 @@ const MortalityPage: React.FC = () => {
   }, [canManageRecords]);
 
   useEffect(() => {
-    setLoading(true);
+    const cached = offlineService.getCachedMortalityRecords<Patient>(activeUnit);
+    if (cached && cached.length > 0) {
+      setPatients(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+
+    const timer = setTimeout(() => {
+      const fallback = offlineService.getCachedMortalityRecords<Patient>(activeUnit);
+      if (fallback && fallback.length > 0) {
+        setPatients(prev => prev.length === 0 ? fallback : prev);
+      }
+      setLoading(false);
+    }, 3000);
+
     const q = query(
       collection(db, 'mortality_records'),
       where('unit', '==', activeUnit)
     );
     
     const unsubscribe = onSnapshot(q, (snapshot: any) => {
+      clearTimeout(timer);
       const patientData = snapshot.docs
         .map((d: any) => ({ id: d.id, ...d.data() })) as Patient[];
       
+      offlineService.cacheMortalityRecords(activeUnit, patientData);
+
       const currentIds = new Set(patientData.map(p => p.id));
       if (prevIdsRef.current.size > 0) {
         const newlyCreated = patientData.find(p => !prevIdsRef.current.has(p.id));
@@ -445,10 +477,18 @@ const MortalityPage: React.FC = () => {
       setPatients(patientData);
       setLoading(false);
     }, (error) => {
-      console.error("Mortality Query Error:", error);
+      clearTimeout(timer);
+      console.warn("[MortalityPage] Firebase Sync fallback engaged:", error);
+      const fallback = offlineService.getCachedMortalityRecords<Patient>(activeUnit);
+      if (fallback && fallback.length > 0) {
+        setPatients(fallback);
+      }
       setLoading(false);
     });
-    return () => unsubscribe();
+    return () => {
+      clearTimeout(timer);
+      unsubscribe();
+    };
   }, [activeUnit]);
 
   const handleSort = (key: SortKey) => {
@@ -656,6 +696,14 @@ const MortalityPage: React.FC = () => {
   }, [patients]);
 
   const handleSave = async (patientData: Patient) => {
+    // Stage patient data and prompt for biometric verification before writing
+    setPendingSavePatient(patientData);
+    setBiometricActionTitle(patientData.id ? 'Modify Mortality Record' : 'Log New Mortality Expiry');
+    setBiometricActionDetails(`Patient: ${patientData.name} | Reg No: ${patientData.regNo} | Unit: ${activeUnit}`);
+    setIsBiometricModalOpen(true);
+  };
+
+  const performSave = async (patientData: Patient, verificationMethod: string) => {
     setIsSaving(true);
     try {
       const patientRef = patientData.id ? doc(db, 'mortality_records', patientData.id) : doc(collection(db, 'mortality_records'));
@@ -664,7 +712,10 @@ const MortalityPage: React.FC = () => {
         ...patientData, 
         id: patientRef.id,
         createdBy: patientData.createdBy || currentDisplayName,
-        createdAt: patientData.createdAt || new Date().toISOString()
+        createdAt: patientData.createdAt || new Date().toISOString(),
+        lastBiometricVerifiedAt: new Date().toISOString(),
+        lastBiometricVerifiedBy: currentDisplayName,
+        biometricVerificationMethod: verificationMethod
       };
       await setDoc(patientRef, finalData);
       
@@ -673,17 +724,71 @@ const MortalityPage: React.FC = () => {
       await activityService.logActivity(
         actionType,
         'Mortality Record',
-        `${actionLabel} mortality record for patient ${patientData.name} (Reg No: ${patientData.regNo})`,
+        `${actionLabel} mortality record for patient ${patientData.name} (Reg No: ${patientData.regNo}) [Biometrics Verified via ${verificationMethod}]`,
         currentUser?.displayName || currentUser?.email || 'Anonymous User',
-        activeUnit
+        activeUnit,
+        'CLINICAL',
+        'SUCCESS',
+        {
+          biometricVerified: true,
+          verificationMethod,
+          patientName: patientData.name,
+          regNo: patientData.regNo,
+          serialNo: patientData.serialNo
+        }
+      );
+
+      toast.success(
+        `Mortality record ${actionLabel.toLowerCase()} for ${patientData.name} (Verified: ${verificationMethod})`,
+        'Record Saved'
       );
 
       setIsModalOpen(false);
       setEditingPatient(null);
-    } catch (err) {
+      setPendingSavePatient(null);
+    } catch (err: any) {
       console.error(err);
+      toast.error(err.message || 'Failed to save mortality record.', 'Save Failed');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const performDelete = async (patient: Patient, verificationMethod: string) => {
+    try {
+      await deleteDoc(doc(db, 'mortality_records', patient.id)); 
+      
+      await activityService.logActivity(
+        'DELETE',
+        'Mortality Record',
+        `Deleted mortality record for patient ${patient.name} (Reg No: ${patient.regNo}) [Biometrics Verified via ${verificationMethod}]`,
+        currentUser?.displayName || currentUser?.email || 'Anonymous User',
+        activeUnit,
+        'SECURITY',
+        'SUCCESS',
+        {
+          biometricVerified: true,
+          verificationMethod,
+          patientName: patient.name,
+          regNo: patient.regNo
+        }
+      );
+      
+      setIdToDelete(null); 
+      setPendingDeletePatient(null);
+      toast.success(`Purged mortality record for ${patient.name} (Biometric Verified)`, 'Record Deleted');
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || 'Failed to delete record.', 'Delete Error');
+    }
+  };
+
+  const handleBiometricVerified = (verificationMethod: 'WebAuthn' | 'Staff_PIN' | 'Simulated_Passkey') => {
+    setIsBiometricModalOpen(false);
+    if (pendingSavePatient) {
+      performSave(pendingSavePatient, verificationMethod);
+    } else if (pendingDeletePatient) {
+      performDelete(pendingDeletePatient, verificationMethod);
     }
   };
 
@@ -970,27 +1075,35 @@ const MortalityPage: React.FC = () => {
         isOpen={isConfirmOpen} 
         onClose={() => setIsConfirmOpen(false)} 
         onConfirm={async () => { 
-          if(idToDelete) { 
+          if (idToDelete) { 
             const pat = patients.find(p => p.id === idToDelete);
-            const patName = pat ? pat.name : 'Unknown';
-            const patReg = pat ? pat.regNo : 'Unknown';
-            await deleteDoc(doc(db, 'mortality_records', idToDelete)); 
-            
-            await activityService.logActivity(
-              'DELETE',
-              'Mortality Record',
-              `Deleted mortality record for patient ${patName} (Reg No: ${patReg})`,
-              currentUser?.displayName || currentUser?.email || 'Anonymous User',
-              activeUnit
-            );
-            
-            setIdToDelete(null); 
-            toast.success(`Deleted mortality record for ${patName}`, 'Record Deleted');
+            setIsConfirmOpen(false);
+            if (pat) {
+              setPendingDeletePatient(pat);
+              setBiometricActionTitle('Purge Mortality Record');
+              setBiometricActionDetails(`Permanently purge record for ${pat.name} (Reg No: ${pat.regNo})`);
+              setIsBiometricModalOpen(true);
+            }
           } 
         }} 
         title="Purge Archive Entry" 
         message="Permanently remove this record from the archive?" 
       />
+
+      <BiometricVerificationModal
+        isOpen={isBiometricModalOpen}
+        onClose={() => {
+          setIsBiometricModalOpen(false);
+          setPendingSavePatient(null);
+          setPendingDeletePatient(null);
+        }}
+        onVerified={handleBiometricVerified}
+        actionTitle={biometricActionTitle}
+        actionDetails={biometricActionDetails}
+        patientName={pendingSavePatient?.name || pendingDeletePatient?.name}
+        regNo={pendingSavePatient?.regNo || pendingDeletePatient?.regNo}
+      />
+
       <ExportModal 
         isOpen={isExportModalOpen} 
         onClose={() => setIsExportModalOpen(false)} 

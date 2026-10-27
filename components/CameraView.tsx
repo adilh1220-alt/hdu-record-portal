@@ -34,7 +34,18 @@ import {
   FileDown,
   FolderOpen,
   Plus,
-  Image as ImageIcon
+  Image as ImageIcon,
+  ZoomIn,
+  ZoomOut,
+  SlidersHorizontal,
+  RotateCcw,
+  Scan,
+  Tv,
+  ChevronDown,
+  ChevronUp,
+  Sun,
+  Contrast,
+  Move
 } from 'lucide-react';
 
 export interface SessionCapture {
@@ -130,6 +141,31 @@ export const CameraView: React.FC<CameraViewProps> = ({
     }
   });
 
+  // Vision Modes & Scaling for Desktop / Laptop
+  const [visionFit, setVisionFit] = useState<'fit' | 'fill' | 'scope'>(() => {
+    try {
+      return (localStorage.getItem('endoscopy_vision_fit') as any) || 'fit';
+    } catch {
+      return 'fit';
+    }
+  });
+
+  const [isTheaterMode, setIsTheaterMode] = useState<boolean>(false);
+  const [isTrayCollapsed, setIsTrayCollapsed] = useState<boolean>(false);
+
+  // Digital Zoom & Pan Engine (1.0x to 3.0x magnification for mucosal lesions/polyps)
+  const [zoomLevel, setZoomLevel] = useState<number>(1.0);
+  const [panOffset, setPanOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isDraggingPan, setIsDraggingPan] = useState<boolean>(false);
+  const dragStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  // Clinical Endoscopic Vision Enhancement Filters
+  const [activeVisionFilter, setActiveVisionFilter] = useState<'none' | 'clarity' | 'bright' | 'nbi' | 'chromo'>('none');
+  const [customBrightness, setCustomBrightness] = useState<number>(100);
+  const [customContrast, setCustomContrast] = useState<number>(100);
+  const [customSaturation, setCustomSaturation] = useState<number>(100);
+  const [showVisionSettings, setShowVisionSettings] = useState<boolean>(false);
+
   // Local TVR-style Session Snapshots Tray (filmstrip)
   const [sessionCaptures, setSessionCaptures] = useState<SessionCapture[]>([]);
 
@@ -151,6 +187,68 @@ export const CameraView: React.FC<CameraViewProps> = ({
   const currentItemRef = useRef<AnnotationItem | null>(null);
   const folderInputRef = useRef<HTMLInputElement | null>(null);
   const [isConnecting, setIsConnecting] = useState<boolean>(false);
+
+  const handleVisionFitChange = (fit: 'fit' | 'fill' | 'scope') => {
+    setVisionFit(fit);
+    try {
+      localStorage.setItem('endoscopy_vision_fit', fit);
+    } catch (e) {
+      console.warn("Could not save vision fit preference", e);
+    }
+  };
+
+  const getActiveFilterString = () => {
+    let b = customBrightness;
+    let c = customContrast;
+    let s = customSaturation;
+    let extra = '';
+
+    if (activeVisionFilter === 'clarity') {
+      b += 5;
+      c += 22;
+      s += 15;
+    } else if (activeVisionFilter === 'bright') {
+      b += 35;
+      c += 10;
+    } else if (activeVisionFilter === 'nbi') {
+      // Simulated Narrow Band Imaging: highlights micro-vessels and mucosal relief
+      extra = ' hue-rotate(85deg)';
+      c += 35;
+      s += 45;
+    } else if (activeVisionFilter === 'chromo') {
+      // Simulated Chromoendoscopy (Indigo Carmine / Iodine dye appearance)
+      extra = ' hue-rotate(180deg)';
+      c += 28;
+      s += 25;
+    }
+
+    return `brightness(${b}%) contrast(${c}%) saturate(${s}%)${extra}`;
+  };
+
+  const resetFilters = () => {
+    setActiveVisionFilter('none');
+    setCustomBrightness(100);
+    setCustomContrast(100);
+    setCustomSaturation(100);
+  };
+
+  const handleMouseDownPan = (e: React.MouseEvent) => {
+    if (zoomLevel <= 1) return;
+    setIsDraggingPan(true);
+    dragStartRef.current = { x: e.clientX - panOffset.x, y: e.clientY - panOffset.y };
+  };
+
+  const handleMouseMovePan = (e: React.MouseEvent) => {
+    if (!isDraggingPan || zoomLevel <= 1) return;
+    const maxPan = (zoomLevel - 1) * 350;
+    const newX = Math.max(-maxPan, Math.min(maxPan, e.clientX - dragStartRef.current.x));
+    const newY = Math.max(-maxPan, Math.min(maxPan, e.clientY - dragStartRef.current.y));
+    setPanOffset({ x: newX, y: newY });
+  };
+
+  const handleMouseUpPan = () => {
+    setIsDraggingPan(false);
+  };
 
   const handleFolderImagesSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -325,7 +423,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
     }
   };
 
-  // Grab Current Raw Frame from Video
+  // Grab Current Raw Frame from Video (with clinical filter and digital zoom integration)
   const getRawFrameBase64 = (): string | null => {
     if (!videoRef.current || !canvasRef.current) return null;
     const video = videoRef.current;
@@ -344,7 +442,29 @@ export const CameraView: React.FC<CameraViewProps> = ({
       ctx.scale(-1, 1);
     }
 
-    ctx.drawImage(video, 0, 0, width, height);
+    // Apply clinical filter if active
+    const filterString = getActiveFilterString();
+    if (filterString && filterString !== 'brightness(100%) contrast(100%) saturate(100%)') {
+      ctx.filter = filterString;
+    } else {
+      ctx.filter = 'none';
+    }
+
+    if (zoomLevel > 1) {
+      const cropW = width / zoomLevel;
+      const cropH = height / zoomLevel;
+      const maxPanX = (zoomLevel - 1) * (width / 2);
+      const maxPanY = (zoomLevel - 1) * (height / 2);
+      const normPanX = (panOffset.x / 350) * (maxPanX / zoomLevel);
+      const normPanY = (panOffset.y / 350) * (maxPanY / zoomLevel);
+
+      const srcX = Math.max(0, Math.min(width - cropW, (width - cropW) / 2 - normPanX));
+      const srcY = Math.max(0, Math.min(height - cropH, (height - cropH) / 2 - normPanY));
+      ctx.drawImage(video, srcX, srcY, cropW, cropH, 0, 0, width, height);
+    } else {
+      ctx.drawImage(video, 0, 0, width, height);
+    }
+
     return canvas.toDataURL('image/jpeg', 0.94);
   };
 
@@ -485,10 +605,9 @@ export const CameraView: React.FC<CameraViewProps> = ({
     setActiveTool('arrow');
   };
 
-  // Keyboard shortcut listener (Spacebar or F2 to capture when streaming)
+  // Keyboard shortcut listener (Spacebar, F2, +, -, 0, T)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore if in annotator or typing in inputs
       if (editingImage) return;
 
       const target = e.target as HTMLElement;
@@ -499,12 +618,41 @@ export const CameraView: React.FC<CameraViewProps> = ({
       if ((e.code === 'Space' || e.key === 'F2') && isStreaming) {
         e.preventDefault();
         captureFrame(false);
+      } else if (e.key === '+' || e.key === '=') {
+        e.preventDefault();
+        setZoomLevel(prev => Math.min(3.0, Number((prev + 0.25).toFixed(2))));
+      } else if (e.key === '-' || e.key === '_') {
+        e.preventDefault();
+        setZoomLevel(prev => {
+          const next = Math.max(1.0, Number((prev - 0.25).toFixed(2)));
+          if (next === 1.0) setPanOffset({ x: 0, y: 0 });
+          return next;
+        });
+      } else if (e.key === '0') {
+        e.preventDefault();
+        setZoomLevel(1.0);
+        setPanOffset({ x: 0, y: 0 });
+      } else if (e.key.toLowerCase() === 't' && !e.ctrlKey && !e.metaKey) {
+        setIsTheaterMode(prev => !prev);
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isStreaming, maxImagesReached, quickLabel, currentImageCount, isMirrored, editingImage, autoAnnotate]);
+  }, [isStreaming, maxImagesReached, quickLabel, currentImageCount, isMirrored, editingImage, autoAnnotate, zoomLevel, panOffset]);
+
+  // Fullscreen change listener to sync state with Escape / browser actions
+  useEffect(() => {
+    const handleFsChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+    document.addEventListener('webkitfullscreenchange', handleFsChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFsChange);
+      document.removeEventListener('webkitfullscreenchange', handleFsChange);
+    };
+  }, []);
 
   useEffect(() => {
     refreshDevices();
@@ -515,14 +663,19 @@ export const CameraView: React.FC<CameraViewProps> = ({
 
   const toggleFullscreen = () => {
     if (!containerRef.current) return;
-    if (!isFullscreen) {
+    if (!document.fullscreenElement) {
       if (containerRef.current.requestFullscreen) {
-        containerRef.current.requestFullscreen();
+        containerRef.current.requestFullscreen().catch((err) => {
+          console.warn("Fullscreen request error, falling back to Theater Mode:", err);
+          setIsTheaterMode(true);
+        });
+      } else {
+        setIsTheaterMode(true);
       }
       setIsFullscreen(true);
     } else {
       if (document.exitFullscreen) {
-        document.exitFullscreen();
+        document.exitFullscreen().catch(err => console.warn("Exit fullscreen error:", err));
       }
       setIsFullscreen(false);
     }
@@ -934,27 +1087,29 @@ export const CameraView: React.FC<CameraViewProps> = ({
     <div 
       ref={containerRef}
       id="endoscopy-camera-view"
-      className="bg-slate-900 border border-slate-700/60 rounded-2xl overflow-hidden shadow-xl text-white flex flex-col transition-all relative"
+      className={`bg-slate-900 border border-slate-700/60 shadow-2xl text-white flex flex-col transition-all relative ${
+        isFullscreen || isTheaterMode 
+          ? 'fixed inset-0 z-50 rounded-none border-0 w-screen h-screen' 
+          : 'rounded-2xl overflow-hidden'
+      }`}
     >
-      {/* Header Bar - Clean Icon-focused Minimal Layout */}
-      <div className="bg-slate-950/80 px-3 py-2 border-b border-slate-800 flex items-center justify-between flex-wrap gap-2">
+      {/* Header Bar - Clinical Endoscopy Vision Controls */}
+      <div className="bg-slate-950/90 px-3 py-2 border-b border-slate-800 flex items-center justify-between flex-wrap gap-2 text-xs">
+        {/* Left: Feed Status & Device Selector */}
         <div className="flex items-center space-x-2">
           <div className={`w-2.5 h-2.5 rounded-full ${isStreaming ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500'}`} />
           <Video className="w-4 h-4 text-indigo-400" />
           {isStreaming && (
             <span className="bg-emerald-950/80 text-emerald-400 border border-emerald-500/30 text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider">
-              HD
+              HD LIVE
             </span>
           )}
-        </div>
 
-        {/* Action Controls */}
-        <div className="flex items-center space-x-1.5">
           {devices.length > 1 && (
             <select
               value={selectedDeviceId}
               onChange={handleDeviceChange}
-              className="bg-slate-800 text-slate-200 border border-slate-700 rounded-lg text-[10px] font-bold px-2 py-1 outline-none focus:border-indigo-500 cursor-pointer max-w-[140px] truncate"
+              className="bg-slate-800 text-slate-200 border border-slate-700 rounded-lg text-[10px] font-bold px-2 py-1 outline-none focus:border-indigo-500 cursor-pointer max-w-[130px] truncate"
               title="Select Video Capture Source"
             >
               {devices.map((d, i) => (
@@ -964,7 +1119,244 @@ export const CameraView: React.FC<CameraViewProps> = ({
               ))}
             </select>
           )}
+        </div>
 
+        {/* Center: Vision Modes, Zoom & Clinical Vision Filters */}
+        {isStreaming && (
+          <div className="flex items-center space-x-1.5 flex-wrap gap-1">
+            {/* Vision Fit / Aspect Mode (Fit vs Widescreen Fill vs Scope Circle) */}
+            <div className="flex items-center bg-slate-900 p-0.5 rounded-lg border border-slate-800" title="Aspect Ratio & Viewport Fit">
+              <button
+                type="button"
+                onClick={() => handleVisionFitChange('fit')}
+                className={`px-2 py-0.5 text-[9px] font-bold rounded transition-all cursor-pointer ${
+                  visionFit === 'fit' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="Fit Standard 4:3 Aspect (Untouched Camera Feed)"
+              >
+                Fit 4:3
+              </button>
+              <button
+                type="button"
+                onClick={() => handleVisionFitChange('fill')}
+                className={`px-2 py-0.5 text-[9px] font-bold rounded transition-all cursor-pointer ${
+                  visionFit === 'fill' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="Widescreen Vision Fill (Covers laptop/PC screen without black sidebars)"
+              >
+                Wide Fill
+              </button>
+              <button
+                type="button"
+                onClick={() => handleVisionFitChange('scope')}
+                className={`px-2 py-0.5 text-[9px] font-bold rounded transition-all cursor-pointer ${
+                  visionFit === 'scope' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="Circular Endoscope Lens Mask (Focus on lumen center)"
+              >
+                Scope Lens
+              </button>
+            </div>
+
+            {/* Digital Zoom Controls */}
+            <div className="flex items-center bg-slate-900 p-0.5 rounded-lg border border-slate-800 text-[9px]">
+              <button
+                type="button"
+                onClick={() => setZoomLevel(prev => {
+                  const next = Math.max(1.0, Number((prev - 0.25).toFixed(2)));
+                  if (next === 1.0) setPanOffset({ x: 0, y: 0 });
+                  return next;
+                })}
+                disabled={zoomLevel <= 1.0}
+                className="p-1 hover:text-white text-slate-400 disabled:opacity-40 cursor-pointer"
+                title="Zoom Out (-)"
+              >
+                <ZoomOut className="w-3 h-3" />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (zoomLevel > 1.0) {
+                    setZoomLevel(1.0);
+                    setPanOffset({ x: 0, y: 0 });
+                  } else {
+                    setZoomLevel(1.5);
+                  }
+                }}
+                className={`px-1 font-mono font-bold cursor-pointer transition-colors ${
+                  zoomLevel > 1 ? 'text-amber-300' : 'text-slate-300 hover:text-white'
+                }`}
+                title="Click to toggle 1.0x / 1.5x zoom (Shortcut: 0 to reset)"
+              >
+                {zoomLevel.toFixed(1)}x
+              </button>
+              <button
+                type="button"
+                onClick={() => setZoomLevel(prev => Math.min(3.0, Number((prev + 0.25).toFixed(2))))}
+                disabled={zoomLevel >= 3.0}
+                className="p-1 hover:text-white text-slate-400 disabled:opacity-40 cursor-pointer"
+                title="Zoom In (+)"
+              >
+                <ZoomIn className="w-3 h-3" />
+              </button>
+            </div>
+
+            {/* Clinical Vision Filters Popover Button */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowVisionSettings(prev => !prev)}
+                className={`px-2 py-1 rounded-lg border text-[9px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                  activeVisionFilter !== 'none' || customBrightness !== 100 || customContrast !== 100
+                    ? 'bg-amber-500/20 border-amber-400/60 text-amber-300 shadow-sm'
+                    : 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white'
+                }`}
+                title="Endoscopic Vision Tuning: Clarity, Brightness, Simulated NBI"
+              >
+                <SlidersHorizontal className="w-3 h-3 text-indigo-400" />
+                <span className="hidden sm:inline">Vision Tuning</span>
+                {activeVisionFilter !== 'none' && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                )}
+              </button>
+
+              {/* Vision Tuning Popover Panel */}
+              {showVisionSettings && (
+                <div className="absolute right-0 top-full mt-1.5 w-72 bg-slate-950 border border-slate-700 rounded-xl p-3 shadow-2xl z-50 text-slate-200 animate-in fade-in slide-in-from-top-1 duration-150">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                      <Sparkles className="w-3 h-3 text-indigo-400" />
+                      Clinical Vision Filters
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowVisionSettings(false)}
+                      className="text-slate-400 hover:text-white p-0.5 cursor-pointer"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+
+                  {/* Filter Presets */}
+                  <div className="grid grid-cols-2 gap-1.5 my-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setActiveVisionFilter('none')}
+                      className={`px-2 py-1.5 rounded-lg text-[9px] font-bold text-left border cursor-pointer transition-all ${
+                        activeVisionFilter === 'none'
+                          ? 'bg-indigo-600 text-white border-indigo-400'
+                          : 'bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-850'
+                      }`}
+                    >
+                      Natural / Raw
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveVisionFilter('clarity')}
+                      className={`px-2 py-1.5 rounded-lg text-[9px] font-bold text-left border cursor-pointer transition-all ${
+                        activeVisionFilter === 'clarity'
+                          ? 'bg-indigo-600 text-white border-indigo-400'
+                          : 'bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-850'
+                      }`}
+                      title="Sharpen Mucosal Edges and Folds"
+                    >
+                      High Clarity
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveVisionFilter('bright')}
+                      className={`px-2 py-1.5 rounded-lg text-[9px] font-bold text-left border cursor-pointer transition-all ${
+                        activeVisionFilter === 'bright'
+                          ? 'bg-indigo-600 text-white border-indigo-400'
+                          : 'bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-850'
+                      }`}
+                      title="+35% Brightness for Dark Cavities"
+                    >
+                      Bright Cavity
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveVisionFilter('nbi')}
+                      className={`px-2 py-1.5 rounded-lg text-[9px] font-bold text-left border cursor-pointer transition-all ${
+                        activeVisionFilter === 'nbi'
+                          ? 'bg-emerald-600 text-white border-emerald-400'
+                          : 'bg-slate-900 text-emerald-300 border-slate-800 hover:bg-slate-850'
+                      }`}
+                      title="Simulated Narrow Band Imaging for Microvessels"
+                    >
+                      Simulated NBI
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveVisionFilter('chromo')}
+                      className={`col-span-2 px-2 py-1.5 rounded-lg text-[9px] font-bold text-left border cursor-pointer transition-all ${
+                        activeVisionFilter === 'chromo'
+                          ? 'bg-indigo-600 text-white border-indigo-400'
+                          : 'bg-slate-900 text-indigo-300 border-slate-800 hover:bg-slate-850'
+                      }`}
+                      title="Indigo Carmine / Chromoendoscopy Contrast"
+                    >
+                      Chromo Surface Dye
+                    </button>
+                  </div>
+
+                  {/* Fine Tuning Sliders */}
+                  <div className="space-y-2 pt-2 border-t border-slate-800 text-[9px]">
+                    <div>
+                      <div className="flex justify-between text-slate-400 font-bold mb-1">
+                        <span>Brightness</span>
+                        <span className="font-mono">{customBrightness}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="70"
+                        max="160"
+                        value={customBrightness}
+                        onChange={(e) => setCustomBrightness(Number(e.target.value))}
+                        className="w-full accent-indigo-500 h-1 bg-slate-800 rounded cursor-pointer"
+                      />
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-slate-400 font-bold mb-1">
+                        <span>Contrast</span>
+                        <span className="font-mono">{customContrast}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="70"
+                        max="160"
+                        value={customContrast}
+                        onChange={(e) => setCustomContrast(Number(e.target.value))}
+                        className="w-full accent-indigo-500 h-1 bg-slate-800 rounded cursor-pointer"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-2.5 mt-2.5 border-t border-slate-800 flex justify-between">
+                    <button
+                      type="button"
+                      onClick={resetFilters}
+                      className="text-[9px] text-slate-400 hover:text-rose-300 flex items-center gap-1 cursor-pointer"
+                    >
+                      <RotateCcw className="w-2.5 h-2.5" />
+                      Reset to Natural
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowVisionSettings(false)}
+                      className="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-[9px] font-bold cursor-pointer"
+                    >
+                      Done
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Right: Mirror, Theater, Fullscreen, Stream Toggle */}
+        <div className="flex items-center space-x-1.5">
           <button
             type="button"
             onClick={() => setIsMirrored(!isMirrored)}
@@ -978,11 +1370,26 @@ export const CameraView: React.FC<CameraViewProps> = ({
             <FlipHorizontal className="w-3.5 h-3.5" />
           </button>
 
+          {/* In-Browser Theater Mode (Maximize in Window without browser permission dialog) */}
+          <button
+            type="button"
+            onClick={() => setIsTheaterMode(!isTheaterMode)}
+            className={`p-1.5 rounded-lg border text-xs font-bold transition-all cursor-pointer ${
+              isTheaterMode 
+                ? 'bg-indigo-600 border-indigo-400 text-white shadow-md' 
+                : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300 hover:text-white'
+            }`}
+            title={isTheaterMode ? "Exit Theater Mode (T)" : "Theater Mode Vision (T)"}
+          >
+            <Tv className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Hardware Fullscreen Toggle */}
           <button
             type="button"
             onClick={toggleFullscreen}
             className="p-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-slate-300 hover:text-white transition-all cursor-pointer"
-            title={isFullscreen ? "Exit Fullscreen" : "Fullscreen Live Feed"}
+            title={isFullscreen ? "Exit Fullscreen (Esc)" : "Fullscreen Live Feed (F)"}
           >
             {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
           </button>
@@ -1013,15 +1420,67 @@ export const CameraView: React.FC<CameraViewProps> = ({
         </div>
       </div>
 
-      {/* Video Stream Stage */}
-      <div className="relative bg-black flex items-center justify-center min-h-[220px] max-h-[380px] overflow-hidden aspect-video">
+      {/* Video Stream Stage - Fully Responsive & Height Scaled */}
+      <div 
+        onMouseDown={handleMouseDownPan}
+        onMouseMove={handleMouseMovePan}
+        onMouseUp={handleMouseUpPan}
+        onMouseLeave={handleMouseUpPan}
+        className={`relative bg-black flex items-center justify-center overflow-hidden select-none ${
+          isFullscreen || isTheaterMode 
+            ? 'flex-1 min-h-0 w-full' 
+            : 'aspect-video min-h-[220px] max-h-[380px] w-full'
+        } ${zoomLevel > 1 ? (isDraggingPan ? 'cursor-grabbing' : 'cursor-grab') : ''}`}
+      >
         <video
           ref={videoRef}
           autoPlay
           playsInline
           muted
-          className={`w-full h-full object-contain ${isMirrored ? 'scale-x-[-1]' : ''} ${!isStreaming ? 'hidden' : ''}`}
+          style={{
+            transform: `scale(${zoomLevel}) translate(${panOffset.x / zoomLevel}px, ${panOffset.y / zoomLevel}px) ${isMirrored ? 'scaleX(-1)' : ''}`,
+            filter: getActiveFilterString(),
+            transformOrigin: 'center center',
+          }}
+          className={`max-w-full max-h-full transition-transform duration-75 select-none pointer-events-none ${
+            visionFit === 'fill' 
+              ? 'w-full h-full object-cover' 
+              : visionFit === 'scope'
+                ? 'w-auto h-auto max-w-[92vh] max-h-[92vh] aspect-square rounded-full object-cover border-4 border-slate-800 ring-2 ring-indigo-500/30 shadow-2xl'
+                : 'w-full h-full object-contain'
+          } ${!isStreaming ? 'hidden' : ''}`}
         />
+
+        {/* Digital Zoom HUD when zoomed */}
+        {isStreaming && zoomLevel > 1 && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-slate-950/85 backdrop-blur-md border border-indigo-500/40 text-slate-200 px-3 py-1 rounded-full text-[11px] font-bold flex items-center gap-2 shadow-xl z-20">
+            <Move className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
+            <span>Digital Zoom: <strong className="text-white">{zoomLevel.toFixed(1)}x</strong> (Drag to pan)</span>
+            <button
+              type="button"
+              onClick={() => { setZoomLevel(1.0); setPanOffset({ x: 0, y: 0 }); }}
+              className="text-xs text-indigo-300 hover:text-white underline cursor-pointer ml-1 font-bold"
+            >
+              Reset
+            </button>
+          </div>
+        )}
+
+        {/* Active Vision Filter Indicator */}
+        {isStreaming && activeVisionFilter !== 'none' && (
+          <div className="absolute top-3 left-3 bg-indigo-950/85 backdrop-blur-md border border-indigo-500/40 text-indigo-300 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-xl z-20">
+            <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+            <span>
+              {activeVisionFilter === 'nbi' 
+                ? 'Simulated NBI (Vessels)' 
+                : activeVisionFilter === 'clarity' 
+                  ? 'Edge Clarity' 
+                  : activeVisionFilter === 'bright' 
+                    ? 'Bright Cavity' 
+                    : 'Chromo Tint'}
+            </span>
+          </div>
+        )}
 
         {/* Hidden Canvas for Frame Extraction */}
         <canvas ref={canvasRef} className="hidden" />
@@ -1069,7 +1528,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2 border-t border-slate-800">
-                  {/* Solution 1: Close honestech and stream here */}
+                  {/* Solution 1: Stream in Portal */}
                   <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800 flex flex-col justify-between space-y-2">
                     <div>
                       <span className="text-[9px] font-black text-emerald-400 uppercase tracking-wider flex items-center gap-1">
@@ -1186,7 +1645,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
 
       {/* Snapshot Control Bar (Visible when streaming) */}
       {isStreaming && (
-        <div className="bg-slate-950 p-3 border-t border-slate-800 flex flex-col space-y-2.5">
+        <div className="bg-slate-950 p-2.5 sm:p-3 border-t border-slate-800 flex flex-col space-y-2">
           {/* Quick Anatomical Label selector */}
           <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-slate-700">
             <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1 flex-shrink-0" title="Organ Label Tags">
@@ -1218,7 +1677,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
             )}
           </div>
 
-          {/* Capture Trigger Buttons */}
+          {/* Capture Trigger Buttons & Options */}
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center space-x-3 text-[10px] font-bold text-slate-400">
               <label className="flex items-center space-x-1.5 cursor-pointer select-none text-[10px] text-slate-300 hover:text-white" title="Automatically launch drawing studio after capturing">
@@ -1246,19 +1705,35 @@ export const CameraView: React.FC<CameraViewProps> = ({
                   <span>PC Save</span>
                 </span>
               </label>
+
+              <span className="hidden md:inline-flex items-center text-[9px] text-slate-500 font-normal">
+                Spacebar / F2 to Snap
+              </span>
             </div>
 
-            <div className="flex items-center space-x-2.5">
+            <div className="flex items-center space-x-2">
+              {/* Tray Collapsible Toggle */}
+              <button
+                type="button"
+                onClick={() => setIsTrayCollapsed(prev => !prev)}
+                className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 rounded-lg text-[9px] font-bold flex items-center gap-1 transition-all cursor-pointer"
+                title={isTrayCollapsed ? "Show Snapshots Tray" : "Hide Snapshots Tray to maximize vision space"}
+              >
+                <ImageIcon className="w-3 h-3 text-indigo-400" />
+                <span>Tray ({sessionCaptures.length})</span>
+                {isTrayCollapsed ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              </button>
+
               {/* Direct Download Snapshot to PC Button */}
               <button
                 type="button"
                 id="download-live-snapshot-btn"
                 onClick={downloadCurrentLiveFrame}
-                className="p-2.5 sm:px-3.5 sm:py-2.5 bg-slate-800/95 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 rounded-xl transition-all border border-emerald-500/40 hover:border-emerald-400/70 shadow-md shadow-emerald-950/40 cursor-pointer active:scale-95 flex items-center justify-center group"
-                title="Download live snapshot to PC (Downloads folder)"
+                className="p-2 sm:px-3 sm:py-2 bg-slate-800/95 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 rounded-xl transition-all border border-emerald-500/40 hover:border-emerald-400/70 shadow-md shadow-emerald-950/40 cursor-pointer active:scale-95 flex items-center justify-center group"
+                title="Download live frame directly to PC"
                 aria-label="Save snapshot to PC"
               >
-                <Download className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                <Download className="w-4 h-4 group-hover:scale-110 transition-transform" />
               </button>
 
               {/* Capture & Markup Button */}
@@ -1266,11 +1741,11 @@ export const CameraView: React.FC<CameraViewProps> = ({
                 type="button"
                 id="capture-annotate-snapshot-btn"
                 onClick={() => captureFrame(true)}
-                className="p-2.5 sm:px-3.5 sm:py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition-all shadow-md shadow-indigo-900/50 cursor-pointer active:scale-95 border border-indigo-400/40 hover:border-indigo-300 flex items-center justify-center group"
-                title="Snap & Draw / Add Marker Annotations"
+                className="p-2 sm:px-3 sm:py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition-all shadow-md shadow-indigo-900/50 cursor-pointer active:scale-95 border border-indigo-400/40 hover:border-indigo-300 flex items-center justify-center group"
+                title="Snap & Draw Markers"
                 aria-label="Capture and markup"
               >
-                <Edit3 className="w-5 h-5 text-indigo-100 group-hover:scale-110 transition-transform" />
+                <Edit3 className="w-4 h-4 text-indigo-100 group-hover:scale-110 transition-transform" />
               </button>
 
               {/* Direct Quick Capture Button */}
@@ -1278,9 +1753,9 @@ export const CameraView: React.FC<CameraViewProps> = ({
                 type="button"
                 id="capture-live-snapshot-btn"
                 onClick={() => captureFrame(false)}
-                className="p-2.5 sm:px-4 sm:py-2.5 rounded-xl transition-all shadow-lg flex items-center justify-center cursor-pointer active:scale-95 group relative bg-gradient-to-r from-red-600 via-rose-600 to-red-600 hover:from-red-500 hover:to-rose-500 text-white border border-red-400/50 shadow-red-600/40 ring-2 ring-red-500/20 hover:ring-red-400/40"
-                title="Snap image to holding tray below (Spacebar / F2)"
-                aria-label="Snap image to holding tray"
+                className="p-2 sm:px-4 sm:py-2 rounded-xl transition-all shadow-lg flex items-center justify-center cursor-pointer active:scale-95 group relative bg-gradient-to-r from-red-600 via-rose-600 to-red-600 hover:from-red-500 hover:to-rose-500 text-white border border-red-400/50 shadow-red-600/40 ring-2 ring-red-500/20 hover:ring-red-400/40"
+                title="Snap photo to holding tray (Spacebar / F2)"
+                aria-label="Snap photo to holding tray"
               >
                 <Camera className="w-5 h-5 group-hover:scale-110 transition-transform" />
               </button>
@@ -1292,175 +1767,178 @@ export const CameraView: React.FC<CameraViewProps> = ({
       {/* ================================================================ */}
       {/* HONESTECH TVR STYLE VIDEO SNAPSHOTS TRAY (HOLDING AREA)          */}
       {/* ================================================================ */}
-      <div className="bg-slate-950/95 px-3 py-2.5 border-t border-slate-800/90">
-        <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-          <div className="flex items-center space-x-2 flex-wrap gap-1">
-            <div className="flex items-center space-x-1.5" title="Snapshots Tray">
-              <ImageIcon className="w-4 h-4 text-indigo-400" />
+      {!isTrayCollapsed && (
+        <div className="bg-slate-950/95 px-3 py-2 border-t border-slate-800/90 shrink-0">
+          <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
+            <div className="flex items-center space-x-2 flex-wrap gap-1">
+              <div className="flex items-center space-x-1.5" title="Snapshots Tray">
+                <ImageIcon className="w-3.5 h-3.5 text-indigo-400" />
+              </div>
+              <span className="px-1.5 py-0.5 rounded-full bg-indigo-950/80 border border-indigo-500/40 text-[9px] font-bold text-indigo-300">
+                {sessionCaptures.length} Photos in Tray
+              </span>
+              <span className="text-[9px] text-slate-400 font-medium">
+                Report: <strong className={currentImageCount >= 4 ? "text-amber-400" : "text-emerald-400"}>{currentImageCount}/4</strong>
+              </span>
             </div>
-            <span className="px-1.5 py-0.5 rounded-full bg-indigo-950/80 border border-indigo-500/40 text-[10px] font-bold text-indigo-300">
-              {sessionCaptures.length}
-            </span>
-            <span className="text-[10px] text-slate-400 font-medium">
-              <strong className={currentImageCount >= 4 ? "text-amber-400" : "text-emerald-400"}>{currentImageCount}/4</strong>
-            </span>
-          </div>
 
-          {sessionCaptures.length > 0 && (
-            <div className="flex items-center space-x-1.5">
-              <button
-                type="button"
-                onClick={downloadAllSessionCaptures}
-                className="p-1.5 sm:px-2 sm:py-1 bg-slate-900 hover:bg-slate-800 text-emerald-300 border border-emerald-500/30 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-sm"
-                title={`Download all ${sessionCaptures.length} tray snapshots to PC`}
-                aria-label="Save All to PC"
-              >
-                <FolderDown className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="hidden sm:inline">Save All ({sessionCaptures.length})</span>
-              </button>
+            {sessionCaptures.length > 0 && (
+              <div className="flex items-center space-x-1.5">
+                <button
+                  type="button"
+                  onClick={downloadAllSessionCaptures}
+                  className="p-1 sm:px-2 sm:py-0.5 bg-slate-900 hover:bg-slate-800 text-emerald-300 border border-emerald-500/30 rounded-lg text-[9px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-sm"
+                  title={`Download all ${sessionCaptures.length} tray snapshots to PC`}
+                  aria-label="Save All to PC"
+                >
+                  <FolderDown className="w-3 h-3 text-emerald-400" />
+                  <span>Save All ({sessionCaptures.length})</span>
+                </button>
 
-              {confirmClearTray ? (
-                <div className="flex items-center space-x-1 animate-in fade-in duration-150">
+                {confirmClearTray ? (
+                  <div className="flex items-center space-x-1 animate-in fade-in duration-150">
+                    <button
+                      type="button"
+                      onClick={handleClearAllTray}
+                      className="px-2 py-0.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-[9px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-md active:scale-95"
+                      title="Confirm clear all snapshots"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>Clear All?</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmClearTray(false)}
+                      className="p-1 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg text-[9px] transition-all cursor-pointer"
+                      title="Cancel"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ) : (
                   <button
                     type="button"
                     onClick={handleClearAllTray}
-                    className="p-1 sm:px-2 sm:py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-md active:scale-95"
-                    title="Confirm clear all snapshots"
+                    className="px-2 py-0.5 bg-slate-900 hover:bg-rose-950/80 text-slate-400 hover:text-rose-300 border border-slate-800 hover:border-rose-500/30 rounded-lg text-[9px] font-bold flex items-center gap-1 transition-all cursor-pointer active:scale-95"
+                    title="Clear all snapshots from tray"
+                    aria-label="Clear Tray"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>Clear All?</span>
+                    <Trash2 className="w-3 h-3" />
+                    <span>Clear</span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setConfirmClearTray(false)}
-                    className="p-1 sm:p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg text-[10px] transition-all cursor-pointer"
-                    title="Cancel"
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Empty state guidance */}
+          {sessionCaptures.length === 0 ? (
+            <div className="py-2.5 px-3 rounded-xl border border-dashed border-slate-800/80 bg-slate-900/30 text-center flex items-center justify-center space-x-2">
+              <Camera className="w-3.5 h-3.5 text-red-400" />
+              <span className="text-[10px] text-slate-400">
+                Ready for snapshots — press Red Camera button, Spacebar, or F2
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center space-x-2.5 overflow-x-auto pb-1 pt-0.5 scrollbar-thin scrollbar-thumb-slate-700">
+              {sessionCaptures.map((cap, idx) => {
+                const isAlreadyInReport = cap.isAddedToReport || attachedImages.some(img => img.url === cap.base64);
+
+                return (
+                  <div 
+                    key={cap.id} 
+                    className={`shrink-0 w-28 sm:w-32 bg-slate-900/90 border rounded-xl overflow-hidden shadow-lg p-1.5 flex flex-col space-y-1.5 transition-all ${
+                      isAlreadyInReport ? 'border-emerald-500/60 ring-1 ring-emerald-500/40' : 'border-slate-800 hover:border-slate-700'
+                    }`}
                   >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleClearAllTray}
-                  className="p-1.5 sm:px-2 sm:py-1 bg-slate-900 hover:bg-rose-950/80 text-slate-400 hover:text-rose-300 border border-slate-800 hover:border-rose-500/30 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer active:scale-95"
-                  title="Clear all snapshots from tray"
-                  aria-label="Clear Tray"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Clear</span>
-                </button>
-              )}
+                    {/* Thumbnail */}
+                    <div className="h-16 w-full rounded-lg overflow-hidden relative bg-black border border-slate-800 group">
+                      <img 
+                        src={cap.base64} 
+                        alt={cap.title} 
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" 
+                      />
+                      
+                      <span className="absolute top-1 left-1 px-1 py-0.5 bg-slate-950/80 backdrop-blur-sm text-slate-300 text-[8px] font-bold rounded">
+                        #{sessionCaptures.length - idx}
+                      </span>
+
+                      {isAlreadyInReport && (
+                        <span className="absolute top-1 right-1 p-0.5 bg-emerald-600/95 backdrop-blur-sm text-white rounded-full flex items-center justify-center shadow-md" title="Attached to Report">
+                          <Check className="w-2.5 h-2.5 stroke-[3]" />
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Timestamp & Label */}
+                    <div className="flex items-center justify-between text-[8px] text-slate-400 font-mono px-0.5">
+                      <span className="truncate max-w-[65px]" title={cap.title}>{cap.title}</span>
+                      <span>{new Date(cap.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+
+                    {/* Actions Row */}
+                    <div className="flex items-center justify-between space-x-1 pt-0.5">
+                      {/* Add to Report button */}
+                      {isAlreadyInReport ? (
+                        <div 
+                          className="w-6 h-6 bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 rounded-lg flex items-center justify-center cursor-default"
+                          title="Attached in report"
+                        >
+                          <Check className="w-3 h-3 text-emerald-400 stroke-[2.5]" />
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleAddToReport(cap)}
+                          disabled={currentImageCount >= 4}
+                          className="w-6 h-6 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg flex items-center justify-center transition-all cursor-pointer shadow-sm disabled:opacity-40"
+                          title="Attach to Report"
+                          aria-label="Add to Report"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+
+                      {/* Download button */}
+                      <button
+                        type="button"
+                        onClick={() => downloadSnapshot(cap.base64, cap.title)}
+                        className="w-6 h-6 bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 rounded-lg flex items-center justify-center transition-all cursor-pointer"
+                        title="Download to PC"
+                        aria-label="Download snapshot"
+                      >
+                        <FileDown className="w-3 h-3" />
+                      </button>
+
+                      {/* Edit Markup button */}
+                      <button
+                        type="button"
+                        onClick={() => openAnnotator(cap.base64, cap.title, cap.id)}
+                        className="w-6 h-6 bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-slate-700 rounded-lg flex items-center justify-center transition-all cursor-pointer"
+                        title="Edit / Draw markers"
+                        aria-label="Markup snapshot"
+                      >
+                        <Edit3 className="w-3 h-3" />
+                      </button>
+
+                      {/* Remove button */}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveFromTray(cap.id)}
+                        className="w-6 h-6 bg-rose-950/60 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 rounded-lg flex items-center justify-center transition-all cursor-pointer"
+                        title="Remove snapshot from tray"
+                        aria-label="Remove snapshot"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
-
-        {/* Empty state guidance */}
-        {sessionCaptures.length === 0 ? (
-          <div className="py-3 px-3 rounded-xl border border-dashed border-slate-800 bg-slate-900/40 text-center flex flex-col items-center justify-center space-y-1">
-            <p className="text-[11px] text-slate-400 flex items-center gap-1.5">
-              <Camera className="w-3.5 h-3.5 text-red-400" />
-              <span>Snap photos with Red Camera, Spacebar, or F2</span>
-            </p>
-          </div>
-        ) : (
-          <div className="flex items-center space-x-2.5 overflow-x-auto pb-1.5 pt-0.5 scrollbar-thin scrollbar-thumb-slate-700">
-            {sessionCaptures.map((cap, idx) => {
-              const isAlreadyInReport = cap.isAddedToReport || attachedImages.some(img => img.url === cap.base64);
-
-              return (
-                <div 
-                  key={cap.id} 
-                  className={`shrink-0 w-28 sm:w-32 bg-slate-900/90 border rounded-xl overflow-hidden shadow-lg p-1.5 flex flex-col space-y-1.5 transition-all ${
-                    isAlreadyInReport ? 'border-emerald-500/60 ring-1 ring-emerald-500/40' : 'border-slate-800 hover:border-slate-700'
-                  }`}
-                >
-                  {/* Thumbnail */}
-                  <div className="h-16 w-full rounded-lg overflow-hidden relative bg-black border border-slate-800 group">
-                    <img 
-                      src={cap.base64} 
-                      alt={cap.title} 
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" 
-                    />
-                    
-                    <span className="absolute top-1 left-1 px-1 py-0.5 bg-slate-950/80 backdrop-blur-sm text-slate-300 text-[8px] font-bold rounded">
-                      #{sessionCaptures.length - idx}
-                    </span>
-
-                    {isAlreadyInReport && (
-                      <span className="absolute top-1 right-1 p-0.5 bg-emerald-600/95 backdrop-blur-sm text-white rounded-full flex items-center justify-center shadow-md" title="Attached to Report">
-                        <Check className="w-2.5 h-2.5 stroke-[3]" />
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Timestamp */}
-                  <div className="flex items-center justify-end text-[8px] text-slate-400 font-mono px-0.5">
-                    <span>{new Date(cap.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                  </div>
-
-                  {/* Actions Row - Compact Uniform Square Icon Buttons */}
-                  <div className="flex items-center justify-between space-x-1 pt-0.5">
-                    {/* Add to Report button */}
-                    {isAlreadyInReport ? (
-                      <div 
-                        className="w-6 h-6 bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 rounded-lg flex items-center justify-center cursor-default"
-                        title="Attached in report"
-                      >
-                        <Check className="w-3 h-3 text-emerald-400 stroke-[2.5]" />
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => handleAddToReport(cap)}
-                        disabled={currentImageCount >= 4}
-                        className="w-6 h-6 bg-emerald-600 hover:bg-emerald-500 active:scale-95 disabled:opacity-50 text-white rounded-lg flex items-center justify-center transition-all shadow-sm cursor-pointer"
-                        title={currentImageCount >= 4 ? "Report already has 4 images" : "Attach to Report"}
-                        aria-label="Add to Report"
-                      >
-                        <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-                      </button>
-                    )}
-
-                    {/* Annotate / Markup button */}
-                    <button
-                      type="button"
-                      onClick={() => openAnnotator(cap.base64, cap.title, cap.id)}
-                      className="w-6 h-6 bg-indigo-950/80 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 rounded-lg flex items-center justify-center transition-all cursor-pointer"
-                      title="Draw clinical arrows, lesion markers, biopsy stamp"
-                      aria-label="Draw on image"
-                    >
-                      <Edit3 className="w-3 h-3" />
-                    </button>
-
-                    {/* Download to PC button */}
-                    <button
-                      type="button"
-                      onClick={() => downloadSnapshot(cap.base64, cap.title)}
-                      className="w-6 h-6 bg-slate-800 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 border border-slate-700 rounded-lg flex items-center justify-center transition-all cursor-pointer"
-                      title="Download snapshot to PC"
-                      aria-label="Download snapshot"
-                    >
-                      <Download className="w-3 h-3" />
-                    </button>
-
-                    {/* Remove from TVR Tray button */}
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveFromTray(cap.id)}
-                      className="w-6 h-6 bg-rose-950/60 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 rounded-lg flex items-center justify-center transition-all cursor-pointer"
-                      title="Remove snapshot from tray"
-                      aria-label="Remove snapshot"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      )}
 
       {/* ---------------------------------------------------------------- */}
       {/* CLINICAL ANNOTATION & MARKER STUDIO MODAL / OVERLAY             */}

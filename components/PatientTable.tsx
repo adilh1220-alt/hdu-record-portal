@@ -2,11 +2,12 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 // @ts-ignore
-import { collection, onSnapshot, setDoc, doc, deleteDoc, query, orderBy, updateDoc, where } from 'firebase/firestore';
+import { collection, onSnapshot, setDoc, doc, deleteDoc, query, orderBy, updateDoc, where, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
 import { Patient, PatientStatus, PatientCategory, CodeStatus, TriagePriority, ClinicalUnit } from '../types';
 import { exportPatientsPDF, getPatientsPDFBlobUrl, exportPatientSummaryPDF, generateKidneyCentreLogoBase64 } from '../services/pdfService';
 import { downloadCSV } from '../services/exportService';
+import { offlineService } from '../services/offlineService';
 import { useAuth } from '../contexts/AuthContext';
 import { useUnit } from '../contexts/UnitContext';
 import { useSearch } from '../contexts/SearchContext';
@@ -25,7 +26,7 @@ import PatientQRCodeModal from './PatientQRCodeModal';
 import QRScannerModal from './QRScannerModal';
 import ClinicalSummaryShareModal from './ClinicalSummaryShareModal';
 import MessageTemplateManagerModal from './MessageTemplateManagerModal';
-import { QrCode, Share2, MessageSquare, Tag, Settings, Sparkles, Filter, UserCheck, Eye, EyeOff, Activity, X } from 'lucide-react';
+import { QrCode, Share2, MessageSquare, Tag, Settings, Sparkles, Filter, UserCheck, Eye, EyeOff, Activity, X, RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import { TableSkeleton, DataSyncBadge, ButtonSpinner, DynamicRoundedLoader } from './LoadingSpinner';
 
 interface FormErrors {
@@ -1112,8 +1113,14 @@ const PatientTable: React.FC = () => {
   const { toast } = useToast();
   const { startLoading, stopLoading } = useLoading();
 
-  const [patients, setPatients] = useState<Patient[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [patients, setPatients] = useState<Patient[]>(() => {
+    return offlineService.getCachedPatientRecords<Patient>(activeUnit) || [];
+  });
+  const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'offline' | 'fallback'>('syncing');
+  const [loading, setLoading] = useState(() => {
+    const cached = offlineService.getCachedPatientRecords<Patient>(activeUnit);
+    return !cached || cached.length === 0;
+  });
   const [searchTerm, setSearchTerm] = useState('');
   const [mrnFilter, setMrnFilter] = useState('');
   const [nameFilter, setNameFilter] = useState('');
@@ -1193,13 +1200,36 @@ const PatientTable: React.FC = () => {
   });
 
   useEffect(() => {
-    setLoading(true);
+    // 1. Instantly populate from local offline cache so mobile screen is never blank
+    const cached = offlineService.getCachedPatientRecords<Patient>(activeUnit);
+    if (cached && cached.length > 0) {
+      setPatients(cached);
+      setLoading(false);
+      setSyncStatus('fallback');
+    } else {
+      setLoading(true);
+      setSyncStatus('syncing');
+    }
+
+    // 2. Failsafe safety timer for mobile PWA connections: stop spinning if network hangs
+    const safetyTimer = setTimeout(() => {
+      const fallbackData = offlineService.getCachedPatientRecords<Patient>(activeUnit);
+      if (fallbackData && fallbackData.length > 0) {
+        setPatients(prev => prev.length === 0 ? fallbackData : prev);
+      }
+      setLoading(false);
+      if (!navigator.onLine) {
+        setSyncStatus('offline');
+      }
+    }, 3000);
+
     const q = query(
       collection(db, 'patients'),
       where('unit', '==', activeUnit)
     );
     
     const unsubscribe = onSnapshot(q, (snapshot: any) => {
+      clearTimeout(safetyTimer);
       const patientData = snapshot.docs
         .map((d: any) => ({ id: d.id, ...d.data() })) as Patient[];
       
@@ -1208,6 +1238,9 @@ const PatientTable: React.FC = () => {
           const serialB = parseInt(b.serialNo || '0', 10);
           return serialB - serialA; 
       });
+
+      // Cache records locally for double redundancy on mobile PWA
+      offlineService.cachePatientRecords(activeUnit, sortedData);
 
       const currentIds = new Set(sortedData.map(p => p.id));
       const previousIds = prevPatientIdsRef.current;
@@ -1223,13 +1256,45 @@ const PatientTable: React.FC = () => {
       prevPatientIdsRef.current = currentIds;
       setPatients(sortedData);
       setLoading(false);
+      setSyncStatus('synced');
     }, (error) => {
-      console.error("Firebase Sync Error:", error);
+      clearTimeout(safetyTimer);
+      console.warn("[PatientTable] Firebase Sync fallback engaged:", error);
+      const fallbackRecords = offlineService.getCachedPatientRecords<Patient>(activeUnit);
+      if (fallbackRecords && fallbackRecords.length > 0) {
+        setPatients(fallbackRecords);
+      }
+      setSyncStatus('fallback');
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      clearTimeout(safetyTimer);
+      unsubscribe();
+    };
   }, [activeUnit]);
+
+  const handleManualSync = async () => {
+    setSyncStatus('syncing');
+    try {
+      const q = query(collection(db, 'patients'), where('unit', '==', activeUnit));
+      const snap = await getDocs(q);
+      const patientData = snap.docs.map((d: any) => ({ id: d.id, ...d.data() })) as Patient[];
+      const sortedData = [...patientData].sort((a, b) => {
+        const serialA = parseInt(a.serialNo || '0', 10);
+        const serialB = parseInt(b.serialNo || '0', 10);
+        return serialB - serialA;
+      });
+      offlineService.cachePatientRecords(activeUnit, sortedData);
+      setPatients(sortedData);
+      setSyncStatus('synced');
+      toast.success(`Synchronized ${sortedData.length} records from Cloud.`);
+    } catch (e: any) {
+      console.warn("Manual sync error:", e);
+      setSyncStatus('fallback');
+      toast.warning("Cloud connection delayed. Displaying local records.");
+    }
+  };
 
   const autoSerialNo = useMemo(() => {
     if (patients.length === 0) return '001';
@@ -1850,12 +1915,31 @@ const PatientTable: React.FC = () => {
               <span>Templates</span>
             </button>
           </div>
-          <button 
-            onClick={() => setIsExportModalOpen(true)}
-            className="bg-slate-100 text-slate-700 border border-slate-200 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-white transition-all shadow-sm active:scale-95"
-          >
-            Export Records
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+              type="button"
+              onClick={handleManualSync}
+              className={`px-3 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-sm active:scale-95 flex items-center gap-1.5 border ${
+                syncStatus === 'synced'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
+                  : syncStatus === 'syncing'
+                  ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 animate-pulse dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800'
+                  : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800'
+              }`}
+              title="Click to refresh records from Cloud database"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${syncStatus === 'syncing' ? 'animate-spin' : ''}`} />
+              <span>
+                {syncStatus === 'synced' ? 'Cloud Live' : syncStatus === 'syncing' ? 'Syncing...' : 'Local Cache (Tap to Refresh)'}
+              </span>
+            </button>
+            <button 
+              onClick={() => setIsExportModalOpen(true)}
+              className="bg-slate-100 text-slate-700 border border-slate-200 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-white transition-all shadow-sm active:scale-95"
+            >
+              Export Records
+            </button>
+          </div>
         </div>
 
         <ActiveFiltersBar />

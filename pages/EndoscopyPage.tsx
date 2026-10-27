@@ -23,7 +23,7 @@ import { VoiceDictationButton } from '../components/VoiceDictationButton';
 import { EndoscopyReportPreviewSheet } from '../components/EndoscopyReportPreviewSheet';
 import WhatsAppDispatchModal, { COUNTRY_CODES, sanitizeLocalNumber } from '../components/WhatsAppDispatchModal';
 import ClinicalSummaryShareModal from '../components/ClinicalSummaryShareModal';
-import { Share2, Download, HardDrive, FolderDown, User, Camera, Crop, Trash2, Upload, Images } from 'lucide-react';
+import { Share2, Download, HardDrive, FolderDown, User, Camera, Crop, Trash2, Upload, Images, Tv, LayoutGrid } from 'lucide-react';
 import { ActiveFiltersBar } from '../components/ActiveFiltersBar';
 import { EndoscopyAnalyticsDashboard } from '../components/EndoscopyAnalyticsDashboard';
 import { TableSkeleton, ButtonSpinner, DynamicRoundedLoader } from '../components/LoadingSpinner';
@@ -365,6 +365,22 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
   const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isCompactView, setIsCompactView] = useState(false);
+  const [workspaceSplit, setWorkspaceSplit] = useState<'standard' | 'balanced' | 'cameraFocus'>(() => {
+    try {
+      return (localStorage.getItem('endoscopy_workspace_split') as any) || 'standard';
+    } catch {
+      return 'standard';
+    }
+  });
+
+  const handleWorkspaceSplitChange = (split: 'standard' | 'balanced' | 'cameraFocus') => {
+    setWorkspaceSplit(split);
+    try {
+      localStorage.setItem('endoscopy_workspace_split', split);
+    } catch (e) {
+      console.warn("Could not save workspace split", e);
+    }
+  };
 
   const isBronchoscopy = formProcedure.toLowerCase().includes('bronchoscopy') || formProcedure.toLowerCase().includes('bronch');
   const isColonoscopy = formProcedure.toLowerCase().includes('colonoscopy') || formProcedure.toLowerCase().includes('colon') || formProcedure.toLowerCase().includes('sigmoidoscopy') || formProcedure.toLowerCase().includes('sigmoid');
@@ -2385,27 +2401,67 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
 
           {/* Workspace Body Layout */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 relative z-10">
-            {/* LEFT COLUMN: Clinical Workspace (Col-Span-8) */}
-            <div className="lg:col-span-8 bg-white rounded-2xl border border-slate-200 p-6 flex flex-col space-y-6 shadow-sm">
-              {/* Beautiful Capsule Tab Selector */}
-              <div className="bg-slate-100 p-1 rounded-xl flex border border-slate-200 space-x-1">
-                {[
-                  { id: 'demographics', label: '1. Patient & Procedure Details' },
-                  { id: 'narrative', label: '2. Endoscopy Findings & Coding' },
-                ].map((tab) => (
+            {/* LEFT COLUMN: Clinical Workspace (Dynamic Col-Span for Laptop/PC Screen) */}
+            <div className={`${workspaceSplit === 'balanced' ? 'lg:col-span-6' : workspaceSplit === 'cameraFocus' ? 'lg:col-span-5' : 'lg:col-span-8'} bg-white rounded-2xl border border-slate-200 p-6 flex flex-col space-y-6 shadow-sm transition-all duration-200`}>
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                {/* Beautiful Capsule Tab Selector */}
+                <div className="bg-slate-100 p-1 rounded-xl flex border border-slate-200 space-x-1 flex-1 min-w-[280px]">
+                  {[
+                    { id: 'demographics', label: '1. Patient & Procedure Details' },
+                    { id: 'narrative', label: '2. Endoscopy Findings & Coding' },
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setActiveFormTab(tab.id as any)}
+                      className={`flex-1 py-2.5 text-[10px] font-bold uppercase tracking-wider text-center rounded-lg transition-all cursor-pointer ${
+                        activeFormTab === tab.id 
+                          ? 'bg-white text-red-600 shadow-sm border border-slate-250/50' 
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Desktop/Laptop Screen Split Selector */}
+                <div className="hidden lg:flex items-center space-x-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-[10px]" title="Optimize screen proportion between Form & Video feed">
+                  <span className="text-slate-500 font-bold px-1.5 flex items-center gap-1">
+                    <Tv className="w-3 h-3 text-slate-500" />
+                    <span>PC View:</span>
+                  </span>
                   <button
-                    key={tab.id}
                     type="button"
-                    onClick={() => setActiveFormTab(tab.id as any)}
-                    className={`flex-1 py-2.5 text-[10px] font-bold uppercase tracking-wider text-center rounded-lg transition-all cursor-pointer ${
-                      activeFormTab === tab.id 
-                        ? 'bg-white text-red-600 shadow-sm border border-slate-250/50' 
-                        : 'text-slate-500 hover:text-slate-800'
+                    onClick={() => handleWorkspaceSplitChange('standard')}
+                    className={`px-2 py-1 font-bold rounded-lg cursor-pointer transition-all ${
+                      workspaceSplit === 'standard' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
                     }`}
+                    title="Standard Split (8:4)"
                   >
-                    {tab.label}
+                    Standard (8:4)
                   </button>
-                ))}
+                  <button
+                    type="button"
+                    onClick={() => handleWorkspaceSplitChange('balanced')}
+                    className={`px-2 py-1 font-bold rounded-lg cursor-pointer transition-all ${
+                      workspaceSplit === 'balanced' ? 'bg-white text-indigo-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                    title="Balanced 50/50 Split (6:6)"
+                  >
+                    50/50 Split
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleWorkspaceSplitChange('cameraFocus')}
+                    className={`px-2 py-1 font-bold rounded-lg cursor-pointer transition-all ${
+                      workspaceSplit === 'cameraFocus' ? 'bg-white text-indigo-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                    title="Expanded Live Video Vision (5:7) for Laptop/PC"
+                  >
+                    Wide Camera 💻
+                  </button>
+                </div>
               </div>
 
             {/* TAB CONTENT panels */}
@@ -3111,8 +3167,8 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
             </div>
           </div>
 
-          {/* RIGHT COLUMN: Media Panel, Live Camera Feed & Captures (Col-Span-4) */}
-          <div className="lg:col-span-4 flex flex-col space-y-6">
+          {/* RIGHT COLUMN: Media Panel, Live Camera Feed & Captures (Dynamic Col-Span for PC/Laptop) */}
+          <div className={`${workspaceSplit === 'balanced' ? 'lg:col-span-6' : workspaceSplit === 'cameraFocus' ? 'lg:col-span-7' : 'lg:col-span-4'} flex flex-col space-y-6 transition-all duration-200`}>
             {/* Live Camera Feed Component */}
             <CameraView 
               procedureType={formProcedure}

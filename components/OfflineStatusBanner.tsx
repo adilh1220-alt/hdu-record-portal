@@ -1,20 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import { offlineService, NetworkStatus, OfflineDraft } from '../services/offlineService';
-import { Wifi, WifiOff, AlertTriangle, RefreshCw, CheckCircle2, FileText, CloudUpload, Trash2, X, Eye, Layers } from 'lucide-react';
+import { offlineService, NetworkStatus, OfflineDraft, NetworkQualityMetrics } from '../services/offlineService';
+import { Wifi, WifiOff, AlertTriangle, RefreshCw, CheckCircle2, FileText, CloudUpload, Trash2, X, Eye, Layers, Activity, Signal } from 'lucide-react';
 import { useToast } from '../contexts/ToastContext';
 
 export const OfflineStatusBanner: React.FC = () => {
   const [networkStatus, setNetworkStatus] = useState<NetworkStatus>(offlineService.getNetworkStatus());
+  const [qualityMetrics, setQualityMetrics] = useState<NetworkQualityMetrics>(offlineService.getNetworkQuality());
+  const [statusInfo, setStatusInfo] = useState<string>('');
   const [drafts, setDrafts] = useState<OfflineDraft[]>(offlineService.getOfflineDrafts());
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isTestingLink, setIsTestingLink] = useState(false);
   const [showDraftModal, setShowDraftModal] = useState(false);
   const [selectedDraft, setSelectedDraft] = useState<OfflineDraft | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
-    // Register status and draft listeners
+    // Register status, quality, and draft listeners
     const unsubscribeStatus = offlineService.onStatusChange((status, info) => {
       setNetworkStatus(status);
+      if (info) setStatusInfo(info);
+    });
+
+    const unsubscribeQuality = offlineService.onQualityChange((metrics) => {
+      setQualityMetrics(metrics);
     });
 
     const unsubscribeDrafts = offlineService.onDraftsChange((updatedDrafts) => {
@@ -41,10 +49,11 @@ export const OfflineStatusBanner: React.FC = () => {
 
     return () => {
       unsubscribeStatus();
+      unsubscribeQuality();
       unsubscribeDrafts();
       window.removeEventListener('medilog_drafts_synced', handleSyncedEvent);
     };
-  }, []);
+  }, [toast]);
 
   const pendingDrafts = drafts.filter(d => d.syncStatus === 'PENDING_SYNC' || d.syncStatus === 'DRAFT' || d.syncStatus === 'FAILED');
 
@@ -68,6 +77,35 @@ export const OfflineStatusBanner: React.FC = () => {
     }
   };
 
+  const handleCheckConnection = async () => {
+    setIsTestingLink(true);
+    try {
+      const current = await offlineService.checkRealConnectionStatus();
+      const metrics = offlineService.getNetworkQuality();
+      
+      if (current === 'online') {
+        const typeLabel = metrics.effectiveType === '5g' ? '5G Cellular' :
+                         metrics.effectiveType === '4g' ? '4G LTE / High-Speed' :
+                         metrics.connectionType === 'wifi' ? 'Wi-Fi' : 'Broadband';
+        toast.success(
+          'Network Connection Verified',
+          `${typeLabel} connection verified. Latency: ${metrics.averageLatencyMs}ms | Loss: ${Math.round(metrics.packetLossRate * 100)}% | Jitter: ${metrics.jitterMs}ms`
+        );
+      } else if (current === 'unstable') {
+        toast.warning(
+          'Network Jitter / Packet Loss Detected',
+          metrics.unstableReason || 'Unstable network packets detected. Local draft auto-save is actively protecting clinical data.'
+        );
+      } else {
+        toast.error('Offline Mode', 'Cannot reach clinical server. Operating in offline local storage mode.');
+      }
+    } catch (e: any) {
+      toast.info('Network Test Complete', 'Connection check completed.');
+    } finally {
+      setIsTestingLink(false);
+    }
+  };
+
   const handleClearSynced = () => {
     offlineService.clearSyncedDrafts();
     toast.info('Draft Queue Cleaned', 'Removed all successfully synchronized offline records.');
@@ -84,6 +122,11 @@ export const OfflineStatusBanner: React.FC = () => {
     return null;
   }
 
+  const connBadgeLabel = qualityMetrics.effectiveType === '5g' ? '5G' :
+                        qualityMetrics.effectiveType === '4g' ? '4G' :
+                        qualityMetrics.connectionType === 'wifi' ? 'Wi-Fi' :
+                        qualityMetrics.effectiveType !== 'unknown' ? qualityMetrics.effectiveType.toUpperCase() : null;
+
   return (
     <>
       {/* Top Sticky Network & Draft Banner */}
@@ -96,7 +139,7 @@ export const OfflineStatusBanner: React.FC = () => {
             : 'bg-emerald-950/90 text-emerald-200 border-emerald-800'
         }`}
       >
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 flex-wrap">
           {networkStatus === 'offline' && (
             <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-rose-900/80 text-rose-300 font-semibold border border-rose-700 animate-pulse">
               <WifiOff className="w-3.5 h-3.5" />
@@ -118,9 +161,17 @@ export const OfflineStatusBanner: React.FC = () => {
             </span>
           )}
 
+          {connBadgeLabel && (
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-900/70 border border-slate-700/80 text-[10px] font-mono text-slate-300">
+              <Signal className="w-3 h-3 text-sky-400" />
+              {connBadgeLabel}
+              {qualityMetrics.downlinkMbps ? ` • ${qualityMetrics.downlinkMbps} Mbps` : ''}
+            </span>
+          )}
+
           <p className="text-slate-200">
             {networkStatus === 'offline' && "Viewing cached patient records. Form entries are auto-saving to local draft protection."}
-            {networkStatus === 'unstable' && "High network latency detected. Form edits will auto-save locally to prevent data loss."}
+            {networkStatus === 'unstable' && (qualityMetrics.unstableReason || statusInfo || "Packet loss or severe network jitter detected. Form edits will auto-save locally to prevent data loss.")}
             {networkStatus === 'online' && pendingDrafts.length > 0 && `${pendingDrafts.length} offline record draft(s) ready to synchronize with Firestore.`}
           </p>
         </div>
@@ -146,11 +197,12 @@ export const OfflineStatusBanner: React.FC = () => {
           </button>
 
           <button
-            onClick={() => offlineService.checkRealConnectionStatus()}
-            title="Re-check network latency & server health"
-            className="p-1.5 rounded hover:bg-slate-800/80 text-slate-400 hover:text-slate-200 transition-colors"
+            onClick={handleCheckConnection}
+            disabled={isTestingLink}
+            title="Re-test network throughput, jitter & server health"
+            className="p-1.5 rounded hover:bg-slate-800/80 text-slate-400 hover:text-slate-200 transition-colors disabled:opacity-50 cursor-pointer"
           >
-            <RefreshCw className="w-3.5 h-3.5" />
+            <RefreshCw className={`w-3.5 h-3.5 ${isTestingLink ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </div>

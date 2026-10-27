@@ -3,7 +3,13 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 // @ts-ignore
 import { getAuth } from 'firebase/auth';
 // @ts-ignore
-import { getFirestore, initializeFirestore, setLogLevel } from 'firebase/firestore';
+import { 
+  getFirestore, 
+  initializeFirestore, 
+  persistentLocalCache, 
+  persistentMultipleTabManager, 
+  setLogLevel 
+} from 'firebase/firestore';
 // @ts-ignore
 import { getStorage } from 'firebase/storage';
 
@@ -28,7 +34,23 @@ const firebaseConfig = {
 // Singleton initialization pattern - ensure default app is always resolved
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : (getApps().find(a => a.name === '[DEFAULT]') || getApps()[0]);
 const auth = getAuth(app);
-const db = getFirestore(app);
+
+// Initialize Firestore with robust IndexedDB persistence for PWA mobile install & offline resilience
+let dbInstance: any;
+try {
+  dbInstance = initializeFirestore(app, {
+    localCache: persistentLocalCache({
+      tabManager: persistentMultipleTabManager()
+    })
+  });
+} catch (err) {
+  try {
+    dbInstance = getFirestore(app);
+  } catch (fallbackErr) {
+    dbInstance = getFirestore();
+  }
+}
+const db = dbInstance;
 const storage = getStorage(app);
 
 /**
