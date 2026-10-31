@@ -43,6 +43,8 @@ import {
   Tv,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   Sun,
   Contrast,
   Move
@@ -168,6 +170,10 @@ export const CameraView: React.FC<CameraViewProps> = ({
 
   // Local TVR-style Session Snapshots Tray (filmstrip)
   const [sessionCaptures, setSessionCaptures] = useState<SessionCapture[]>([]);
+
+  // Snapshot Inspection Preview Modal State
+  const [previewCapture, setPreviewCapture] = useState<SessionCapture | null>(null);
+  const [previewZoom, setPreviewZoom] = useState<number>(1.0);
 
   // Annotator Modal State
   const [editingImage, setEditingImage] = useState<{ base64: string; title: string; captureId?: string } | null>(null);
@@ -605,7 +611,68 @@ export const CameraView: React.FC<CameraViewProps> = ({
     setActiveTool('arrow');
   };
 
-  // Keyboard shortcut listener (Spacebar, F2, +, -, 0, T)
+  // Snapshot Preview Navigation and Actions
+  const previewIndex = previewCapture ? sessionCaptures.findIndex(c => c.id === previewCapture.id) : -1;
+  const hasPrevPreview = previewIndex > 0;
+  const hasNextPreview = previewIndex >= 0 && previewIndex < sessionCaptures.length - 1;
+
+  const handlePrevPreview = () => {
+    if (previewIndex > 0) {
+      setPreviewCapture(sessionCaptures[previewIndex - 1]);
+      setPreviewZoom(1.0);
+    }
+  };
+
+  const handleNextPreview = () => {
+    if (previewIndex >= 0 && previewIndex < sessionCaptures.length - 1) {
+      setPreviewCapture(sessionCaptures[previewIndex + 1]);
+      setPreviewZoom(1.0);
+    }
+  };
+
+  const handleUpdatePreviewTitle = (newTitle: string) => {
+    if (!previewCapture) return;
+    const updated = { ...previewCapture, title: newTitle };
+    setPreviewCapture(updated);
+    setSessionCaptures(prev => prev.map(c => c.id === previewCapture.id ? { ...c, title: newTitle } : c));
+  };
+
+  const handleAddToReportFromPreview = () => {
+    if (!previewCapture) return;
+    handleAddToReport(previewCapture);
+    setPreviewCapture(prev => prev ? { ...prev, isAddedToReport: true } : null);
+  };
+
+  const handleDeleteFromPreview = () => {
+    if (!previewCapture) return;
+    const idToDelete = previewCapture.id;
+    if (sessionCaptures.length > 1) {
+      if (hasNextPreview) {
+        setPreviewCapture(sessionCaptures[previewIndex + 1]);
+      } else if (hasPrevPreview) {
+        setPreviewCapture(sessionCaptures[previewIndex - 1]);
+      } else {
+        setPreviewCapture(null);
+      }
+    } else {
+      setPreviewCapture(null);
+    }
+    handleRemoveFromTray(idToDelete);
+  };
+
+  const handleMarkupFromPreview = () => {
+    if (!previewCapture) return;
+    const current = previewCapture;
+    setPreviewCapture(null);
+    openAnnotator(current.base64, current.title, current.id);
+  };
+
+  const handleDownloadFromPreview = () => {
+    if (!previewCapture) return;
+    downloadSnapshot(previewCapture.base64, previewCapture.title);
+  };
+
+  // Keyboard shortcut listener (Spacebar, F2, +, -, 0, T, Escape/Arrows for preview)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (editingImage) return;
@@ -613,6 +680,47 @@ export const CameraView: React.FC<CameraViewProps> = ({
       const target = e.target as HTMLElement;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) {
         return;
+      }
+
+      // Preview Modal keyboard navigation
+      if (previewCapture) {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          setPreviewCapture(null);
+          setPreviewZoom(1.0);
+          return;
+        }
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          if (previewIndex > 0) {
+            setPreviewCapture(sessionCaptures[previewIndex - 1]);
+            setPreviewZoom(1.0);
+          }
+          return;
+        }
+        if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          if (previewIndex >= 0 && previewIndex < sessionCaptures.length - 1) {
+            setPreviewCapture(sessionCaptures[previewIndex + 1]);
+            setPreviewZoom(1.0);
+          }
+          return;
+        }
+        if (e.key === '+' || e.key === '=') {
+          e.preventDefault();
+          setPreviewZoom(prev => Math.min(3.0, Number((prev + 0.25).toFixed(2))));
+          return;
+        }
+        if (e.key === '-' || e.key === '_') {
+          e.preventDefault();
+          setPreviewZoom(prev => Math.max(1.0, Number((prev - 0.25).toFixed(2))));
+          return;
+        }
+        if (e.key === '0') {
+          e.preventDefault();
+          setPreviewZoom(1.0);
+          return;
+        }
       }
 
       if ((e.code === 'Space' || e.key === 'F2') && isStreaming) {
@@ -639,7 +747,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isStreaming, maxImagesReached, quickLabel, currentImageCount, isMirrored, editingImage, autoAnnotate, zoomLevel, panOffset]);
+  }, [isStreaming, maxImagesReached, quickLabel, currentImageCount, isMirrored, editingImage, previewCapture, previewIndex, sessionCaptures, autoAnnotate, zoomLevel, panOffset]);
 
   // Fullscreen change listener to sync state with Escape / browser actions
   useEffect(() => {
@@ -1847,12 +1955,16 @@ export const CameraView: React.FC<CameraViewProps> = ({
                 return (
                   <div 
                     key={cap.id} 
-                    className={`shrink-0 w-28 sm:w-32 bg-slate-900/90 border rounded-xl overflow-hidden shadow-lg p-1.5 flex flex-col space-y-1.5 transition-all ${
+                    className={`shrink-0 w-32 sm:w-36 bg-slate-900/90 border rounded-xl overflow-hidden shadow-lg p-1.5 flex flex-col space-y-1.5 transition-all ${
                       isAlreadyInReport ? 'border-emerald-500/60 ring-1 ring-emerald-500/40' : 'border-slate-800 hover:border-slate-700'
                     }`}
                   >
-                    {/* Thumbnail */}
-                    <div className="h-16 w-full rounded-lg overflow-hidden relative bg-black border border-slate-800 group">
+                    {/* Thumbnail with Click to Preview */}
+                    <div 
+                      onClick={() => { setPreviewCapture(cap); setPreviewZoom(1.0); }}
+                      className="h-16 w-full rounded-lg overflow-hidden relative bg-black border border-slate-800 group cursor-pointer"
+                      title="Click to preview & inspect snapshot"
+                    >
                       <img 
                         src={cap.base64} 
                         alt={cap.title} 
@@ -1868,20 +1980,37 @@ export const CameraView: React.FC<CameraViewProps> = ({
                           <Check className="w-2.5 h-2.5 stroke-[3]" />
                         </span>
                       )}
+
+                      {/* Hover eye preview overlay */}
+                      <div className="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1 text-[9px] font-bold text-white backdrop-blur-[1px]">
+                        <Eye className="w-3.5 h-3.5 text-indigo-300" />
+                        <span>Preview</span>
+                      </div>
                     </div>
 
                     {/* Timestamp & Label */}
                     <div className="flex items-center justify-between text-[8px] text-slate-400 font-mono px-0.5">
-                      <span className="truncate max-w-[65px]" title={cap.title}>{cap.title}</span>
+                      <span className="truncate max-w-[70px]" title={cap.title}>{cap.title}</span>
                       <span>{new Date(cap.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
 
-                    {/* Actions Row */}
-                    <div className="flex items-center justify-between space-x-1 pt-0.5">
+                    {/* Actions Row with Preview Eye button */}
+                    <div className="flex items-center justify-between gap-1 pt-0.5">
+                      {/* Preview button */}
+                      <button
+                        type="button"
+                        onClick={() => { setPreviewCapture(cap); setPreviewZoom(1.0); }}
+                        className="w-5.5 h-5.5 sm:w-6 sm:h-6 bg-slate-800 hover:bg-indigo-600 text-slate-300 hover:text-white border border-slate-700 hover:border-indigo-500 rounded-lg flex items-center justify-center transition-all cursor-pointer"
+                        title="Preview & Inspect"
+                        aria-label="Preview snapshot"
+                      >
+                        <Eye className="w-3 h-3" />
+                      </button>
+
                       {/* Add to Report button */}
                       {isAlreadyInReport ? (
                         <div 
-                          className="w-6 h-6 bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 rounded-lg flex items-center justify-center cursor-default"
+                          className="w-5.5 h-5.5 sm:w-6 sm:h-6 bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 rounded-lg flex items-center justify-center cursor-default"
                           title="Attached in report"
                         >
                           <Check className="w-3 h-3 text-emerald-400 stroke-[2.5]" />
@@ -1891,7 +2020,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
                           type="button"
                           onClick={() => handleAddToReport(cap)}
                           disabled={currentImageCount >= 4}
-                          className="w-6 h-6 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg flex items-center justify-center transition-all cursor-pointer shadow-sm disabled:opacity-40"
+                          className="w-5.5 h-5.5 sm:w-6 sm:h-6 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg flex items-center justify-center transition-all cursor-pointer shadow-sm disabled:opacity-40"
                           title="Attach to Report"
                           aria-label="Add to Report"
                         >
@@ -1903,7 +2032,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
                       <button
                         type="button"
                         onClick={() => downloadSnapshot(cap.base64, cap.title)}
-                        className="w-6 h-6 bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 rounded-lg flex items-center justify-center transition-all cursor-pointer"
+                        className="w-5.5 h-5.5 sm:w-6 sm:h-6 bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 rounded-lg flex items-center justify-center transition-all cursor-pointer"
                         title="Download to PC"
                         aria-label="Download snapshot"
                       >
@@ -1914,7 +2043,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
                       <button
                         type="button"
                         onClick={() => openAnnotator(cap.base64, cap.title, cap.id)}
-                        className="w-6 h-6 bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-slate-700 rounded-lg flex items-center justify-center transition-all cursor-pointer"
+                        className="w-5.5 h-5.5 sm:w-6 sm:h-6 bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-slate-700 rounded-lg flex items-center justify-center transition-all cursor-pointer"
                         title="Edit / Draw markers"
                         aria-label="Markup snapshot"
                       >
@@ -1925,7 +2054,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
                       <button
                         type="button"
                         onClick={() => handleRemoveFromTray(cap.id)}
-                        className="w-6 h-6 bg-rose-950/60 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 rounded-lg flex items-center justify-center transition-all cursor-pointer"
+                        className="w-5.5 h-5.5 sm:w-6 sm:h-6 bg-rose-950/60 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 rounded-lg flex items-center justify-center transition-all cursor-pointer"
                         title="Remove snapshot from tray"
                         aria-label="Remove snapshot"
                       >
@@ -2276,6 +2405,245 @@ export const CameraView: React.FC<CameraViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* ---------------------------------------------------------------- */}
+      {/* FULL RESOLUTION SNAPSHOT PREVIEW & INSPECTION MODAL             */}
+      {/* ---------------------------------------------------------------- */}
+      {previewCapture && (() => {
+        const isPreviewAttached = previewCapture.isAddedToReport || attachedImages.some(img => img.url === previewCapture.base64);
+
+        return (
+          <div 
+            className="fixed inset-0 z-50 bg-slate-950/92 backdrop-blur-md flex flex-col items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setPreviewCapture(null);
+                setPreviewZoom(1.0);
+              }
+            }}
+          >
+            <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-4xl max-h-[96vh] flex flex-col shadow-2xl overflow-hidden text-slate-200">
+              
+              {/* Modal Header */}
+              <div className="bg-slate-950 px-4 py-2.5 border-b border-slate-800 flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-7 h-7 rounded-lg bg-indigo-600/30 border border-indigo-500/40 flex items-center justify-center text-indigo-400">
+                    <Eye className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-indigo-400">
+                        Snapshot Inspection & Preview
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        ({previewIndex + 1} of {sessionCaptures.length})
+                      </span>
+                    </div>
+                    <input
+                      type="text"
+                      value={previewCapture.title}
+                      onChange={(e) => handleUpdatePreviewTitle(e.target.value)}
+                      className="bg-transparent border-b border-transparent hover:border-slate-700 focus:border-indigo-500 text-xs font-bold text-white outline-none px-0.5 py-0.5 transition-colors w-48 sm:w-72"
+                      title="Click to rename snapshot before adding to report"
+                      placeholder="Snapshot title / organ tag..."
+                    />
+                  </div>
+                </div>
+
+                {/* Zoom & Close Controls */}
+                <div className="flex items-center space-x-2">
+                  <div className="flex items-center bg-slate-900 rounded-lg border border-slate-700 px-1 py-0.5 text-xs text-slate-300">
+                    <button
+                      type="button"
+                      onClick={() => setPreviewZoom(prev => Math.max(1.0, Number((prev - 0.25).toFixed(2))))}
+                      disabled={previewZoom <= 1.0}
+                      className="p-1 hover:text-white disabled:opacity-30 cursor-pointer"
+                      title="Zoom Out (-)"
+                    >
+                      <ZoomOut className="w-3.5 h-3.5" />
+                    </button>
+                    <span className="px-2 text-[10px] font-mono font-bold text-indigo-300 min-w-[3rem] text-center">
+                      {previewZoom.toFixed(2)}x
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewZoom(prev => Math.min(3.0, Number((prev + 0.25).toFixed(2))))}
+                      disabled={previewZoom >= 3.0}
+                      className="p-1 hover:text-white disabled:opacity-30 cursor-pointer"
+                      title="Zoom In (+)"
+                    >
+                      <ZoomIn className="w-3.5 h-3.5" />
+                    </button>
+                    {previewZoom > 1.0 && (
+                      <button
+                        type="button"
+                        onClick={() => setPreviewZoom(1.0)}
+                        className="text-[9px] text-indigo-400 hover:text-white px-1.5 py-0.5 font-bold cursor-pointer"
+                        title="Reset Zoom (0)"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => { setPreviewCapture(null); setPreviewZoom(1.0); }}
+                    className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition-all cursor-pointer"
+                    title="Close Preview (Esc)"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Main Image Stage with Chevrons */}
+              <div className="relative flex-1 bg-black flex items-center justify-center overflow-hidden min-h-[300px] max-h-[62vh] select-none p-2">
+                {/* Previous Button */}
+                {hasPrevPreview && (
+                  <button
+                    type="button"
+                    onClick={handlePrevPreview}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-full bg-slate-900/80 hover:bg-indigo-600 text-slate-200 hover:text-white border border-slate-700 hover:border-indigo-400 backdrop-blur-sm flex items-center justify-center transition-all shadow-xl cursor-pointer"
+                    title="Previous Snapshot (Left Arrow)"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                )}
+
+                {/* Next Button */}
+                {hasNextPreview && (
+                  <button
+                    type="button"
+                    onClick={handleNextPreview}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-full bg-slate-900/80 hover:bg-indigo-600 text-slate-200 hover:text-white border border-slate-700 hover:border-indigo-400 backdrop-blur-sm flex items-center justify-center transition-all shadow-xl cursor-pointer"
+                    title="Next Snapshot (Right Arrow)"
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                )}
+
+                {/* Corner Status Badge */}
+                <div className="absolute top-3 left-3 z-20 flex items-center gap-2">
+                  {isPreviewAttached ? (
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-950/85 border border-emerald-500/50 text-emerald-300 text-[10px] font-bold flex items-center gap-1 shadow-md">
+                      <Check className="w-3 h-3 text-emerald-400" />
+                      <span>Included in Report</span>
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-full bg-slate-950/80 border border-slate-700 text-slate-300 text-[10px] font-medium shadow-md">
+                      In Tray (Not in report)
+                    </span>
+                  )}
+                  <span className="px-2 py-0.5 rounded-full bg-slate-950/80 border border-slate-700 text-slate-400 text-[10px] font-mono">
+                    {new Date(previewCapture.timestamp).toLocaleTimeString()}
+                  </span>
+                </div>
+
+                {/* Displayed Image */}
+                <div className="w-full h-full flex items-center justify-center overflow-auto p-1">
+                  <img
+                    src={previewCapture.base64}
+                    alt={previewCapture.title}
+                    style={{ transform: `scale(${previewZoom})`, transformOrigin: 'center center' }}
+                    className="max-h-[58vh] max-w-full object-contain rounded-lg shadow-2xl transition-transform duration-100"
+                  />
+                </div>
+              </div>
+
+              {/* Quick Anatomical Tags Selector */}
+              <div className="bg-slate-950 px-4 py-2 border-t border-slate-800/80 flex items-center space-x-1.5 overflow-x-auto scrollbar-thin scrollbar-thumb-slate-700">
+                <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1 flex-shrink-0" title="Quick Anatomical Tag">
+                  <Layers className="w-3 h-3 text-indigo-400" />
+                  <span>Tag:</span>
+                </span>
+                {getQuickTags().map((tag) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => handleUpdatePreviewTitle(tag)}
+                    className={`flex-shrink-0 px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider transition-all border cursor-pointer ${
+                      previewCapture.title === tag
+                        ? 'bg-indigo-600 text-white border-indigo-400 shadow-sm'
+                        : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800 hover:text-white'
+                    }`}
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </div>
+
+              {/* Action Buttons Footer */}
+              <div className="bg-slate-900 px-4 py-3 border-t border-slate-800 flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center space-x-2">
+                  {/* Delete from Tray */}
+                  <button
+                    type="button"
+                    onClick={handleDeleteFromPreview}
+                    className="px-2.5 py-1.5 bg-rose-950/60 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                    title="Remove snapshot from tray"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Delete</span>
+                  </button>
+
+                  {/* Download to PC */}
+                  <button
+                    type="button"
+                    onClick={handleDownloadFromPreview}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                    title="Download full quality image to PC"
+                  >
+                    <FileDown className="w-3.5 h-3.5" />
+                    <span>Download PC</span>
+                  </button>
+
+                  {/* Markup / Annotate */}
+                  <button
+                    type="button"
+                    onClick={handleMarkupFromPreview}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-indigo-500/30 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                    title="Open drawing annotator on this image"
+                  >
+                    <Edit3 className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Markup</span>
+                  </button>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  {/* Add to Report / Already Added */}
+                  {isPreviewAttached ? (
+                    <div className="px-3.5 py-1.5 bg-emerald-950/70 border border-emerald-500/50 text-emerald-300 rounded-xl text-xs font-bold flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                      <span>Attached in Report ({currentImageCount}/4)</span>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleAddToReportFromPreview}
+                      disabled={currentImageCount >= 4}
+                      className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-lg shadow-indigo-950/50 cursor-pointer active:scale-95 disabled:opacity-40"
+                      title={currentImageCount >= 4 ? "Report already has maximum 4 images" : "Add this snapshot into patient report"}
+                    >
+                      <Plus className="w-4 h-4 stroke-[2.5]" />
+                      <span>Add to Report ({currentImageCount}/4)</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => { setPreviewCapture(null); setPreviewZoom(1.0); }}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };
