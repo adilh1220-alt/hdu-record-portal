@@ -47,7 +47,14 @@ import {
   ChevronRight,
   Sun,
   Contrast,
-  Move
+  Move,
+  Square,
+  Play,
+  Pause,
+  Share2,
+  Film,
+  MessageCircle,
+  Clock
 } from 'lucide-react';
 
 export interface SessionCapture {
@@ -56,6 +63,18 @@ export interface SessionCapture {
   title: string;
   timestamp: Date;
   isAddedToReport?: boolean;
+}
+
+export interface SessionVideoRecord {
+  id: string;
+  url: string;
+  blob: Blob;
+  filename: string;
+  durationSeconds: number;
+  sizeBytes: number;
+  timestamp: Date;
+  mimeType: string;
+  title: string;
 }
 
 export const triggerLocalFileDownload = (dataUrlOrBlob: string, filename: string) => {
@@ -174,6 +193,17 @@ export const CameraView: React.FC<CameraViewProps> = ({
   // Snapshot Inspection Preview Modal State
   const [previewCapture, setPreviewCapture] = useState<SessionCapture | null>(null);
   const [previewZoom, setPreviewZoom] = useState<number>(1.0);
+
+  // Clinical Video Recording Engine State
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<any>(null);
+  const [isRecording, setIsRecording] = useState<boolean>(false);
+  const [isRecordingPaused, setIsRecordingPaused] = useState<boolean>(false);
+  const [recordingDuration, setRecordingDuration] = useState<number>(0);
+  const [recordedVideos, setRecordedVideos] = useState<SessionVideoRecord[]>([]);
+  const [activeVideoModal, setActiveVideoModal] = useState<SessionVideoRecord | null>(null);
+  const [trayTab, setTrayTab] = useState<'all' | 'photos' | 'videos'>('all');
 
   // Annotator Modal State
   const [editingImage, setEditingImage] = useState<{ base64: string; title: string; captureId?: string } | null>(null);
@@ -410,6 +440,9 @@ export const CameraView: React.FC<CameraViewProps> = ({
 
   // Stop Camera Stream
   const stopCamera = () => {
+    if (isRecording) {
+      stopRecording();
+    }
     if (stream) {
       stream.getTracks().forEach(track => track.stop());
       setStream(null);
@@ -672,7 +705,241 @@ export const CameraView: React.FC<CameraViewProps> = ({
     downloadSnapshot(previewCapture.base64, previewCapture.title);
   };
 
-  // Keyboard shortcut listener (Spacebar, F2, +, -, 0, T, Escape/Arrows for preview)
+  // ================================================================
+  // CLINICAL VIDEO RECORDING & WHATSAPP SHARING ENGINE
+  // ================================================================
+  const formatDuration = (sec: number) => {
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (!bytes) return '0 B';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const getSupportedMimeType = (): string => {
+    if (typeof MediaRecorder === 'undefined') return '';
+    const types = [
+      'video/mp4;codecs=avc1,mp4a.40.2',
+      'video/mp4',
+      'video/webm;codecs=vp9,opus',
+      'video/webm;codecs=vp8,opus',
+      'video/webm;codecs=h264',
+      'video/webm',
+    ];
+    for (const type of types) {
+      if (MediaRecorder.isTypeSupported(type)) {
+        return type;
+      }
+    }
+    return '';
+  };
+
+  const getVideoFilename = (title?: string, ext: string = 'mp4') => {
+    const cleanReg = (patientRegNo || '').trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+    const cleanName = (patientName || '').trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+    const cleanTitle = (title || quickLabel || 'Endoscopy_Video').trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+    const timeStr = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '_');
+    
+    const parts = [];
+    if (cleanReg) parts.push(cleanReg);
+    if (cleanName) parts.push(cleanName);
+    parts.push(cleanTitle);
+    parts.push(timeStr);
+    
+    return `${parts.join('_')}.${ext}`;
+  };
+
+  const startRecording = () => {
+    if (!stream || !isStreaming) {
+      setCapturedFeedback("Please start the live camera stream first!");
+      setTimeout(() => setCapturedFeedback(null), 2500);
+      return;
+    }
+
+    const mimeType = getSupportedMimeType();
+    try {
+      recordedChunksRef.current = [];
+      const options: MediaRecorderOptions = {};
+      if (mimeType) {
+        options.mimeType = mimeType;
+      }
+      try {
+        options.videoBitsPerSecond = 2500000; // 2.5 Mbps for clear mucosal pathology examination
+      } catch (e) {}
+
+      const recorder = new MediaRecorder(stream, options);
+
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          recordedChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        const actualMime = mimeType || recorder.mimeType || 'video/webm';
+        const ext = actualMime.includes('mp4') ? 'mp4' : 'webm';
+        const blob = new Blob(recordedChunksRef.current, { type: actualMime });
+        const url = URL.createObjectURL(blob);
+        const filename = getVideoFilename(quickLabel || 'Endoscopy_Clip', ext);
+
+        const newVideoRecord: SessionVideoRecord = {
+          id: `vid_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          url,
+          blob,
+          filename,
+          durationSeconds: recordingDuration,
+          sizeBytes: blob.size,
+          timestamp: new Date(),
+          mimeType: actualMime,
+          title: quickLabel ? `${quickLabel} Video Clip` : `Clinical Video #${recordedVideos.length + 1}`
+        };
+
+        setRecordedVideos(prev => [newVideoRecord, ...prev]);
+        setActiveVideoModal(newVideoRecord);
+        setCapturedFeedback(`Video recorded (${formatDuration(recordingDuration)})! Ready to WhatsApp or download.`);
+        setTimeout(() => setCapturedFeedback(null), 3500);
+        setIsRecording(false);
+        setIsRecordingPaused(false);
+        setRecordingDuration(0);
+      };
+
+      recorder.start(1000); // collect chunk every 1 sec
+      mediaRecorderRef.current = recorder;
+      setIsRecording(true);
+      setIsRecordingPaused(false);
+      setRecordingDuration(0);
+
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingDuration(prev => {
+          if (prev >= 900) { // Safety ceiling: 15 minutes max
+            stopRecording();
+            return prev;
+          }
+          return prev + 1;
+        });
+      }, 1000);
+
+      setCapturedFeedback("Recording Clinical Clip... Click STOP when finished");
+      setTimeout(() => setCapturedFeedback(null), 2500);
+    } catch (err: any) {
+      console.error("Failed to start MediaRecorder:", err);
+      setCapturedFeedback(`Could not record: ${err.message || 'MediaRecorder unsupported in browser'}`);
+      setTimeout(() => setCapturedFeedback(null), 3500);
+    }
+  };
+
+  const stopRecording = () => {
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch (e) {
+        console.warn("Error stopping recorder:", e);
+      }
+    }
+  };
+
+  const togglePauseRecording = () => {
+    if (!mediaRecorderRef.current || !isRecording) return;
+    if (mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.pause();
+      setIsRecordingPaused(true);
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+      setCapturedFeedback("Recording Paused");
+      setTimeout(() => setCapturedFeedback(null), 1500);
+    } else if (mediaRecorderRef.current.state === 'paused') {
+      mediaRecorderRef.current.resume();
+      setIsRecordingPaused(false);
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingDuration(prev => prev + 1);
+      }, 1000);
+      setCapturedFeedback("Recording Resumed");
+      setTimeout(() => setCapturedFeedback(null), 1500);
+    }
+  };
+
+  const shareVideoToWhatsApp = async (videoItem: SessionVideoRecord) => {
+    const patientDesc = patientName ? `${patientName} (Reg: ${patientRegNo || 'N/A'})` : (patientRegNo || 'Endoscopy Patient');
+    const shareTitle = `Endoscopy Video - ${patientDesc}`;
+    const shareText = `Clinical Endoscopy Video Clip\nPatient: ${patientDesc}\nProcedure: ${procedureType}\nRecorded: ${new Date(videoItem.timestamp).toLocaleString()}\nDuration: ${formatDuration(videoItem.durationSeconds)}`;
+
+    // Method 1: Web Share API with actual video file (Mobile Chrome / Safari / Edge)
+    if (typeof navigator !== 'undefined' && navigator.canShare && typeof File !== 'undefined') {
+      try {
+        const file = new File([videoItem.blob], videoItem.filename, { type: videoItem.mimeType });
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            title: shareTitle,
+            text: shareText
+          });
+          setCapturedFeedback("Video shared successfully!");
+          setTimeout(() => setCapturedFeedback(null), 3000);
+          return;
+        }
+      } catch (err: any) {
+        if (err.name === 'AbortError') return;
+        console.warn("Web Share with files failed, falling back to download + WhatsApp link:", err);
+      }
+    }
+
+    // Method 2: Auto-download file + Open WhatsApp web/app with pre-filled message
+    triggerLocalFileDownload(videoItem.url, videoItem.filename);
+    
+    const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(
+      `*Clinical Endoscopy Video Note*\nPatient: ${patientDesc}\nProcedure: ${procedureType}\nClip: ${videoItem.title} (${formatDuration(videoItem.durationSeconds)}, ${formatFileSize(videoItem.sizeBytes)})\nDate: ${new Date(videoItem.timestamp).toLocaleString()}\n\n(Video clip downloaded to your device Downloads folder. Please attach it to this WhatsApp chat.)`
+    )}`;
+    
+    const a = document.createElement('a');
+    a.href = waUrl;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+
+    setCapturedFeedback("Video saved to Downloads & WhatsApp opened!");
+    setTimeout(() => setCapturedFeedback(null), 3500);
+  };
+
+  const handleDeleteVideo = (videoId: string) => {
+    const vid = recordedVideos.find(v => v.id === videoId);
+    if (vid?.url) {
+      try { URL.revokeObjectURL(vid.url); } catch (e) {}
+    }
+    setRecordedVideos(prev => prev.filter(v => v.id !== videoId));
+    if (activeVideoModal?.id === videoId) {
+      setActiveVideoModal(null);
+    }
+    setCapturedFeedback("Video clip removed");
+    setTimeout(() => setCapturedFeedback(null), 2000);
+  };
+
+  // Cleanup active video recording timers on unmount
+  useEffect(() => {
+    return () => {
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+      }
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        try { mediaRecorderRef.current.stop(); } catch (e) {}
+      }
+    };
+  }, []);
+
+  // Keyboard shortcut listener (Spacebar, F2, R for record, +, -, 0, T, Escape/Arrows for preview)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (editingImage) return;
@@ -680,6 +947,15 @@ export const CameraView: React.FC<CameraViewProps> = ({
       const target = e.target as HTMLElement;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) {
         return;
+      }
+
+      // Video Review Modal Escape
+      if (activeVideoModal) {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          setActiveVideoModal(null);
+          return;
+        }
       }
 
       // Preview Modal keyboard navigation
@@ -723,6 +999,17 @@ export const CameraView: React.FC<CameraViewProps> = ({
         }
       }
 
+      // Video recording shortcut: 'r' or 'R'
+      if (e.key.toLowerCase() === 'r' && !e.ctrlKey && !e.metaKey && !previewCapture && !activeVideoModal && isStreaming) {
+        e.preventDefault();
+        if (isRecording) {
+          stopRecording();
+        } else {
+          startRecording();
+        }
+        return;
+      }
+
       if ((e.code === 'Space' || e.key === 'F2') && isStreaming) {
         e.preventDefault();
         captureFrame(false);
@@ -747,7 +1034,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isStreaming, maxImagesReached, quickLabel, currentImageCount, isMirrored, editingImage, previewCapture, previewIndex, sessionCaptures, autoAnnotate, zoomLevel, panOffset]);
+  }, [isStreaming, maxImagesReached, quickLabel, currentImageCount, isMirrored, editingImage, previewCapture, previewIndex, sessionCaptures, autoAnnotate, zoomLevel, panOffset, isRecording, activeVideoModal]);
 
   // Fullscreen change listener to sync state with Escape / browser actions
   useEffect(() => {
@@ -1574,6 +1861,32 @@ export const CameraView: React.FC<CameraViewProps> = ({
           </div>
         )}
 
+        {/* Live Video Recording HUD Badge */}
+        {isRecording && (
+          <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-30 flex items-center space-x-2 bg-rose-950/90 border border-rose-500/70 text-white px-3 py-1.5 rounded-full shadow-2xl backdrop-blur-md">
+            <span className={`w-2.5 h-2.5 rounded-full ${isRecordingPaused ? 'bg-amber-400' : 'bg-rose-500 animate-ping'}`} />
+            <span className="text-[11px] font-black uppercase font-mono tracking-wider">
+              {isRecordingPaused ? 'PAUSED' : 'REC'} {formatDuration(recordingDuration)}
+            </span>
+            <button
+              type="button"
+              onClick={togglePauseRecording}
+              className="p-1 hover:bg-rose-800 rounded-full text-rose-200 hover:text-white transition-colors cursor-pointer flex items-center justify-center"
+              title={isRecordingPaused ? "Resume Recording" : "Pause Recording"}
+            >
+              {isRecordingPaused ? <Play className="w-3 h-3 fill-white" /> : <Pause className="w-3 h-3 fill-white" />}
+            </button>
+            <button
+              type="button"
+              onClick={stopRecording}
+              className="p-1 hover:bg-rose-800 rounded-full text-rose-200 hover:text-white transition-colors cursor-pointer flex items-center justify-center"
+              title="Stop Recording & Review"
+            >
+              <Square className="w-3 h-3 fill-white" />
+            </button>
+          </div>
+        )}
+
         {/* Active Vision Filter Indicator */}
         {isStreaming && activeVisionFilter !== 'none' && (
           <div className="absolute top-3 left-3 bg-indigo-950/85 backdrop-blur-md border border-indigo-500/40 text-indigo-300 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-xl z-20">
@@ -1815,22 +2128,61 @@ export const CameraView: React.FC<CameraViewProps> = ({
               </label>
 
               <span className="hidden md:inline-flex items-center text-[9px] text-slate-500 font-normal">
-                Spacebar / F2 to Snap
+                Space/F2: Snap | R: Video REC
               </span>
             </div>
 
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-1.5 sm:space-x-2">
               {/* Tray Collapsible Toggle */}
               <button
                 type="button"
                 onClick={() => setIsTrayCollapsed(prev => !prev)}
                 className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 rounded-lg text-[9px] font-bold flex items-center gap-1 transition-all cursor-pointer"
-                title={isTrayCollapsed ? "Show Snapshots Tray" : "Hide Snapshots Tray to maximize vision space"}
+                title={isTrayCollapsed ? "Show Snapshots & Video Tray" : "Hide Tray to maximize vision space"}
               >
                 <ImageIcon className="w-3 h-3 text-indigo-400" />
-                <span>Tray ({sessionCaptures.length})</span>
+                <span>Tray ({sessionCaptures.length + recordedVideos.length})</span>
                 {isTrayCollapsed ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
               </button>
+
+              {/* Video Recording Controls */}
+              {isRecording ? (
+                <div className="flex items-center space-x-1.5 bg-rose-950/90 border border-rose-500/70 p-1 rounded-xl shadow-lg">
+                  <button
+                    type="button"
+                    onClick={togglePauseRecording}
+                    className="p-1.5 sm:px-2 sm:py-1 bg-rose-900/80 hover:bg-rose-800 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer"
+                    title={isRecordingPaused ? "Resume Recording" : "Pause Recording"}
+                  >
+                    {isRecordingPaused ? <Play className="w-3.5 h-3.5 fill-white" /> : <Pause className="w-3.5 h-3.5 fill-white" />}
+                    <span className="hidden sm:inline text-[10px]">{isRecordingPaused ? "Resume" : "Pause"}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    id="stop-video-record-btn"
+                    onClick={stopRecording}
+                    className="px-2.5 py-1 bg-red-600 hover:bg-red-500 text-white rounded-lg text-xs font-black uppercase font-mono tracking-wider flex items-center gap-1.5 transition-all shadow-md cursor-pointer active:scale-95 animate-pulse"
+                    title="Stop recording and review/WhatsApp clip"
+                  >
+                    <Square className="w-3 h-3 fill-white" />
+                    <span>STOP ({formatDuration(recordingDuration)})</span>
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  id="start-video-record-btn"
+                  onClick={startRecording}
+                  className="p-2 sm:px-3 sm:py-2 bg-slate-800/95 hover:bg-rose-950/80 text-rose-400 hover:text-rose-300 rounded-xl transition-all border border-rose-500/40 hover:border-rose-400/80 shadow-md shadow-rose-950/40 cursor-pointer active:scale-95 flex items-center gap-1.5 group"
+                  title="Start Clinical Video Clip Recording (Press 'R')"
+                  aria-label="Record Video Clip"
+                >
+                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500 group-hover:scale-125 transition-transform animate-pulse" />
+                  <Video className="w-4 h-4 text-rose-400" />
+                  <span className="hidden sm:inline text-xs font-bold text-rose-200">Record Video</span>
+                </button>
+              )}
 
               {/* Direct Download Snapshot to PC Button */}
               <button
@@ -1838,7 +2190,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
                 id="download-live-snapshot-btn"
                 onClick={downloadCurrentLiveFrame}
                 className="p-2 sm:px-3 sm:py-2 bg-slate-800/95 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 rounded-xl transition-all border border-emerald-500/40 hover:border-emerald-400/70 shadow-md shadow-emerald-950/40 cursor-pointer active:scale-95 flex items-center justify-center group"
-                title="Download live frame directly to PC"
+                title="Download live snapshot directly to PC"
                 aria-label="Save snapshot to PC"
               >
                 <Download className="w-4 h-4 group-hover:scale-110 transition-transform" />
@@ -1878,13 +2230,49 @@ export const CameraView: React.FC<CameraViewProps> = ({
       {!isTrayCollapsed && (
         <div className="bg-slate-950/95 px-3 py-2 border-t border-slate-800/90 shrink-0">
           <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
-            <div className="flex items-center space-x-2 flex-wrap gap-1">
-              <div className="flex items-center space-x-1.5" title="Snapshots Tray">
+            <div className="flex items-center space-x-2 flex-wrap gap-1.5">
+              <div className="flex items-center space-x-1.5" title="Captures & Videos Tray">
                 <ImageIcon className="w-3.5 h-3.5 text-indigo-400" />
               </div>
-              <span className="px-1.5 py-0.5 rounded-full bg-indigo-950/80 border border-indigo-500/40 text-[9px] font-bold text-indigo-300">
-                {sessionCaptures.length} Photos in Tray
-              </span>
+
+              {/* Tray Content Filter Tabs */}
+              <div className="flex items-center bg-slate-900 border border-slate-800 rounded-lg p-0.5 text-[9px] font-bold">
+                <button
+                  type="button"
+                  onClick={() => setTrayTab('all')}
+                  className={`px-2 py-0.5 rounded transition-all cursor-pointer ${
+                    trayTab === 'all' 
+                      ? 'bg-slate-800 text-white shadow-sm' 
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  All ({sessionCaptures.length + recordedVideos.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTrayTab('photos')}
+                  className={`px-2 py-0.5 rounded transition-all cursor-pointer flex items-center gap-1 ${
+                    trayTab === 'photos' 
+                      ? 'bg-indigo-600/40 text-indigo-200 border border-indigo-500/30' 
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <span>Photos ({sessionCaptures.length})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTrayTab('videos')}
+                  className={`px-2 py-0.5 rounded transition-all cursor-pointer flex items-center gap-1 ${
+                    trayTab === 'videos' 
+                      ? 'bg-rose-600/40 text-rose-200 border border-rose-500/30' 
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Film className="w-2.5 h-2.5 text-rose-400" />
+                  <span>Videos ({recordedVideos.length})</span>
+                </button>
+              </div>
+
               <span className="text-[9px] text-slate-400 font-medium">
                 Report: <strong className={currentImageCount >= 4 ? "text-amber-400" : "text-emerald-400"}>{currentImageCount}/4</strong>
               </span>
@@ -1940,16 +2328,108 @@ export const CameraView: React.FC<CameraViewProps> = ({
           </div>
 
           {/* Empty state guidance */}
-          {sessionCaptures.length === 0 ? (
+          {sessionCaptures.length === 0 && recordedVideos.length === 0 ? (
             <div className="py-2.5 px-3 rounded-xl border border-dashed border-slate-800/80 bg-slate-900/30 text-center flex items-center justify-center space-x-2">
               <Camera className="w-3.5 h-3.5 text-red-400" />
               <span className="text-[10px] text-slate-400">
-                Ready for snapshots — press Red Camera button, Spacebar, or F2
+                Ready for snapshots & video clips — Red Camera (Space/F2) to snap, Record Video (R) to record
               </span>
             </div>
           ) : (
             <div className="flex items-center space-x-2.5 overflow-x-auto pb-1 pt-0.5 scrollbar-thin scrollbar-thumb-slate-700">
-              {sessionCaptures.map((cap, idx) => {
+              {/* Recorded Video Clips */}
+              {(trayTab === 'all' || trayTab === 'videos') && recordedVideos.map((vid, vIdx) => (
+                <div
+                  key={vid.id}
+                  className="shrink-0 w-34 sm:w-38 bg-slate-900/90 border border-rose-500/40 hover:border-rose-400/80 rounded-xl overflow-hidden shadow-lg p-1.5 flex flex-col space-y-1.5 transition-all ring-1 ring-rose-500/20"
+                >
+                  {/* Video Thumbnail with Play Overlay */}
+                  <div
+                    onClick={() => setActiveVideoModal(vid)}
+                    className="h-16 w-full rounded-lg overflow-hidden relative bg-black border border-rose-950/80 group cursor-pointer flex items-center justify-center"
+                    title="Click to play, inspect & share video via WhatsApp"
+                  >
+                    <video
+                      src={vid.url}
+                      className="w-full h-full object-cover opacity-75 group-hover:opacity-100 group-hover:scale-105 transition-all duration-200"
+                      preload="metadata"
+                    />
+                    
+                    {/* Center Play Icon Badge */}
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/35 group-hover:bg-black/15 transition-colors">
+                      <div className="w-7 h-7 rounded-full bg-rose-600/90 group-hover:bg-rose-500 text-white flex items-center justify-center shadow-lg transform group-hover:scale-110 transition-transform">
+                        <Play className="w-3.5 h-3.5 fill-white ml-0.5" />
+                      </div>
+                    </div>
+
+                    {/* Top Left Video Badge */}
+                    <span className="absolute top-1 left-1 px-1 py-0.5 bg-rose-950/90 border border-rose-500/50 text-rose-300 text-[8px] font-black uppercase tracking-wider rounded flex items-center gap-0.5">
+                      <Film className="w-2.5 h-2.5 text-rose-400" />
+                      <span>VIDEO #{recordedVideos.length - vIdx}</span>
+                    </span>
+
+                    {/* Bottom Right Duration Badge */}
+                    <span className="absolute bottom-1 right-1 px-1 py-0.5 bg-slate-950/90 text-white text-[8px] font-mono font-bold rounded">
+                      {formatDuration(vid.durationSeconds)}
+                    </span>
+                  </div>
+
+                  {/* Video Title & Meta */}
+                  <div className="flex items-center justify-between text-[8px] text-slate-400 font-mono px-0.5">
+                    <span className="truncate max-w-[75px] text-rose-200 font-semibold" title={vid.title}>{vid.title}</span>
+                    <span>{formatFileSize(vid.sizeBytes)}</span>
+                  </div>
+
+                  {/* Video Actions Row */}
+                  <div className="flex items-center justify-between gap-1 pt-0.5">
+                    {/* Play / Review */}
+                    <button
+                      type="button"
+                      onClick={() => setActiveVideoModal(vid)}
+                      className="flex-1 h-6 bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white border border-slate-700 hover:border-rose-500 rounded-lg flex items-center justify-center transition-all cursor-pointer"
+                      title="Play & Review Video"
+                    >
+                      <Play className="w-3 h-3 fill-current" />
+                    </button>
+
+                    {/* WhatsApp Share */}
+                    <button
+                      type="button"
+                      onClick={() => shareVideoToWhatsApp(vid)}
+                      className="flex-1 h-6 bg-emerald-950/70 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/40 rounded-lg flex items-center justify-center transition-all cursor-pointer"
+                      title="Share Video via WhatsApp"
+                      aria-label="Share to WhatsApp"
+                    >
+                      <MessageCircle className="w-3 h-3 text-emerald-400" />
+                    </button>
+
+                    {/* Download Video */}
+                    <button
+                      type="button"
+                      onClick={() => triggerLocalFileDownload(vid.url, vid.filename)}
+                      className="w-6 h-6 bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 rounded-lg flex items-center justify-center transition-all cursor-pointer"
+                      title="Download Video to Device"
+                      aria-label="Download Video"
+                    >
+                      <FileDown className="w-3 h-3" />
+                    </button>
+
+                    {/* Delete Video */}
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteVideo(vid.id)}
+                      className="w-6 h-6 bg-rose-950/60 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 rounded-lg flex items-center justify-center transition-all cursor-pointer"
+                      title="Delete video clip"
+                      aria-label="Delete video"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+              {/* Photo Snapshots */}
+              {(trayTab === 'all' || trayTab === 'photos') && sessionCaptures.map((cap, idx) => {
                 const isAlreadyInReport = cap.isAddedToReport || attachedImages.some(img => img.url === cap.base64);
 
                 return (
@@ -2644,6 +3124,159 @@ export const CameraView: React.FC<CameraViewProps> = ({
           </div>
         );
       })()}
+
+      {/* ---------------------------------------------------------------- */}
+      {/* CLINICAL VIDEO PLAYBACK & WHATSAPP SHARING MODAL                 */}
+      {/* ---------------------------------------------------------------- */}
+      {activeVideoModal && (
+        <div 
+          className="fixed inset-0 z-50 bg-slate-950/92 backdrop-blur-md flex flex-col items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setActiveVideoModal(null);
+            }
+          }}
+        >
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-4xl max-h-[96vh] flex flex-col shadow-2xl overflow-hidden text-slate-200">
+            {/* Modal Header */}
+            <div className="bg-slate-950 px-4 py-2.5 border-b border-slate-800 flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-7 h-7 rounded-lg bg-rose-600/30 border border-rose-500/40 flex items-center justify-center text-rose-400">
+                  <Film className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-rose-400">
+                      Endoscopy Video Recording
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      ({formatDuration(activeVideoModal.durationSeconds)} • {formatFileSize(activeVideoModal.sizeBytes)})
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    value={activeVideoModal.title}
+                    onChange={(e) => {
+                      const newTitle = e.target.value;
+                      setActiveVideoModal(prev => prev ? { ...prev, title: newTitle } : null);
+                      setRecordedVideos(prev => prev.map(v => v.id === activeVideoModal.id ? { ...v, title: newTitle } : v));
+                    }}
+                    className="bg-transparent border-b border-transparent hover:border-slate-700 focus:border-rose-500 text-xs font-bold text-white outline-none px-0.5 py-0.5 transition-colors w-48 sm:w-72"
+                    title="Click to rename video clip"
+                    placeholder="Enter diagnosis or clip title..."
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveVideoModal(null)}
+                  className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition-all cursor-pointer"
+                  title="Close Video Player (Esc)"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Main Video Player Container */}
+            <div className="relative flex-1 bg-black flex items-center justify-center overflow-hidden min-h-[300px] max-h-[62vh] select-none p-2">
+              <video
+                src={activeVideoModal.url}
+                controls
+                autoPlay
+                playsInline
+                className="max-h-[58vh] max-w-full rounded-lg shadow-2xl object-contain bg-black"
+              />
+
+              {/* Patient Badge */}
+              <div className="absolute top-3 left-3 z-20 flex items-center gap-2 pointer-events-none">
+                <span className="px-2.5 py-1 rounded-full bg-slate-950/85 border border-slate-700 text-slate-200 text-[10px] font-mono shadow-md backdrop-blur-sm">
+                  {patientName ? `${patientName} (${patientRegNo || 'No Reg'})` : (patientRegNo || 'Endoscopy Patient')}
+                </span>
+                <span className="px-2 py-1 rounded-full bg-slate-950/85 border border-slate-700 text-slate-400 text-[10px] font-mono backdrop-blur-sm">
+                  {new Date(activeVideoModal.timestamp).toLocaleTimeString()}
+                </span>
+              </div>
+            </div>
+
+            {/* Quick Anatomical Tag Row */}
+            <div className="bg-slate-950 px-4 py-2 border-t border-slate-800/80 flex items-center space-x-1.5 overflow-x-auto scrollbar-thin scrollbar-thumb-slate-700">
+              <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1 flex-shrink-0" title="Diagnosis / Anatomical Tag">
+                <Layers className="w-3 h-3 text-rose-400" />
+                <span>Finding Tag:</span>
+              </span>
+              {getQuickTags().map((tag) => (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => {
+                    const newTitle = `${tag} Clip`;
+                    setActiveVideoModal(prev => prev ? { ...prev, title: newTitle } : null);
+                    setRecordedVideos(prev => prev.map(v => v.id === activeVideoModal.id ? { ...v, title: newTitle } : v));
+                  }}
+                  className={`flex-shrink-0 px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider transition-all border cursor-pointer ${
+                    activeVideoModal.title.includes(tag)
+                      ? 'bg-rose-600 text-white border-rose-400 shadow-sm'
+                      : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800 hover:text-white'
+                  }`}
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
+
+            {/* Actions Footer */}
+            <div className="bg-slate-900 px-4 py-3 border-t border-slate-800 flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center space-x-2">
+                {/* Delete Video */}
+                <button
+                  type="button"
+                  onClick={() => handleDeleteVideo(activeVideoModal.id)}
+                  className="px-2.5 py-1.5 bg-rose-950/60 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                  title="Delete this recording"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Delete</span>
+                </button>
+
+                {/* Download Video to Device / PC */}
+                <button
+                  type="button"
+                  onClick={() => triggerLocalFileDownload(activeVideoModal.url, activeVideoModal.filename)}
+                  className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                  title="Download Video file to computer or phone"
+                >
+                  <FileDown className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Download Video</span>
+                </button>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                {/* Send / Share via WhatsApp Button */}
+                <button
+                  type="button"
+                  onClick={() => shareVideoToWhatsApp(activeVideoModal)}
+                  className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all shadow-lg shadow-emerald-950/50 cursor-pointer active:scale-95"
+                  title="Send video directly via WhatsApp to patient or doctor"
+                >
+                  <MessageCircle className="w-4 h-4 text-white fill-white" />
+                  <span>Send via WhatsApp</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveVideoModal(null)}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

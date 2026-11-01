@@ -1,29 +1,30 @@
-// The Kidney Centre - Progressive Web App Service Worker
-// Enables offline viewing of critical patient records & draft persistence under unstable network conditions.
+// The Kidney Centre - Progressive Web App Service Worker v3
+// Provides offline capability, asset caching, and offline screen fallback for installed mobile & desktop PWA.
 
-const CACHE_NAME = 'kidney-centre-v2';
-const DATA_CACHE_NAME = 'kidney-centre-data-v2';
-const DRAFT_CACHE_NAME = 'kidney-centre-drafts-v2';
+const CACHE_NAME = 'kidney-centre-v3';
+const DATA_CACHE_NAME = 'kidney-centre-data-v3';
+const DRAFT_CACHE_NAME = 'kidney-centre-drafts-v3';
 
 // Essential App Shell resources to precache
 const STATIC_ASSETS = [
   '/',
   '/index.html',
-  '/index.css',
-  '/print.css',
+  '/offline.html',
   '/manifest.json',
   '/favicon.svg',
   '/icon-192.svg',
   '/icon-512.svg',
-  '/icon-maskable.svg'
+  '/icon-maskable.svg',
+  '/index.css',
+  '/print.css'
 ];
 
 // 1. Installation Phase
 self.addEventListener('install', (event) => {
-  console.log('[Service Worker] Installing MediLog Clinical Service Worker v2...');
+  console.log('[Service Worker] Installing MediLog Clinical Service Worker v3...');
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[Service Worker] Pre-caching static app shell assets...');
+      console.log('[Service Worker] Pre-caching static app shell & offline assets...');
       return cache.addAll(STATIC_ASSETS).catch((err) => {
         console.warn('[Service Worker] Pre-cache partial warning:', err);
       });
@@ -33,7 +34,7 @@ self.addEventListener('install', (event) => {
 
 // 2. Activation Phase - Clean up outdated caches
 self.addEventListener('activate', (event) => {
-  console.log('[Service Worker] Activating MediLog Service Worker v2...');
+  console.log('[Service Worker] Activating MediLog Service Worker v3...');
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
@@ -64,7 +65,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Also safeguard against any Google / Firebase URLs
+  // Safeguard against any Google / Firebase URLs
   if (
     url.hostname.includes('firebase') || 
     url.hostname.includes('googleapis') ||
@@ -79,16 +80,11 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Bypass dev-server modules, Vite internals, node_modules, and HMR to avoid React dual-instance collisions
+  // Bypass Vite dev-server internal endpoints only (do not block built .js or .css bundles)
   if (
-    url.pathname.includes('/@vite/') ||
-    url.pathname.includes('/@id/') ||
-    url.pathname.includes('/@fs/') ||
-    url.pathname.includes('/node_modules/') ||
-    url.pathname.endsWith('.tsx') ||
-    url.pathname.endsWith('.ts') ||
-    url.pathname.endsWith('.jsx') ||
-    url.pathname.endsWith('.js') ||
+    url.pathname.startsWith('/@vite/') ||
+    url.pathname.startsWith('/@id/') ||
+    url.pathname.startsWith('/@fs/') ||
     url.search.includes('import') ||
     url.search.includes('t=')
   ) {
@@ -100,7 +96,6 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(event.request)
         .then((networkResponse) => {
-          // If network succeeds, clone and cache good GET responses
           if (networkResponse && networkResponse.status === 200) {
             const responseToCache = networkResponse.clone();
             caches.open(DATA_CACHE_NAME).then((cache) => {
@@ -110,13 +105,10 @@ self.addEventListener('fetch', (event) => {
           return networkResponse;
         })
         .catch(async () => {
-          // Network failed/unstable - serve cached API response if available
           const cachedResponse = await caches.match(event.request);
           if (cachedResponse) {
-            console.log(`[Service Worker] Serving cached API response for: ${url.pathname}`);
             return cachedResponse;
           }
-          // Health check offline fallback
           if (url.pathname === '/api/health') {
             return new Response(JSON.stringify({ status: 'offline_cached', timestamp: new Date().toISOString() }), {
               headers: { 'Content-Type': 'application/json' }
@@ -131,12 +123,12 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // B. Handle Static Assets & SPA Navigation (Stale-While-Revalidate with Offline Fallback)
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      const fetchPromise = fetch(event.request)
+  // B. Handle SPA Navigation (HTML Pages)
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
         .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+          if (networkResponse && networkResponse.status === 200) {
             const responseToCache = networkResponse.clone();
             caches.open(CACHE_NAME).then((cache) => {
               cache.put(event.request, responseToCache);
@@ -144,16 +136,60 @@ self.addEventListener('fetch', (event) => {
           }
           return networkResponse;
         })
-        .catch(() => {
-          // Return cached response if network fails
-          if (cachedResponse) return cachedResponse;
-          // Fallback to root index.html for SPA client navigation when offline
-          if (event.request.mode === 'navigate') {
-            return caches.match('/index.html') || caches.match('/');
+        .catch(async () => {
+          // Device is offline: Serve cached app shell or dedicated offline fallback
+          const cachedIndex = (await caches.match('/index.html')) || (await caches.match('/'));
+          if (cachedIndex) {
+            return cachedIndex;
           }
-        });
+          const cachedOffline = await caches.match('/offline.html');
+          if (cachedOffline) {
+            return cachedOffline;
+          }
+          return new Response('You are offline. Please connect to internet.', {
+            status: 200,
+            headers: { 'Content-Type': 'text/html' }
+          });
+        })
+    );
+    return;
+  }
 
-      return cachedResponse || fetchPromise;
+  // C. Handle Static Assets (JS, CSS, Images, SVGs, Fonts) with Stale-While-Revalidate and safe offline fallback
+  event.respondWith(
+    caches.match(event.request).then(async (cachedResponse) => {
+      if (cachedResponse) {
+        // Return cached version immediately, background revalidate
+        fetch(event.request).then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, networkResponse);
+            });
+          }
+        }).catch(() => {});
+        return cachedResponse;
+      }
+
+      try {
+        const networkResponse = await fetch(event.request);
+        if (networkResponse && networkResponse.status === 200) {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+        }
+        return networkResponse;
+      } catch (err) {
+        // If offline and request is for a script or module, return index.html or empty JS fallback
+        if (event.request.destination === 'script' || event.request.url.includes('.js') || event.request.url.includes('.tsx') || event.request.url.includes('.ts')) {
+          const cachedIndex = await caches.match('/index.html');
+          if (cachedIndex) return cachedIndex;
+          return new Response('/* Offline fallback script */', { status: 200, headers: { 'Content-Type': 'application/javascript' } });
+        }
+        const cachedOffline = await caches.match('/offline.html');
+        if (cachedOffline) return cachedOffline;
+        return new Response('Offline', { status: 200 });
+      }
     })
   );
 });
@@ -163,7 +199,6 @@ self.addEventListener('message', async (event) => {
   const { type, payload } = event.data || {};
 
   if (type === 'CACHE_PATIENT_DATA') {
-    // Cache snapshot of critical patient data in Service Worker Cache
     try {
       const cache = await caches.open(DATA_CACHE_NAME);
       const dataResponse = new Response(JSON.stringify(payload.data), {

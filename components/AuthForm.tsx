@@ -12,12 +12,15 @@ import {
   Eye,
   EyeOff,
   LogIn,
-  ArrowRight
+  ArrowRight,
+  CloudOff,
+  WifiOff
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { userService } from '../services/userService';
 import { authService } from '../services/authService';
 import { webAuthnService, WebAuthnSupport } from '../services/webAuthnService';
+import { offlineService } from '../services/offlineService';
 import BiometricWalkthroughModal from './BiometricWalkthroughModal';
 import BiometricTroubleshootModal from './BiometricTroubleshootModal';
 import Modal from './Modal';
@@ -28,6 +31,7 @@ const AuthForm: React.FC = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [isOffline, setIsOffline] = useState(() => typeof navigator !== 'undefined' ? !navigator.onLine : false);
   const [loading, setLoading] = useState(false);
   const [shake, setShake] = useState(false);
   
@@ -79,6 +83,22 @@ const AuthForm: React.FC = () => {
       }
     };
     checkAuthn();
+
+    // Monitor online/offline status
+    const handleNetChange = () => {
+      setIsOffline(!navigator.onLine || offlineService.getNetworkStatus() === 'offline');
+    };
+    window.addEventListener('online', handleNetChange);
+    window.addEventListener('offline', handleNetChange);
+    const unsubOffline = offlineService.onStatusChange((status) => {
+      setIsOffline(status === 'offline' || !navigator.onLine);
+    });
+
+    return () => {
+      window.removeEventListener('online', handleNetChange);
+      window.removeEventListener('offline', handleNetChange);
+      unsubOffline();
+    };
   }, []);
 
   // Clear error alert after 5 seconds
@@ -217,6 +237,24 @@ const AuthForm: React.FC = () => {
         </div>
 
         <div className="p-5 sm:p-6">
+          {/* Offline Mode Indicator (Matches User Request & Screen) */}
+          {isOffline && (
+            <div className="mb-4 p-3 bg-slate-900 border border-slate-800 text-white rounded-xl flex items-start gap-2.5 animate-in fade-in slide-in-from-top-2 duration-300">
+              <div className="p-1.5 rounded-lg bg-amber-500/20 text-amber-400 shrink-0 mt-0.5">
+                <CloudOff className="w-4 h-4" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-1.5">
+                  <h4 className="text-[11px] font-black uppercase text-amber-400 tracking-wider">You're Offline</h4>
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"></span>
+                </div>
+                <p className="text-[10px] text-slate-300 mt-0.5 leading-relaxed">
+                  No internet connection detected. Fast Biometric Sign-In & local offline draft cache remain accessible.
+                </p>
+              </div>
+            </div>
+          )}
+
           {showInactivityAlert && (
             <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5 animate-in fade-in slide-in-from-top-2 duration-300">
               <svg className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

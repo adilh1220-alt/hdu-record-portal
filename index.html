@@ -45,7 +45,229 @@
 <link rel="stylesheet" href="/print.css">
 </head>
 <body class="bg-slate-50 text-slate-900">
-    <div id="root"></div>
+    <div id="root">
+        <!-- Pre-hydration Clinical & Offline App Shell (Zero Network Dependency) -->
+        <style>
+          @keyframes preBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+          @keyframes prePulse { 0%, 100% { transform: scale(1); opacity: 0.95; } 50% { transform: scale(1.04); opacity: 1; } }
+          .pre-container {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            text-align: center;
+            background-color: #ffffff;
+            color: #0f172a;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            box-sizing: border-box;
+          }
+          @media (prefers-color-scheme: dark) {
+            .pre-container {
+              background-color: #090d16;
+              color: #f8fafc;
+            }
+          }
+          .pre-brand-logo {
+            width: 76px;
+            height: 76px;
+            margin-bottom: 24px;
+            animation: prePulse 3s infinite ease-in-out;
+          }
+          .pre-offline-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            color: #64748b;
+            font-size: 15px;
+            font-weight: 500;
+          }
+          @media (prefers-color-scheme: dark) {
+            .pre-offline-badge { color: #94a3b8; }
+          }
+          .pre-headline {
+            font-size: 20px;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            margin-bottom: 8px;
+          }
+          .pre-subtitle {
+            font-size: 13.5px;
+            color: #64748b;
+            line-height: 1.5;
+            max-width: 380px;
+            margin-bottom: 24px;
+          }
+          @media (prefers-color-scheme: dark) {
+            .pre-subtitle { color: #94a3b8; }
+          }
+          .pre-btn-primary {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+            max-width: 320px;
+            padding: 13px 20px;
+            background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+            color: #ffffff;
+            border: none;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 4px 14px rgba(2, 132, 199, 0.35);
+            text-decoration: none;
+            margin-bottom: 8px;
+          }
+          .pre-btn-primary:active { transform: scale(0.98); }
+          .pre-pill {
+            margin-top: 20px;
+            padding: 6px 14px;
+            background: rgba(100, 116, 139, 0.1);
+            border-radius: 9999px;
+            font-size: 11px;
+            font-weight: 600;
+            color: #64748b;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+          }
+        </style>
+
+        <!-- OFFLINE STATE (matches user's screenshot) -->
+        <div id="pre-offline-box" class="pre-container" style="display: none;">
+          <!-- Medical Brand Logo -->
+          <svg class="pre-brand-logo" viewBox="0 0 192 192" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="pre-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#0f172a" />
+                <stop offset="50%" stop-color="#1e293b" />
+                <stop offset="100%" stop-color="#0284c7" />
+              </linearGradient>
+              <linearGradient id="pre-cross" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#ef4444" />
+                <stop offset="100%" stop-color="#dc2626" />
+              </linearGradient>
+            </defs>
+            <rect x="10" y="10" width="172" height="172" rx="42" fill="url(#pre-bg)" />
+            <rect x="10" y="10" width="172" height="172" rx="42" stroke="#38bdf8" stroke-width="3" stroke-opacity="0.3" />
+            <g transform="translate(96, 96)">
+              <rect x="-18" y="-54" width="36" height="108" rx="10" fill="#ffffff" />
+              <rect x="-54" y="-18" width="108" height="36" rx="10" fill="#ffffff" />
+              <rect x="-12" y="-48" width="24" height="96" rx="6" fill="url(#pre-cross)" />
+              <rect x="-48" y="-12" width="96" height="24" rx="6" fill="url(#pre-cross)" />
+              <path d="M-38 0 L-18 0 L-8 -22 L4 24 L14 -8 L22 0 L38 0" stroke="#ffffff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" />
+            </g>
+          </svg>
+
+          <!-- Offline Indicator with Slashed Cloud (as requested in screenshot) -->
+          <div class="pre-offline-badge">
+            <svg style="width:20px; height:20px; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; fill:none;" viewBox="0 0 24 24">
+              <path d="M22.61 16.95A5 5 0 0 0 18 10h-1.26a8 8 0 0 0-7.05-6M5 5a8 8 0 0 0-4 7h1.05a5 5 0 0 0 9.64 1.8" />
+              <line x1="2" y1="2" x2="22" y2="22" />
+            </svg>
+            <span>You're offline</span>
+          </div>
+
+          <h1 class="pre-headline">Record Management Portal</h1>
+          <p class="pre-subtitle">
+            No internet connection detected. Offline Mode is active — your locally cached patient census and endoscopy drafts remain protected and will sync when you reconnect.
+          </p>
+
+          <button class="pre-btn-primary" onclick="window.location.reload()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
+            </svg>
+            <span>Retry Connection</span>
+          </button>
+
+          <div class="pre-pill">
+            <span style="width:6px; height:6px; border-radius:50%; background-color:#f59e0b; animation:preBlink 2s infinite ease-in-out;"></span>
+            <span>Offline Mode Active (Local Storage Protected)</span>
+          </div>
+        </div>
+
+        <!-- ONLINE PRE-HYDRATION LOADING STATE -->
+        <div id="pre-online-box" class="pre-container" style="display: flex;">
+          <svg class="pre-brand-logo" viewBox="0 0 192 192" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="pre-bg-on" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#0f172a" />
+                <stop offset="50%" stop-color="#1e293b" />
+                <stop offset="100%" stop-color="#0284c7" />
+              </linearGradient>
+              <linearGradient id="pre-cross-on" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#ef4444" />
+                <stop offset="100%" stop-color="#dc2626" />
+              </linearGradient>
+            </defs>
+            <rect x="10" y="10" width="172" height="172" rx="42" fill="url(#pre-bg-on)" />
+            <rect x="10" y="10" width="172" height="172" rx="42" stroke="#38bdf8" stroke-width="3" stroke-opacity="0.3" />
+            <g transform="translate(96, 96)">
+              <rect x="-18" y="-54" width="36" height="108" rx="10" fill="#ffffff" />
+              <rect x="-54" y="-18" width="108" height="36" rx="10" fill="#ffffff" />
+              <rect x="-12" y="-48" width="24" height="96" rx="6" fill="url(#pre-cross-on)" />
+              <rect x="-48" y="-12" width="96" height="24" rx="6" fill="url(#pre-cross-on)" />
+              <path d="M-38 0 L-18 0 L-8 -22 L4 24 L14 -8 L22 0 L38 0" stroke="#ffffff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" />
+            </g>
+          </svg>
+          <div style="font-size:16px; font-weight:700; margin-bottom:8px; letter-spacing:-0.01em;">Record Management Portal</div>
+          <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:#64748b;">
+            <div style="width:14px; height:14px; border:2px solid #0284c7; border-top-color:transparent; border-radius:50%; animation:prePulse 1s linear infinite;"></div>
+            <span>Starting clinical application...</span>
+          </div>
+        </div>
+
+        <script>
+          (function() {
+            var offlineBox = document.getElementById('pre-offline-box');
+            var onlineBox = document.getElementById('pre-online-box');
+            function showOffline() {
+              if (offlineBox) offlineBox.style.display = 'flex';
+              if (onlineBox) onlineBox.style.display = 'none';
+            }
+            function showOnline() {
+              if (offlineBox) offlineBox.style.display = 'none';
+              if (onlineBox) onlineBox.style.display = 'flex';
+            }
+
+            if (!navigator.onLine) {
+              showOffline();
+            } else {
+              // Quick background health probe to verify actual reachability
+              var controller = new AbortController();
+              var timeoutId = setTimeout(function() { controller.abort(); }, 3500);
+              fetch('/api/health?t=' + Date.now(), { method: 'GET', cache: 'no-store', signal: controller.signal })
+                .then(function(res) {
+                  clearTimeout(timeoutId);
+                  if (res.ok) {
+                    showOnline();
+                  } else {
+                    showOffline();
+                  }
+                })
+                .catch(function() {
+                  clearTimeout(timeoutId);
+                  showOffline();
+                });
+            }
+
+            window.addEventListener('online', function() {
+              showOnline();
+              window.location.reload();
+            });
+            window.addEventListener('offline', showOffline);
+            window.addEventListener('error', function() {
+              if (!navigator.onLine) {
+                showOffline();
+              }
+            }, true);
+          })();
+        </script>
+    </div>
 <script type="module" src="/index.tsx"></script>
 </body>
 </html>
