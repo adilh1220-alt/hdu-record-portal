@@ -293,6 +293,10 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
   const [formDuodenumFindings, setFormDuodenumFindings] = useState('');
   const [formDuodenum2ndPartFindings, setFormDuodenum2ndPartFindings] = useState('');
   const [formColonFindings, setFormColonFindings] = useState('');
+  const [formVocalCordsFindings, setFormVocalCordsFindings] = useState('');
+  const [formTracheaFindings, setFormTracheaFindings] = useState('');
+  const [formBronchialTreeFindings, setFormBronchialTreeFindings] = useState('');
+  const [formBalBiopsyFindings, setFormBalBiopsyFindings] = useState('');
   const [formRectumFindings, setFormRectumFindings] = useState('');
   const [formSigmoidColonFindings, setFormSigmoidColonFindings] = useState('');
   const [formTransverseColonFindings, setFormTransverseColonFindings] = useState('');
@@ -416,6 +420,10 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
       duodenumFindings: formDuodenumFindings,
       duodenum2ndPartFindings: formDuodenum2ndPartFindings,
       colonFindings: formColonFindings,
+      vocalCordsFindings: formVocalCordsFindings,
+      tracheaFindings: formTracheaFindings,
+      bronchialTreeFindings: formBronchialTreeFindings,
+      balBiopsyFindings: formBalBiopsyFindings,
       rectumFindings: formRectumFindings,
       sigmoidColonFindings: formSigmoidColonFindings,
       transverseColonFindings: formTransverseColonFindings,
@@ -548,6 +556,10 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
     setFormDuodenumFindings(draftToRestore.duodenumFindings || '');
     setFormDuodenum2ndPartFindings(draftToRestore.duodenum2ndPartFindings || '');
     setFormColonFindings(draftToRestore.colonFindings || '');
+    setFormVocalCordsFindings(draftToRestore.vocalCordsFindings || draftToRestore.esophagusFindings || '');
+    setFormTracheaFindings(draftToRestore.tracheaFindings || draftToRestore.stomachFindings || '');
+    setFormBronchialTreeFindings(draftToRestore.bronchialTreeFindings || draftToRestore.duodenumFindings || '');
+    setFormBalBiopsyFindings(draftToRestore.balBiopsyFindings || draftToRestore.colonFindings || '');
     setFormRectumFindings(draftToRestore.rectumFindings || '');
     setFormSigmoidColonFindings(draftToRestore.sigmoidColonFindings || '');
     setFormTransverseColonFindings(draftToRestore.transverseColonFindings || '');
@@ -601,6 +613,10 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
     setFormDuodenumFindings('');
     setFormDuodenum2ndPartFindings('');
     setFormColonFindings('');
+    setFormVocalCordsFindings('');
+    setFormTracheaFindings('');
+    setFormBronchialTreeFindings('');
+    setFormBalBiopsyFindings('');
     setFormRectumFindings('');
     setFormSigmoidColonFindings('');
     setFormTransverseColonFindings('');
@@ -695,6 +711,10 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
     let duodenumBulbText = '';
     let duodenum2ndPartText = '';
     let colonText = '';
+    let vocalCordsText = '';
+    let tracheaText = '';
+    let bronchialTreeText = '';
+    let balBiopsyText = '';
     let rectumText = '';
     let sigmoidColonText = '';
     let transverseColonText = '';
@@ -968,10 +988,10 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
       name = 'Normal Flexible Bronchoscopy';
       procedureName = "Flexible Bronchoscopy";
       indicationsText = "Unexplained cough, fever of unknown origin in immunocompromised patient, clearance of secretions.";
-      esophagusText = "Normal vocal cords with preserved bilateral mobility. Laryngeal anatomy is intact and normal. No mass or erythema.";
-      stomachText = "Trachea is patent without stenosis, compression, or tracheomalacia. Tracheal rings are well-defined. Main Carina is sharp, mobile, and normal.";
-      duodenumText = "Left and right bronchial trees visualized up to subsegmental levels. Mucosa is normal. No endobronchial lesions, active bleeding, or purulent secretions noted.";
-      colonText = "Bronchoalveolar lavage (BAL) performed in Right Middle Lobe (RML) for microbiology and cytology. Sent for analysis.";
+      vocalCordsText = "Normal vocal cords with preserved bilateral mobility. Laryngeal anatomy is intact and normal. No mass or erythema.";
+      tracheaText = "Trachea is patent without stenosis, compression, or tracheomalacia. Tracheal rings are well-defined. Main Carina is sharp, mobile, and normal.";
+      bronchialTreeText = "Left and right bronchial trees visualized up to subsegmental levels. Mucosa is normal. No endobronchial lesions, active bleeding, or purulent secretions noted.";
+      balBiopsyText = "Bronchoalveolar lavage (BAL) performed in Right Middle Lobe (RML) for microbiology and cytology. Sent for analysis.";
       generalFindings = "Uncomplicated flexible bronchoscopy. Normal laryngeal, tracheal, and bronchial anatomy.";
       diagnosisText = "Normal Flexible Bronchoscopy. BAL obtained.";
       recommendationsText = "Await BAL culture and cytology results. Resume diet when gag reflex returns. Follow-up as clinically indicated.";
@@ -982,10 +1002,10 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
       name = 'Flexible Bronchoscopy - Hemorrhage & BAL';
       procedureName = "Flexible Bronchoscopy";
       indicationsText = "Hemoptysis, diffuse alveolar infiltrates on chest CT, suspected Diffuse Alveolar Hemorrhage (DAH).";
-      esophagusText = "Normal laryngeal mucosa, vocal cords are mobile.";
-      stomachText = "Trachea is normal. Carina is mildly congested but sharp.";
-      duodenumText = "Bilateral bronchial trees show diffuse mucosal erythema and active bloody secretions originating from the Right Lower Lobe (RLL). No obstructing mass or foreign body seen.";
-      colonText = "Serial Bronchoalveolar lavage (BAL) performed in RLL showing progressive bloodier return across three sequential aliquots, confirming diffuse alveolar hemorrhage.";
+      vocalCordsText = "Normal laryngeal mucosa, vocal cords are mobile.";
+      tracheaText = "Trachea is normal. Carina is mildly congested but sharp.";
+      bronchialTreeText = "Bilateral bronchial trees show diffuse mucosal erythema and active bloody secretions originating from the Right Lower Lobe (RLL). No obstructing mass or foreign body seen.";
+      balBiopsyText = "Serial Bronchoalveolar lavage (BAL) performed in RLL showing progressive bloodier return across three sequential aliquots, confirming diffuse alveolar hemorrhage.";
       generalFindings = "Flexible bronchoscopy showed diffuse mucosal erythema with active bleeding in RLL and progressive bloodier return on serial BAL.";
       diagnosisText = "Diffuse Alveolar Hemorrhage (suspected), Mucosal Erythema.";
       recommendationsText = "Admit/continue HDU monitoring. Await BAL cultures, cytology, and autoimmune panel. Hold anticoagulation. Methylprednisolone therapy as clinically indicated.";
@@ -996,10 +1016,10 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
       name = 'Flexible Bronchoscopy - Obstructing Mass & Biopsy';
       procedureName = "Flexible Bronchoscopy";
       indicationsText = "Persistent right upper lobe atelectasis on chest X-ray, weight loss, chronic cough in a heavy smoker.";
-      esophagusText = "Normal larynx. Vocal cords are normal with symmetric respiratory movement.";
-      stomachText = "Trachea is patent. Main carina is widened and fixed, suggesting subcarinal adenopathy.";
-      duodenumText = "The left bronchial tree is completely clear and normal to the subsegmental level. In the right bronchial tree, there is an exophytic, irregular, friable, highly vascular mass partially obstructing (~80% luminal occlusion) the orifice of the Right Upper Lobe (RUL) bronchus. Endobronchial forcep biopsies (4 pieces) and bronchial brushings were performed. Mild post-biopsy bleeding controlled with local instillation of 1:20,000 cold adrenaline.";
-      colonText = "Bronchial washings were obtained from the right upper lobe for cytology and microbiology (acid-fast bacilli, cultures).";
+      vocalCordsText = "Normal larynx. Vocal cords are normal with symmetric respiratory movement.";
+      tracheaText = "Trachea is patent. Main carina is widened and fixed, suggesting subcarinal adenopathy.";
+      bronchialTreeText = "The left bronchial tree is completely clear and normal to the subsegmental level. In the right bronchial tree, there is an exophytic, irregular, friable, highly vascular mass partially obstructing (~80% luminal occlusion) the orifice of the Right Upper Lobe (RUL) bronchus. Endobronchial forcep biopsies (4 pieces) and bronchial brushings were performed. Mild post-biopsy bleeding controlled with local instillation of 1:20,000 cold adrenaline.";
+      balBiopsyText = "Bronchial washings were obtained from the right upper lobe for cytology and microbiology (acid-fast bacilli, cultures).";
       generalFindings = "Flexible bronchoscopy revealed an exophytic, partially obstructing mass at the right upper lobe bronchus orifice. Successful endobronchial biopsy, brushings, and washings performed with adequate hemostasis.";
       diagnosisText = "Right Upper Lobe Bronchus Mass, partial luminal obstruction, widened main carina.";
       recommendationsText = "Await histopathology, cytology, and brush results. Monitor for post-procedure hemoptysis or respiratory distress. Obtain chest CT with contrast if not already done. Referral to thoracic oncology/surgery pending pathology.";
@@ -1018,6 +1038,10 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
       setFormDuodenumFindings(duodenumBulbText || duodenumText);
       setFormDuodenum2ndPartFindings(duodenum2ndPartText);
       setFormColonFindings(colonText);
+      setFormVocalCordsFindings(vocalCordsText);
+      setFormTracheaFindings(tracheaText);
+      setFormBronchialTreeFindings(bronchialTreeText);
+      setFormBalBiopsyFindings(balBiopsyText);
       setFormRectumFindings(rectumText);
       setFormSigmoidColonFindings(sigmoidColonText);
       setFormTransverseColonFindings(transverseColonText);
@@ -1101,6 +1125,10 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
       setFormDuodenumFindings(draft?.duodenumFindings ?? (editingRecord.duodenumFindings || ''));
       setFormDuodenum2ndPartFindings(draft?.duodenum2ndPartFindings ?? (editingRecord.duodenum2ndPartFindings || ''));
       setFormColonFindings(draft?.colonFindings ?? (editingRecord.colonFindings || ''));
+      setFormVocalCordsFindings(draft?.vocalCordsFindings ?? (editingRecord.vocalCordsFindings || editingRecord.esophagusFindings || ''));
+      setFormTracheaFindings(draft?.tracheaFindings ?? (editingRecord.tracheaFindings || editingRecord.stomachFindings || ''));
+      setFormBronchialTreeFindings(draft?.bronchialTreeFindings ?? (editingRecord.bronchialTreeFindings || editingRecord.duodenumFindings || ''));
+      setFormBalBiopsyFindings(draft?.balBiopsyFindings ?? (editingRecord.balBiopsyFindings || editingRecord.colonFindings || ''));
       setFormRectumFindings(draft?.rectumFindings ?? (editingRecord.rectumFindings || ''));
       setFormSigmoidColonFindings(draft?.sigmoidColonFindings ?? (editingRecord.sigmoidColonFindings || ''));
       setFormTransverseColonFindings(draft?.transverseColonFindings ?? (editingRecord.transverseColonFindings || ''));
@@ -1144,6 +1172,10 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
       setFormDuodenumFindings('');
       setFormDuodenum2ndPartFindings('');
       setFormColonFindings('');
+      setFormVocalCordsFindings('');
+      setFormTracheaFindings('');
+      setFormBronchialTreeFindings('');
+      setFormBalBiopsyFindings('');
       setFormDiagnosis('');
       setFormRecommendations('');
       setFormIcdCodes('');
@@ -1175,7 +1207,8 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
     const hasContent = !!(
       formName || formRegNo || formDoctor || formProcedure || 
       formFindings || formEsophagusFindings || formStomachFindings || formAntrumFindings || 
-      formDuodenumFindings || formDuodenum2ndPartFindings || formColonFindings || formDiagnosis || 
+      formDuodenumFindings || formDuodenum2ndPartFindings || formColonFindings ||
+      formVocalCordsFindings || formTracheaFindings || formBronchialTreeFindings || formBalBiopsyFindings || formDiagnosis || 
       formIndications || formRecommendations || formProcedureTechnique ||
       formMedications || formInstruments ||
       formRectumFindings || formSigmoidColonFindings || formTransverseColonFindings ||
@@ -1217,6 +1250,10 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
           duodenumFindings: formDuodenumFindings,
           duodenum2ndPartFindings: formDuodenum2ndPartFindings,
           colonFindings: formColonFindings,
+          vocalCordsFindings: formVocalCordsFindings,
+          tracheaFindings: formTracheaFindings,
+          bronchialTreeFindings: formBronchialTreeFindings,
+          balBiopsyFindings: formBalBiopsyFindings,
           rectumFindings: formRectumFindings,
           sigmoidColonFindings: formSigmoidColonFindings,
           transverseColonFindings: formTransverseColonFindings,
@@ -1534,6 +1571,10 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
       duodenumFindings: formDuodenumFindings,
       duodenum2ndPartFindings: formDuodenum2ndPartFindings,
       colonFindings: formColonFindings,
+      vocalCordsFindings: formVocalCordsFindings,
+      tracheaFindings: formTracheaFindings,
+      bronchialTreeFindings: formBronchialTreeFindings,
+      balBiopsyFindings: formBalBiopsyFindings,
       diagnosis: formDiagnosis,
       recommendations: formRecommendations,
       icdCodes: formIcdCodes,
@@ -1916,6 +1957,10 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
         duodenumFindings: formDuodenumFindings,
         duodenum2ndPartFindings: formDuodenum2ndPartFindings,
         colonFindings: formColonFindings,
+        vocalCordsFindings: formVocalCordsFindings,
+        tracheaFindings: formTracheaFindings,
+        bronchialTreeFindings: formBronchialTreeFindings,
+        balBiopsyFindings: formBalBiopsyFindings,
         rectumFindings: formRectumFindings,
         sigmoidColonFindings: formSigmoidColonFindings,
         transverseColonFindings: formTransverseColonFindings,
@@ -2792,7 +2837,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
 
 
 
-                      {/* 1. Esophagus / Vocal Cords */}
+                      {/* 1. Esophagus (Upper GI) / Vocal Cords (Bronchoscopy) */}
                       <div className="space-y-3">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                           <span className="text-[11px] font-bold uppercase text-red-600 tracking-wider">
@@ -2803,18 +2848,26 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                               <>
                                 <button
                                   type="button"
-                                  onClick={() => setFormEsophagusFindings("Normal vocal cords with preserved bilateral mobility. Laryngeal anatomy is intact and normal. No mass or erythema.")}
+                                  onClick={() => setFormVocalCordsFindings("Normal vocal cords with preserved bilateral mobility. Laryngeal anatomy is intact and normal. No mass or erythema.")}
                                   className="text-[8px] bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
                                 >
                                   ✓ Normal Cords
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => setFormEsophagusFindings("Laryngeal mucosa is mildly hyperemic. Vocal cords are symmetric but show mildly restricted abduction on the left side. No vocal cord lesions.")}
+                                  onClick={() => setFormVocalCordsFindings("Laryngeal mucosa is mildly hyperemic. Vocal cords are symmetric but show mildly restricted abduction on the left side. No vocal cord lesions.")}
                                   className="text-[8px] bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
                                 >
                                   ⚠ Restricted Mobility
                                 </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setFormVocalCordsFindings("")}
+                                  className="text-[8px] bg-rose-50 text-rose-600 px-2.5 py-1 rounded font-bold uppercase tracking-wider hover:bg-rose-100 transition-all border border-rose-200 shadow-sm cursor-pointer"
+                                >
+                                  × Clear
+                                </button>
+                                <VoiceDictationButton context="dictation" onTranscript={(text) => setFormVocalCordsFindings(prev => prev ? `${prev} ${text}` : text)} />
                               </>
                             ) : (
                               <>
@@ -2832,28 +2885,28 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                                 >
                                   ⚠ Varices Template
                                 </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setFormEsophagusFindings("")}
+                                  className="text-[8px] bg-rose-50 text-rose-600 px-2.5 py-1 rounded font-bold uppercase tracking-wider hover:bg-rose-100 transition-all border border-rose-200 shadow-sm cursor-pointer"
+                                >
+                                  × Clear
+                                </button>
+                                <VoiceDictationButton context="dictation" onTranscript={(text) => setFormEsophagusFindings(prev => prev ? `${prev} ${text}` : text)} />
                               </>
                             )}
-                            <button
-                              type="button"
-                              onClick={() => setFormEsophagusFindings("")}
-                              className="text-[8px] bg-rose-50 text-rose-600 px-2.5 py-1 rounded font-bold uppercase tracking-wider hover:bg-rose-100 transition-all border border-rose-200 shadow-sm cursor-pointer"
-                            >
-                              × Clear
-                            </button>
-                            <VoiceDictationButton context="dictation" onTranscript={(text) => setFormEsophagusFindings(prev => prev ? `${prev} ${text}` : text)} />
                           </div>
                         </div>
                         <textarea
                           rows={3}
-                          value={formEsophagusFindings}
-                          onChange={(e) => setFormEsophagusFindings(e.target.value)}
+                          value={isBronchoscopy ? formVocalCordsFindings : formEsophagusFindings}
+                          onChange={(e) => isBronchoscopy ? setFormVocalCordsFindings(e.target.value) : setFormEsophagusFindings(e.target.value)}
                           placeholder={isBronchoscopy ? "Describe laryngeal mucosa, vocal cord appearance, mobility..." : "Describe Esophagus mucosa, varices, Z-line, lumen, motility..."}
                           className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 hover:border-slate-400 transition-all"
                         />
                       </div>
 
-                      {/* 2. Stomach / Trachea & Carina */}
+                      {/* 2. Stomach (Upper GI) / Trachea & Carina (Bronchoscopy) */}
                       <div className="space-y-3">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                           <span className="text-[11px] font-bold uppercase text-red-600 tracking-wider">
@@ -2864,18 +2917,26 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                               <>
                                 <button
                                   type="button"
-                                  onClick={() => setFormStomachFindings("Trachea is patent without stenosis, compression, or tracheomalacia. Tracheal rings are well-defined. Main Carina is sharp, mobile, and normal.")}
+                                  onClick={() => setFormTracheaFindings("Trachea is patent without stenosis, compression, or tracheomalacia. Tracheal rings are well-defined. Main Carina is sharp, mobile, and normal.")}
                                   className="text-[8px] bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
                                 >
                                   ✓ Normal Trachea
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => setFormStomachFindings("Tracheal mucosa is mildly congested with secretions. Main Carina is blunted and widened, suggesting extrinsic subcarinal adenopathy/compression.")}
+                                  onClick={() => setFormTracheaFindings("Tracheal mucosa is mildly congested with secretions. Main Carina is blunted and widened, suggesting extrinsic subcarinal adenopathy/compression.")}
                                   className="text-[8px] bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
                                 >
                                   ⚠ Blunted Carina
                                 </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setFormTracheaFindings("")}
+                                  className="text-[8px] bg-rose-50 text-rose-600 px-2.5 py-1 rounded font-bold uppercase tracking-wider hover:bg-rose-100 transition-all border border-rose-200 shadow-sm cursor-pointer"
+                                >
+                                  × Clear
+                                </button>
+                                <VoiceDictationButton context="dictation" onTranscript={(text) => setFormTracheaFindings(prev => prev ? `${prev} ${text}` : text)} />
                               </>
                             ) : (
                               <>
@@ -2893,22 +2954,22 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                                 >
                                   Gastritis Template
                                 </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setFormStomachFindings("")}
+                                  className="text-[8px] bg-rose-50 text-rose-600 px-2.5 py-1 rounded font-bold uppercase tracking-wider hover:bg-rose-100 transition-all border border-rose-200 shadow-sm cursor-pointer"
+                                >
+                                  × Clear
+                                </button>
+                                <VoiceDictationButton context="dictation" onTranscript={(text) => setFormStomachFindings(prev => prev ? `${prev} ${text}` : text)} />
                               </>
                             )}
-                            <button
-                              type="button"
-                              onClick={() => setFormStomachFindings("")}
-                              className="text-[8px] bg-rose-50 text-rose-600 px-2.5 py-1 rounded font-bold uppercase tracking-wider hover:bg-rose-100 transition-all border border-rose-200 shadow-sm cursor-pointer"
-                            >
-                              × Clear
-                            </button>
-                            <VoiceDictationButton context="dictation" onTranscript={(text) => setFormStomachFindings(prev => prev ? `${prev} ${text}` : text)} />
                           </div>
                         </div>
                         <textarea
                           rows={3}
-                          value={formStomachFindings}
-                          onChange={(e) => setFormStomachFindings(e.target.value)}
+                          value={isBronchoscopy ? formTracheaFindings : formStomachFindings}
+                          onChange={(e) => isBronchoscopy ? setFormTracheaFindings(e.target.value) : setFormStomachFindings(e.target.value)}
                           placeholder={isBronchoscopy ? "Describe tracheal patency, rings, stenosis, and carinal sharpness/mobility..." : "Describe Gastric Fundus, Body, mucosal congestion, ulcers..."}
                           className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 hover:border-slate-400 transition-all"
                         />
@@ -2963,7 +3024,7 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                         </div>
                       )}
 
-                      {/* 4. Duodenum / Bronchial Tree */}
+                      {/* 3. Bronchial Tree (Bronchoscopy) / 4. Duodenum Bulb (EGD) */}
                       <div className="space-y-3">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                           <span className="text-[11px] font-bold uppercase text-red-600 tracking-wider">
@@ -2974,18 +3035,26 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                               <>
                                 <button
                                   type="button"
-                                  onClick={() => setFormDuodenumFindings("Left and right bronchial trees visualized up to subsegmental levels. Mucosa is normal. No endobronchial lesions, active bleeding, or purulent secretions noted.")}
+                                  onClick={() => setFormBronchialTreeFindings("Left and right bronchial trees visualized up to subsegmental levels. Mucosa is normal. No endobronchial lesions, active bleeding, or purulent secretions noted.")}
                                   className="text-[8px] bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
                                 >
                                   ✓ Normal Bronchi
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => setFormDuodenumFindings("Bilateral bronchial trees show diffuse mucosal erythema with thick mucopurulent secretions originating from the right middle and lower lobes. Cleared with suction.")}
+                                  onClick={() => setFormBronchialTreeFindings("Bilateral bronchial trees show diffuse mucosal erythema with thick mucopurulent secretions originating from the right middle and lower lobes. Cleared with suction.")}
                                   className="text-[8px] bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
                                 >
                                   ⚠ Secretions Template
                                 </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setFormBronchialTreeFindings("")}
+                                  className="text-[8px] bg-rose-50 text-rose-600 px-2.5 py-1 rounded font-bold uppercase tracking-wider hover:bg-rose-100 transition-all border border-rose-200 shadow-sm cursor-pointer"
+                                >
+                                  × Clear
+                                </button>
+                                <VoiceDictationButton context="dictation" onTranscript={(text) => setFormBronchialTreeFindings(prev => prev ? `${prev} ${text}` : text)} />
                               </>
                             ) : (
                               <>
@@ -3003,22 +3072,22 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                                 >
                                   Bulb Ulcer
                                 </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setFormDuodenumFindings("")}
+                                  className="text-[8px] bg-rose-50 text-rose-600 px-2.5 py-1 rounded font-bold uppercase tracking-wider hover:bg-rose-100 transition-all border border-rose-200 shadow-sm cursor-pointer"
+                                >
+                                  × Clear
+                                </button>
+                                <VoiceDictationButton context="dictation" onTranscript={(text) => setFormDuodenumFindings(prev => prev ? `${prev} ${text}` : text)} />
                               </>
                             )}
-                            <button
-                              type="button"
-                              onClick={() => setFormDuodenumFindings("")}
-                              className="text-[8px] bg-rose-50 text-rose-600 px-2.5 py-1 rounded font-bold uppercase tracking-wider hover:bg-rose-100 transition-all border border-rose-200 shadow-sm cursor-pointer"
-                            >
-                              × Clear
-                            </button>
-                            <VoiceDictationButton context="dictation" onTranscript={(text) => setFormDuodenumFindings(prev => prev ? `${prev} ${text}` : text)} />
                           </div>
                         </div>
                         <textarea
                           rows={3}
-                          value={formDuodenumFindings}
-                          onChange={(e) => setFormDuodenumFindings(e.target.value)}
+                          value={isBronchoscopy ? formBronchialTreeFindings : formDuodenumFindings}
+                          onChange={(e) => isBronchoscopy ? setFormBronchialTreeFindings(e.target.value) : setFormDuodenumFindings(e.target.value)}
                           placeholder={isBronchoscopy ? "Describe left and right main bronchi, lobar divisions, segmental openings, secretions..." : "Describe duodenal bulb mucosa, ulcers, bleeding, deformity..."}
                           className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 hover:border-slate-400 transition-all"
                         />
@@ -3076,32 +3145,32 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
                             <div className="flex flex-wrap gap-1.5">
                               <button
                                 type="button"
-                                onClick={() => setFormColonFindings("Bronchoalveolar lavage (BAL) performed in the Right Middle Lobe (RML) using 100ml of sterile saline. Return was cloudy but clear of gross blood, with ~60% recovery. Sent for analysis.")}
+                                onClick={() => setFormBalBiopsyFindings("Bronchoalveolar lavage (BAL) performed in the Right Middle Lobe (RML) using 100ml of sterile saline. Return was cloudy but clear of gross blood, with ~60% recovery. Sent for analysis.")}
                                 className="text-[8px] bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
                               >
                                 ✓ BAL RML Normal
                               </button>
                               <button
                                 type="button"
-                                onClick={() => setFormColonFindings("Serial Bronchoalveolar lavage (BAL) performed in the Right Lower Lobe (RLL). Return was progressively more bloody across three sequential aliquots, consistent with Diffuse Alveolar Hemorrhage.")}
+                                onClick={() => setFormBalBiopsyFindings("Serial Bronchoalveolar lavage (BAL) performed in the Right Lower Lobe (RLL). Return was progressively more bloody across three sequential aliquots, consistent with Diffuse Alveolar Hemorrhage.")}
                                 className="text-[8px] bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-2.5 py-1 rounded font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
                               >
                                 ⚠ Alveolar Hemorrhage
                               </button>
                               <button
                                 type="button"
-                                onClick={() => setFormColonFindings("")}
+                                onClick={() => setFormBalBiopsyFindings("")}
                                 className="text-[8px] bg-rose-50 text-rose-600 px-2.5 py-1 rounded font-bold uppercase tracking-wider hover:bg-rose-100 transition-all border border-rose-200 shadow-sm cursor-pointer"
                               >
                                 × Clear
                               </button>
-                              <VoiceDictationButton context="dictation" onTranscript={(text) => setFormColonFindings(prev => prev ? `${prev} ${text}` : text)} />
+                              <VoiceDictationButton context="dictation" onTranscript={(text) => setFormBalBiopsyFindings(prev => prev ? `${prev} ${text}` : text)} />
                             </div>
                           </div>
                           <textarea
                             rows={3}
-                            value={formColonFindings}
-                            onChange={(e) => setFormColonFindings(e.target.value)}
+                            value={formBalBiopsyFindings}
+                            onChange={(e) => setFormBalBiopsyFindings(e.target.value)}
                             placeholder="Describe BAL location, volume, appearance of return, or any endobronchial biopsy sites..."
                             className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 hover:border-slate-400 transition-all"
                           />
@@ -5202,6 +5271,10 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
               formDuodenumFindings={formDuodenumFindings}
               formDuodenum2ndPartFindings={formDuodenum2ndPartFindings}
               formColonFindings={formColonFindings}
+              formVocalCordsFindings={formVocalCordsFindings}
+              formTracheaFindings={formTracheaFindings}
+              formBronchialTreeFindings={formBronchialTreeFindings}
+              formBalBiopsyFindings={formBalBiopsyFindings}
               formFindings={formFindings}
               formRectumFindings={formRectumFindings}
               formSigmoidColonFindings={formSigmoidColonFindings}

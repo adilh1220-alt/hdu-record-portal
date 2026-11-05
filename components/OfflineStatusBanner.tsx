@@ -11,6 +11,7 @@ export const OfflineStatusBanner: React.FC = () => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [isTestingLink, setIsTestingLink] = useState(false);
   const [showDraftModal, setShowDraftModal] = useState(false);
+  const [isDismissed, setIsDismissed] = useState(false);
   const [selectedDraft, setSelectedDraft] = useState<OfflineDraft | null>(null);
   const { toast } = useToast();
 
@@ -19,6 +20,9 @@ export const OfflineStatusBanner: React.FC = () => {
     const unsubscribeStatus = offlineService.onStatusChange((status, info) => {
       setNetworkStatus(status);
       if (info) setStatusInfo(info);
+      if (status === 'online') {
+        setIsDismissed(false);
+      }
     });
 
     const unsubscribeQuality = offlineService.onQualityChange((metrics) => {
@@ -117,8 +121,8 @@ export const OfflineStatusBanner: React.FC = () => {
     toast.info('Draft Removed', 'Offline draft permanently removed.');
   };
 
-  // Do not display banner if online and no pending drafts
-  if (networkStatus === 'online' && pendingDrafts.length === 0) {
+  // Do not display banner if online and no pending drafts, or if dismissed
+  if ((networkStatus === 'online' && pendingDrafts.length === 0) || isDismissed) {
     return null;
   }
 
@@ -203,6 +207,14 @@ export const OfflineStatusBanner: React.FC = () => {
             className="p-1.5 rounded hover:bg-slate-800/80 text-slate-400 hover:text-slate-200 transition-colors disabled:opacity-50 cursor-pointer"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isTestingLink ? 'animate-spin' : ''}`} />
+          </button>
+
+          <button
+            onClick={() => setIsDismissed(true)}
+            title="Dismiss banner"
+            className="p-1.5 rounded hover:bg-slate-800/80 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer ml-1"
+          >
+            <X className="w-4 h-4" />
           </button>
         </div>
       </div>

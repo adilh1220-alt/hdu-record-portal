@@ -273,31 +273,57 @@ class OfflineService {
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4500);
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
 
     let probeSuccess = false;
     let latencyMs = 0;
     let httpStatus = 0;
 
+    const startTime = Date.now();
     try {
-      const startTime = Date.now();
       const response = await fetch(`/api/health?t=${Date.now()}`, {
         method: 'GET',
         signal: controller.signal,
         cache: 'no-store'
       });
-      clearTimeout(timeoutId);
       latencyMs = Date.now() - startTime;
       httpStatus = response.status;
-      probeSuccess = response.ok;
+      probeSuccess = response.ok || response.status === 200 || response.status === 304;
     } catch (err: any) {
-      clearTimeout(timeoutId);
       probeSuccess = false;
-      latencyMs = 4500;
     }
+
+    // Secondary fallback probe if primary failed but browser is online
+    if (!probeSuccess && navigator.onLine) {
+      try {
+        const fallbackRes = await fetch(`/favicon.svg?t=${Date.now()}`, {
+          method: 'GET',
+          signal: controller.signal,
+          cache: 'no-store'
+        });
+        latencyMs = Date.now() - startTime;
+        httpStatus = fallbackRes.status;
+        probeSuccess = fallbackRes.ok || fallbackRes.status === 200 || fallbackRes.status === 304;
+      } catch (e) {
+        probeSuccess = false;
+      }
+    }
+
+    clearTimeout(timeoutId);
 
     // Record probe into sliding window observer
     const metrics = this.qualityObserver.recordProbe(latencyMs, probeSuccess, httpStatus);
+
+    // If browser is online and probe succeeded (or browser reports online with high-speed connection), force online status
+    if (navigator.onLine && (probeSuccess || metrics.isHighSpeed)) {
+      metrics.consecutiveFailures = 0;
+      metrics.unstableReason = undefined;
+      if (this.networkStatus !== 'online') {
+        this.setNetworkStatus('online', 'Connection online & verified.');
+        this.syncPendingDrafts();
+      }
+      return 'online';
+    }
 
     // 1. Offline Verification: If browser reports offline or 4+ consecutive failed probes
     if (!navigator.onLine || metrics.consecutiveFailures >= 4) {
@@ -306,21 +332,19 @@ class OfflineService {
     }
 
     // 2. High-Speed Connections (5G, 4G LTE, High-Speed Wi-Fi):
-    // SUPPRESS "Connection Unstable" false warnings for high-speed connections!
-    // Only flag 'unstable' if genuine packet loss or extreme jitter is detected.
     if (metrics.isHighSpeed) {
-      const hasPacketLoss = metrics.consecutiveFailures >= 2 || (metrics.samplesCount >= 4 && metrics.packetLossRate >= 0.4);
-      const hasExtremeJitter = metrics.jitterMs > 1500 && latencyMs > 2500 && metrics.samplesCount >= 3;
+      const hasPacketLoss = metrics.consecutiveFailures >= 3 || (metrics.samplesCount >= 4 && metrics.packetLossRate >= 0.5);
+      const hasExtremeJitter = metrics.jitterMs > 2000 && latencyMs > 3000 && metrics.samplesCount >= 3;
 
       if (hasPacketLoss) {
-        const info = `Packet loss detected (${Math.round(metrics.packetLossRate * 100)}% loss, ${metrics.consecutiveFailures} drops). Drafts saving locally.`;
+        const info = `Packet loss detected (${Math.round(metrics.packetLossRate * 100)}% loss). Form edits saving to local draft protection.`;
         metrics.unstableReason = info;
         this.setNetworkStatus('unstable', info);
         return 'unstable';
       }
 
       if (hasExtremeJitter) {
-        const info = `Extreme connection jitter (±${metrics.jitterMs}ms variation). Drafts saving locally.`;
+        const info = `Extreme connection jitter (±${metrics.jitterMs}ms variation). Form edits saving to local draft protection.`;
         metrics.unstableReason = info;
         this.setNetworkStatus('unstable', info);
         return 'unstable';
@@ -335,27 +359,12 @@ class OfflineService {
       return 'online';
     }
 
-    // 3. Standard / Lower Speed / Unknown Connections (2G/3G or legacy):
-    const hasPacketLoss = metrics.consecutiveFailures >= 2 || (metrics.samplesCount >= 3 && metrics.packetLossRate >= 0.33);
-    const hasExtremeJitter = metrics.jitterMs > 1200 && latencyMs > 3000 && metrics.samplesCount >= 3;
-    const hasSevereLatency = metrics.averageLatencyMs > 6000 && metrics.samplesCount >= 3;
+    // 3. Standard / Lower Speed Connections:
+    const hasPacketLoss = metrics.consecutiveFailures >= 3 || (metrics.samplesCount >= 3 && metrics.packetLossRate >= 0.5);
+    const hasSevereLatency = metrics.averageLatencyMs > 8000 && metrics.samplesCount >= 3;
 
-    if (hasPacketLoss) {
-      const info = `Packet loss detected (${Math.round(metrics.packetLossRate * 100)}% packet loss).`;
-      metrics.unstableReason = info;
-      this.setNetworkStatus('unstable', info);
-      return 'unstable';
-    }
-
-    if (hasExtremeJitter) {
-      const info = `Elevated network jitter (±${metrics.jitterMs}ms).`;
-      metrics.unstableReason = info;
-      this.setNetworkStatus('unstable', info);
-      return 'unstable';
-    }
-
-    if (hasSevereLatency) {
-      const info = `Sustained high network latency (avg ${metrics.averageLatencyMs}ms).`;
+    if (hasPacketLoss || hasSevereLatency) {
+      const info = `Network latency or packet loss detected. Form edits saving locally.`;
       metrics.unstableReason = info;
       this.setNetworkStatus('unstable', info);
       return 'unstable';

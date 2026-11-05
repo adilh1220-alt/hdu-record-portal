@@ -33,6 +33,10 @@ export interface EndoscopyReportPreviewSheetProps {
   formDescendingColonFindings: string;
   formAscendingColonFindings: string;
   formCaecumFindings: string;
+  formVocalCordsFindings?: string;
+  formTracheaFindings?: string;
+  formBronchialTreeFindings?: string;
+  formBalBiopsyFindings?: string;
   formDiagnosis: string;
   formRecommendations: string;
   formImages: Array<{ id: string; url: string; title: string }>;
@@ -72,6 +76,10 @@ export const EndoscopyReportPreviewSheet: React.FC<EndoscopyReportPreviewSheetPr
   formDescendingColonFindings,
   formAscendingColonFindings,
   formCaecumFindings,
+  formVocalCordsFindings,
+  formTracheaFindings,
+  formBronchialTreeFindings,
+  formBalBiopsyFindings,
   formDiagnosis,
   formRecommendations,
   formImages,
@@ -423,7 +431,7 @@ export const EndoscopyReportPreviewSheet: React.FC<EndoscopyReportPreviewSheetPr
                 <div className={`transition-all ${isCompactView ? 'space-y-1.5' : 'space-y-3'}`}>
                   {isBronchoscopy ? (
                     <>
-                      {formEsophagusFindings && (
+                      {(formVocalCordsFindings || formEsophagusFindings) && (
                         <div className="leading-normal">
                           <span
                             className={`font-extrabold text-slate-950 block uppercase tracking-wide transition-all ${
@@ -437,11 +445,11 @@ export const EndoscopyReportPreviewSheet: React.FC<EndoscopyReportPreviewSheetPr
                               isCompactView ? 'text-[9.5px] pl-0.5' : 'text-xs pl-1'
                             }`}
                           >
-                            {formEsophagusFindings}
+                            {formVocalCordsFindings || formEsophagusFindings}
                           </p>
                         </div>
                       )}
-                      {formStomachFindings && (
+                      {(formTracheaFindings || formStomachFindings) && (
                         <div className="leading-normal">
                           <span
                             className={`font-extrabold text-slate-950 block uppercase tracking-wide transition-all ${
@@ -455,11 +463,11 @@ export const EndoscopyReportPreviewSheet: React.FC<EndoscopyReportPreviewSheetPr
                               isCompactView ? 'text-[9.5px] pl-0.5' : 'text-xs pl-1'
                             }`}
                           >
-                            {formStomachFindings}
+                            {formTracheaFindings || formStomachFindings}
                           </p>
                         </div>
                       )}
-                      {formDuodenumFindings && (
+                      {(formBronchialTreeFindings || formDuodenumFindings) && (
                         <div className="leading-normal">
                           <span
                             className={`font-extrabold text-slate-950 block uppercase tracking-wide transition-all ${
@@ -473,11 +481,11 @@ export const EndoscopyReportPreviewSheet: React.FC<EndoscopyReportPreviewSheetPr
                               isCompactView ? 'text-[9.5px] pl-0.5' : 'text-xs pl-1'
                             }`}
                           >
-                            {formDuodenumFindings}
+                            {formBronchialTreeFindings || formDuodenumFindings}
                           </p>
                         </div>
                       )}
-                      {formColonFindings && (
+                      {(formBalBiopsyFindings || formColonFindings) && (
                         <div className="leading-normal">
                           <span
                             className={`font-extrabold text-slate-950 block uppercase tracking-wide transition-all ${
@@ -491,7 +499,7 @@ export const EndoscopyReportPreviewSheet: React.FC<EndoscopyReportPreviewSheetPr
                               isCompactView ? 'text-[9.5px] pl-0.5' : 'text-xs pl-1'
                             }`}
                           >
-                            {formColonFindings}
+                            {formBalBiopsyFindings || formColonFindings}
                           </p>
                         </div>
                       )}
@@ -513,9 +521,14 @@ export const EndoscopyReportPreviewSheet: React.FC<EndoscopyReportPreviewSheetPr
                           </p>
                         </div>
                       )}
-                      {!formEsophagusFindings &&
+                      {!formVocalCordsFindings &&
+                        !formTracheaFindings &&
+                        !formBronchialTreeFindings &&
+                        !formBalBiopsyFindings &&
+                        !formEsophagusFindings &&
                         !formStomachFindings &&
                         !formDuodenumFindings &&
+                        !formColonFindings &&
                         !formFindings && (
                           <p className={`text-slate-400 italic ${isCompactView ? 'text-[9px]' : 'text-xs'}`}>
                             No detailed findings recorded.

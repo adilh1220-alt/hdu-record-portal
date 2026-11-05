@@ -146,6 +146,10 @@ export interface EndoscopyRecord {
   descendingColonFindings?: string;
   ascendingColonFindings?: string;
   caecumFindings?: string;
+  vocalCordsFindings?: string;
+  tracheaFindings?: string;
+  bronchialTreeFindings?: string;
+  balBiopsyFindings?: string;
   diagnosis?: string;
   recommendations?: string;
   icdCodes?: string;

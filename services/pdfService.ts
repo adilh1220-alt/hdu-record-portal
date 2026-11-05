@@ -1749,10 +1749,17 @@ export const generateSingleEndoscopyReportPDFDoc = async (record: EndoscopyRecor
   const isColonoscopy = record.procedure?.toLowerCase().includes("colonoscopy") || record.procedure?.toLowerCase().includes("colon");
 
   if (isBronchoscopy) {
-    if (record.esophagusFindings) findingsText += `VOCAL CORDS & LARYNX:\n${record.esophagusFindings}\n\n`;
-    if (record.stomachFindings) findingsText += `TRACHEA & CARINA:\n${record.stomachFindings}\n\n`;
-    if (record.duodenumFindings) findingsText += `BRONCHIAL TREE (MAIN & SEGMENTAL):\n${record.duodenumFindings}\n\n`;
-    if (record.colonFindings) findingsText += `BAL & BIOPSY FINDINGS:\n${record.colonFindings}\n\n`;
+    const vc = record.vocalCordsFindings || record.esophagusFindings;
+    const tr = record.tracheaFindings || record.stomachFindings;
+    const bt = record.bronchialTreeFindings || record.duodenumFindings;
+    const bal = record.balBiopsyFindings || record.colonFindings;
+    if (vc) findingsText += `VOCAL CORDS & LARYNX:\n${vc}\n\n`;
+    if (tr) findingsText += `TRACHEA & CARINA:\n${tr}\n\n`;
+    if (bt) findingsText += `BRONCHIAL TREE (MAIN & SEGMENTAL):\n${bt}\n\n`;
+    if (bal) findingsText += `BAL & BIOPSY FINDINGS:\n${bal}\n\n`;
+    if (!findingsText.trim()) {
+      findingsText = record.findings || "No detailed findings recorded.";
+    }
   } else if (isColonoscopy) {
     if (record.rectumFindings) findingsText += `RECTUM:\n${record.rectumFindings}\n\n`;
     if (record.sigmoidColonFindings) findingsText += `SIGMOID COLON:\n${record.sigmoidColonFindings}\n\n`;
