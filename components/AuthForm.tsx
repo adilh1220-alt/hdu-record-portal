@@ -274,7 +274,7 @@ const AuthForm: React.FC = () => {
                   </button>
                 </div>
                 <p className="text-[10px] font-semibold text-amber-700 mt-0.5 leading-relaxed">
-                  You were automatically signed out after 15 minutes of inactivity for compliance and patient-data security.
+                  You were automatically signed out after 1 hour of inactivity for compliance and patient-data security.
                 </p>
               </div>
             </div>

@@ -2,9 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import Modal from './Modal';
 
-// 14 minutes before warning (840,000 ms)
-const IDLE_LIMIT = 14 * 60 * 1000;
-// 60 seconds warning duration (totaling 15 minutes / 900,000 ms)
+// 59 minutes before warning (3,540,000 ms)
+const IDLE_LIMIT = 59 * 60 * 1000;
+// 60 seconds warning duration (totaling 60 minutes / 1 hour)
 const WARNING_DURATION = 60;
 
 export const IdleTimer: React.FC = () => {
