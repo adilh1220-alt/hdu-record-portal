@@ -220,8 +220,12 @@ export const generateKidneyCentreLogoBase64 = (): string => {
 
 export interface LogoSettings {
   useCustomLogo: boolean;
+  useCustomLogoForPDF: boolean;
+  useCustomLogoForSidebar: boolean;
+  sidebarLogoMode: 'default' | 'custom' | 'none';
   customLogoDataUrl: string | null;
   customLogoBase64?: string;
+  customSidebarLogoBase64?: string;
   logoUrl?: string;
   updatedAt?: number;
   widthMm: number;
@@ -239,8 +243,12 @@ export interface LogoSettings {
 
 export const DEFAULT_LOGO_SETTINGS: LogoSettings = {
   useCustomLogo: false,
+  useCustomLogoForPDF: true,
+  useCustomLogoForSidebar: false,
+  sidebarLogoMode: 'default',
   customLogoDataUrl: null,
   customLogoBase64: '',
+  customSidebarLogoBase64: '',
   logoUrl: '',
   updatedAt: Date.now(),
   widthMm: 68,
@@ -261,7 +269,14 @@ export const getLogoSettings = (): LogoSettings => {
   try {
     const saved = localStorage.getItem('hdu_logo_settings');
     if (saved) {
-      return { ...DEFAULT_LOGO_SETTINGS, ...JSON.parse(saved) };
+      const parsed = JSON.parse(saved);
+      return {
+        ...DEFAULT_LOGO_SETTINGS,
+        ...parsed,
+        useCustomLogoForPDF: parsed.useCustomLogoForPDF !== undefined ? parsed.useCustomLogoForPDF : true,
+        useCustomLogoForSidebar: parsed.useCustomLogoForSidebar !== undefined ? parsed.useCustomLogoForSidebar : false,
+        sidebarLogoMode: parsed.sidebarLogoMode || (parsed.useCustomLogoForSidebar ? 'custom' : 'default')
+      };
     }
   } catch (e) {
     console.error('Error loading logo settings:', e);
@@ -319,11 +334,27 @@ if (typeof window !== 'undefined') {
   }, 1000);
 }
 
+/** Returns the active logo Base64 image for PDF reports */
 export const getEffectiveLogoBase64 = (): string => {
   const settings = getLogoSettings();
+  const useCustomPDF = settings.useCustomLogoForPDF !== undefined ? settings.useCustomLogoForPDF : (settings.useCustomLogo ?? true);
   const custom = settings.customLogoBase64 || settings.customLogoDataUrl || settings.logoUrl;
-  if (custom) {
+  if (useCustomPDF && custom) {
     return custom;
+  }
+  return generateKidneyCentreLogoBase64();
+};
+
+/** Returns the active logo Base64 image specifically for the Sidebar Header */
+export const getSidebarLogoBase64 = (): string => {
+  const settings = getLogoSettings();
+  const mode = settings.sidebarLogoMode || (settings.useCustomLogoForSidebar ? 'custom' : 'default');
+  if (mode === 'none') {
+    return '';
+  }
+  if (mode === 'custom') {
+    const custom = settings.customSidebarLogoBase64 || settings.customLogoBase64 || settings.customLogoDataUrl || settings.logoUrl;
+    if (custom) return custom;
   }
   return generateKidneyCentreLogoBase64();
 };

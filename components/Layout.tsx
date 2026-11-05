@@ -19,7 +19,7 @@ import { BreadcrumbNav } from './BreadcrumbNav';
 import { InstallAppBanner } from './InstallAppBanner';
 import { db } from '../services/firebaseConfig';
 import { onSnapshotsInSync } from 'firebase/firestore';
-import { getEffectiveLogoBase64, getLogoSettings, saveLogoSettings, getLogoUrlWithCacheBust } from '../services/pdfService';
+import { getEffectiveLogoBase64, getSidebarLogoBase64, getLogoSettings, saveLogoSettings, getLogoUrlWithCacheBust } from '../services/pdfService';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -51,19 +51,19 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, onPr
   const [sidebarLogoWidth, setSidebarLogoWidth] = useState<number>(() => getLogoSettings().sidebarLogoWidthPx || 40);
 
   React.useEffect(() => {
-    setSidebarLogo(getEffectiveLogoBase64());
+    setSidebarLogo(getSidebarLogoBase64());
     setSidebarLogoWidth(getLogoSettings().sidebarLogoWidthPx || 40);
 
-    let previousLogo = getEffectiveLogoBase64();
+    let previousLogo = getSidebarLogoBase64();
 
     const handleLogoChange = () => {
-      const currentLogo = getEffectiveLogoBase64();
+      const currentLogo = getSidebarLogoBase64();
       setSidebarLogo(currentLogo);
       setSidebarLogoWidth(getLogoSettings().sidebarLogoWidthPx || 40);
 
       if (currentLogo !== previousLogo) {
         previousLogo = currentLogo;
-        toast.success('Hospital logo uploaded and applied successfully across all reports & sidebar!', 'Logo Uploaded');
+        toast.success('Branding logo settings updated successfully!', 'Branding Updated');
       }
     };
     window.addEventListener('hdu_logo_settings_changed', handleLogoChange);
