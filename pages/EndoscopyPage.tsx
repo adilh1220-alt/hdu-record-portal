@@ -1268,10 +1268,13 @@ const EndoscopyPage: React.FC<EndoscopyPageProps> = ({
           activeTemplateId: activeTemplateId
         };
 
-        if (editingRecord) {
-          localStorage.setItem(`hdu_draft_endoscopy_${activeUnit}_edit_${editingRecord.id}`, JSON.stringify(data));
-        } else {
-          localStorage.setItem(`hdu_draft_endoscopy_${activeUnit}`, JSON.stringify(data));
+        const key = editingRecord ? `hdu_draft_endoscopy_${activeUnit}_edit_${editingRecord.id}` : `hdu_draft_endoscopy_${activeUnit}`;
+        try {
+          localStorage.setItem(key, JSON.stringify(data));
+        } catch (storageErr) {
+          console.warn("Quota exceeded while saving draft with images, falling back to text-first draft:", storageErr);
+          const textOnlyData = { ...data, images: [] };
+          localStorage.setItem(key, JSON.stringify(textOnlyData));
         }
         
         setLastSavedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));

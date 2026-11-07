@@ -56,6 +56,7 @@ import {
   MessageCircle,
   Clock
 } from 'lucide-react';
+import { trayStorageService } from '../services/trayStorageService';
 
 export interface SessionCapture {
   id: string;
@@ -224,6 +225,48 @@ export const CameraView: React.FC<CameraViewProps> = ({
   const folderInputRef = useRef<HTMLInputElement | null>(null);
   const [isConnecting, setIsConnecting] = useState<boolean>(false);
 
+  // Load 24h persistent captures & videos from IndexedDB storage on mount
+  useEffect(() => {
+    let isMounted = true;
+    async function loadPersistedTrayMedia() {
+      try {
+        const validCaptures = await trayStorageService.getValidCaptures();
+        const validVideos = await trayStorageService.getValidVideos();
+        if (!isMounted) return;
+
+        if (validCaptures.length > 0) {
+          const restoredCaptures: SessionCapture[] = validCaptures.map(c => ({
+            id: c.id,
+            base64: c.base64,
+            title: c.title,
+            timestamp: new Date(c.timestamp),
+            isAddedToReport: c.isAddedToReport || false,
+          }));
+          setSessionCaptures(restoredCaptures);
+        }
+
+        if (validVideos.length > 0) {
+          const restoredVideos: SessionVideoRecord[] = validVideos.map(v => ({
+            id: v.id,
+            url: URL.createObjectURL(v.blob),
+            blob: v.blob,
+            filename: v.filename,
+            durationSeconds: v.durationSeconds,
+            sizeBytes: v.sizeBytes,
+            timestamp: new Date(v.timestamp),
+            mimeType: v.mimeType,
+            title: v.title
+          }));
+          setRecordedVideos(restoredVideos);
+        }
+      } catch (err) {
+        console.warn('[CameraView] Error restoring tray media from IndexedDB:', err);
+      }
+    }
+    loadPersistedTrayMedia();
+    return () => { isMounted = false; };
+  }, []);
+
   const handleVisionFitChange = (fit: 'fit' | 'fill' | 'scope') => {
     setVisionFit(fit);
     try {
@@ -306,6 +349,14 @@ export const CameraView: React.FC<CameraViewProps> = ({
             isAddedToReport: false
           };
           setSessionCaptures(prev => [newCapture, ...prev].slice(0, 50));
+          trayStorageService.saveCapture({
+            id: newCapture.id,
+            base64: newCapture.base64,
+            title: newCapture.title,
+            timestamp: newCapture.timestamp,
+            isAddedToReport: false,
+            patientRegNo
+          });
           setCapturedFeedback(`Imported: ${file.name} to Tray below`);
           setTimeout(() => setCapturedFeedback(null), 3000);
         }
@@ -536,6 +587,14 @@ export const CameraView: React.FC<CameraViewProps> = ({
       timestamp: new Date()
     };
     setSessionCaptures(prev => [newCapture, ...prev].slice(0, 10));
+    trayStorageService.saveCapture({
+      id: newCapture.id,
+      base64: newCapture.base64,
+      title: newCapture.title,
+      timestamp: newCapture.timestamp,
+      isAddedToReport: false,
+      patientRegNo
+    });
   };
 
   // Download all session captures
@@ -561,6 +620,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
     onCapture(cap.base64, cap.title);
 
     setSessionCaptures(prev => prev.map(item => item.id === cap.id ? { ...item, isAddedToReport: true } : item));
+    trayStorageService.updateCapture(cap.id, { isAddedToReport: true });
     setCapturedFeedback(`Attached to Report: ${cap.title}`);
     setTimeout(() => setCapturedFeedback(null), 2500);
   };
@@ -568,6 +628,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
   // Remove individual snapshot from the video captures tray (TVR style removal)
   const handleRemoveFromTray = (captureId: string) => {
     setSessionCaptures(prev => prev.filter(c => c.id !== captureId));
+    trayStorageService.removeCapture(captureId);
     setCapturedFeedback("Snapshot removed from video tray");
     setTimeout(() => setCapturedFeedback(null), 2000);
   };
@@ -590,6 +651,8 @@ export const CameraView: React.FC<CameraViewProps> = ({
     const count = sessionCaptures.length;
     setSessionCaptures([]);
     setConfirmClearTray(false);
+    trayStorageService.clearAllCaptures();
+    trayStorageService.clearAllVideos();
     setCapturedFeedback(`Cleared all ${count} snapshots from tray`);
     setTimeout(() => setCapturedFeedback(null), 2500);
   };
@@ -622,6 +685,14 @@ export const CameraView: React.FC<CameraViewProps> = ({
     };
 
     setSessionCaptures(prev => [newCapture, ...prev].slice(0, 50));
+    trayStorageService.saveCapture({
+      id: newCapture.id,
+      base64: newCapture.base64,
+      title: newCapture.title,
+      timestamp: newCapture.timestamp,
+      isAddedToReport: false,
+      patientRegNo
+    });
 
     if (openMarkup || autoAnnotate) {
       openAnnotator(base64, titleToUse, captureId);
@@ -800,6 +871,16 @@ export const CameraView: React.FC<CameraViewProps> = ({
         };
 
         setRecordedVideos(prev => [newVideoRecord, ...prev]);
+        trayStorageService.saveVideo({
+          id: newVideoRecord.id,
+          blob,
+          filename,
+          durationSeconds: recordingDuration,
+          sizeBytes: blob.size,
+          timestamp: newVideoRecord.timestamp,
+          mimeType: actualMime,
+          title: newVideoRecord.title
+        });
         setActiveVideoModal(newVideoRecord);
         setCapturedFeedback(`Video recorded (${formatDuration(recordingDuration)})! Ready to WhatsApp or download.`);
         setTimeout(() => setCapturedFeedback(null), 3500);
@@ -920,6 +1001,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
       try { URL.revokeObjectURL(vid.url); } catch (e) {}
     }
     setRecordedVideos(prev => prev.filter(v => v.id !== videoId));
+    trayStorageService.removeVideo(videoId);
     if (activeVideoModal?.id === videoId) {
       setActiveVideoModal(null);
     }
@@ -1449,6 +1531,15 @@ export const CameraView: React.FC<CameraViewProps> = ({
         return prev.map(c => c.id === targetId ? newCapture : c);
       }
       return [newCapture, ...prev].slice(0, 50);
+    });
+
+    trayStorageService.saveCapture({
+      id: targetId,
+      base64: finalBase64,
+      title: titleToUse,
+      timestamp: newCapture.timestamp,
+      isAddedToReport: addToReport && currentImageCount < 4,
+      patientRegNo
     });
 
     if (addToReport) {
@@ -2233,6 +2324,12 @@ export const CameraView: React.FC<CameraViewProps> = ({
             <div className="flex items-center space-x-2 flex-wrap gap-1.5">
               <div className="flex items-center space-x-1.5" title="Captures & Videos Tray">
                 <ImageIcon className="w-3.5 h-3.5 text-indigo-400" />
+              </div>
+
+              {/* 24h Storage Persistence Indicator */}
+              <div className="flex items-center space-x-1 px-2 py-0.5 bg-indigo-950/60 border border-indigo-500/30 rounded-md text-[9px] text-indigo-300 font-semibold" title="Snapshots stay saved in IndexedDB storage for 24 hours even if browser is refreshed">
+                <Clock className="w-2.5 h-2.5 text-indigo-400 shrink-0" />
+                <span>24h Auto-Retained</span>
               </div>
 
               {/* Tray Content Filter Tabs */}
